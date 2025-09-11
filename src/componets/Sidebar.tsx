@@ -1,24 +1,29 @@
-export default function Sidebar() {
+export default function Sidebar({ onNavigate }) {
     return (
         <aside className="h-full w-50 p-4 bg-amber-900 text-white">
             <h2 className="text-xl font-bold mb-2">Sidebar</h2>
             <ul>
                 <li>
-                    <a href="/demandas" className="text-gray-400 hover:text-white">
+                    <a onClick={() => onNavigate('demandas')} className="text-gray-400 hover:text-white">
                         Demandas
                     </a>
                 </li>
                 <li>
-                    <a href="#" className="text-gray-400 hover:text-white">
-                        Link 2
+                    <a onClick={() => onNavigate('rotas')} className="text-gray-400 hover:text-white">
+                        Rotas
                     </a>
                 </li>
                 <li>
-                    <a href="#" className="text-gray-400 hover:text-white">
-                        Link 3
+                    <a onClick={() => onNavigate('gerenciar')} className="text-gray-400 hover:text-white">
+                        Gerenciar
+                    </a>
+                </li>
+                <li>
+                    <a onClick={() => onNavigate('relatorios')} className="text-gray-400 hover:text-white">
+                        Relatórios
                     </a>
                 </li>
             </ul>
-        </aside> 
+        </aside>
     );
 }
