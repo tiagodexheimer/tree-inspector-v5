@@ -4,8 +4,8 @@ export default function Sidebar() {
             <h2 className="text-xl font-bold mb-2">Sidebar</h2>
             <ul>
                 <li>
-                    <a href="#" className="text-gray-400 hover:text-white">
-                        Link 1
+                    <a href="/demandas" className="text-gray-400 hover:text-white">
+                        Demandas
                     </a>
                 </li>
                 <li>
