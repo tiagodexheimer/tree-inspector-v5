@@ -26,10 +26,16 @@ export default function Home() {
 
   return (
     <div className="flex flex-col h-screen w-screen">
-      <div className="flex w-full justify-center">
-        <Header />
-      </div>
-      <div className="flex h-full w-full">
+      <div className="flex w-full justify-center " style={{         position: 'fixed', // Define a posição como fixa
+        top: 0,            // Posiciona no topo da tela
+        left: 0,           // Posiciona na esquerda da tela
+        width: '100%',     // Ocupa toda a largura da tela
+        backgroundColor: 'lightblue', // Cor de fundo para visualização
+        zIndex: 1000       // Garante que ele fique sobre outros elementos 
+        }}>
+        <Header  />
+      </div> 
+      <div className="flex ">
         <Sidebar onNavigate={handleNavigate} />
         <div className="flex w-full text-black" style={{ background: "#F5F5DC" }}>
           {pageContent[currentPage]}
