@@ -1,4 +1,8 @@
-export default function Sidebar({ onNavigate }) {
+interface SidebarProps {
+  onNavigate: (page: 'demandas' | 'rotas' | 'gerenciar' | 'relatorios') => void;
+}
+
+export default function Sidebar({ onNavigate }: SidebarProps) {
     return (
         <aside className=" w-50 p-4 bg-amber-900 text-white" >
             <h2 className="text-xl font-bold mb-2">Sidebar</h2>
