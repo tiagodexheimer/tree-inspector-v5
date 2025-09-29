@@ -17,10 +17,14 @@ const pageContent = {
   relatorios: <RelatoriosPage />
 };
 
-export default function Home() {
-  const [currentPage, setCurrentPage] = useState('home');
+type Page = keyof typeof pageContent;
 
-  const handleNavigate = (page: string) => {
+export default function Home() {
+  const [currentPage, setCurrentPage] = useState<Page>('home');
+
+  
+
+  const handleNavigate = (page: Page) => {
     setCurrentPage(page);
   };
 
