@@ -20,7 +20,7 @@ const pageContent = {
 export default function Home() {
   const [currentPage, setCurrentPage] = useState('home');
 
-  const handleNavigate = (page) => {
+  const handleNavigate = (page: string) => {
     setCurrentPage(page);
   };
 
