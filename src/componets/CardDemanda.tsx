@@ -1,26 +1,84 @@
 import { DemandaType } from "@/types/demanda";
-import { Card, CardHeader, CardContent, Box } from "@mui/material";
+import { Card, CardHeader, CardContent, Box, Typography, Button } from "@mui/material";
 import StatusDemanda from "./StatusDemanda";
+import { useState } from "react";
+import DetalhesDemandaModal from "./DetalhesDemandaModal";
 
-export default function CardDemanda({ ID, endereco, descricao, prazo, status, responsavel, contato }: DemandaType) {
+export default function CardDemanda(props: DemandaType) {
+    const { ID, endereco, descricao, prazo, status } = props;
+
+    const [modalOpen, setModalOpen] = useState(false);
+
+    const handleOpenModal = () => setModalOpen(true);
+    const handleCloseModal = () => setModalOpen(false);
+
     return (
-        <Card sx={{ display: 'flex' }}>
-            <Box>
-                <CardHeader title={`Demanda ${ID}`} />
+        <div>
+            <Card sx={{
+                maxWidth: 500,
+                display: 'flex',
+                flexDirection: 'column'
+            }}>
+                <Box>
+                    <CardHeader title={`Demanda ${ID}`} />
+                    <CardContent>
+                        <Box sx={{
+                            position: 'relative', // Essencial para o posicionamento do filho
+                            paddingTop: '50%',   // 4:3 ratio (3 / 4 = 0.75)
+                            width: '100%',
+                            borderRadius: '4px', // Adiciona bordas arredondadas ao contêiner
+                            overflow: 'hidden'   // Garante que o iframe não "vaze"
+                        }}>
+                            <iframe
+                                src="https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d3453.739454848256!2d-51.14700068488354!3d-29.95726398188318!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x0%3A0x0!2zMjnCsDU3JzI2LjIiUyA1McKwMDgnNDkuMiJX!5e0!3m2!1spt-BR!2sbr!4v1633024888123!5m2!1spt-BR!2sbr"
+                                loading="lazy"
+                                // 2. Posicione o iframe para preencher o contêiner
+                                style={{
+                                    position: 'absolute',
+                                    top: 0,
+                                    left: 0,
+                                    width: '100%',
+                                    height: '100%',
+                                    border: 0
+                                }}
+                            ></iframe>
+                        </Box>
+                    </CardContent>
+                </Box>
                 <CardContent>
-                    <iframe src="https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d5820.233321484434!2d-51.17342536945289!3d-29.85172567581208!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x95196f620f07e6a3%3A0x4dd1278fc2c4a06d!2sR.%20Eng.%20Hener%20de%20Souza%20Nunes%2C%20150%20-%20Centro%2C%20Esteio%20-%20RS%2C%2093260-120!5e0!3m2!1spt-PT!2sbr!4v1757598757116!5m2!1spt-PT!2sbr" width="250" height="200" loading="lazy"></iframe>
+                    <p>Endereço: {endereco}</p>
+                    <Typography
+                        variant="body2"
+                        color="text.secondary"
+                        sx={{
+                            overflow: 'hidden',
+                            textOverflow: 'ellipsis',
+                            display: '-webkit-box',
+                            WebkitLineClamp: '2',
+                            WebkitBoxOrient: 'vertical',
+                            minHeight: '40px' // Garante uma altura mínima para 2 linhas
+                        }}
+                    >
+                        {descricao}
+                    </Typography>
+                    <p>Prazo: {prazo} dias</p>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', margin: '12px 0' }}>
+                        <span><b>Status:</b></span>
+                        <StatusDemanda status={status} />
+                    </div>
+
+
+                    <Button variant="outlined" size="small" onClick={handleOpenModal} sx={{ mt: 1 }}>
+                        Detalhes
+                    </Button>
                 </CardContent>
-            </Box>
-            <CardContent>
-            <p>Endereço: {endereco}</p>
-            <p>Descrição: {descricao}</p>
-            <p>Prazo: {prazo} dias</p>
-            <p>Status: <StatusDemanda status={status} /></p>
-            <p>Responsável: {responsavel}</p>
-            <p>Contato: {contato.nome} - {contato.telefone} - {contato.email} - {contato.endereco}</p>
-            <button className="bg-blue-500 text-white px-4 py-2 rounded">Detalhes</button>
-            <button className="bg-blue-500 text-white px-4 py-2 rounded">Detalhes</button>
-        </CardContent>
-        </Card >
+
+            </Card >
+            <DetalhesDemandaModal
+                open={modalOpen}
+                onClose={handleCloseModal}
+                demanda={ props }
+            />
+        </div>
     );
 }

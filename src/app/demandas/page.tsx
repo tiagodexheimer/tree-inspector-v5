@@ -12,101 +12,66 @@ import { DemandaType } from "@/types/demanda";
 const demandas: DemandaType[] = [
     {
         ID: "1",
-        endereco: "Endereço 1",
-        descricao: "Descrição 1",
+        endereco: "Rua das Flores, 123, Centro",
+        descricao: "Poda de galho que ameaça a fiação. a demanda se extende por mais de duas linhas para testar o corte de texto na descrição do card. Por isto é importante que o texto seja cortado corretamente.",
         prazo: 7,
         status: "Pendente",
-        responsavel: "Responsável 1",
-        contato: {
-            nome: "Contato 1",
-            telefone: "Telefone 1",
-            email: "Email 1",
-            endereco: "Endereço 1"
-        }
+        responsavel: "João Silva",
+        contato: { nome: "Maria Souza", telefone: "(51) 9999-1111", email: "maria@email.com", endereco: "Rua das Flores, 123" }
     },
     {
         ID: "2",
-        endereco: "Endereço 2",
-        descricao: "Descrição 2",
+        endereco: "Avenida Brasil, 456, Igara",
+        descricao: "Remoção de árvore caída após temporal.",
         prazo: 14,
         status: "Em andamento",
-        responsavel: "Responsável 2",
-        contato: {
-            nome: "Contato 2",
-            telefone: "Telefone 2",
-            email: "Email 2",
-            endereco: "Endereço 2"
-        }
+        responsavel: "Pedro Martins",
+        contato: { nome: "Carlos Pereira", telefone: "(51) 9999-2222", email: "carlos@email.com", endereco: "Avenida Brasil, 456" }
     },
     {
         ID: "3",
-        endereco: "Endereço 3",
-        descricao: "Descrição 3",
+        endereco: "Rua dos Pinheiros, 789, Marechal Rondon",
+        descricao: "Análise de fitossanidade de ipê.",
         prazo: 30,
         status: "Concluído",
-        responsavel: "Responsável 3",
-        contato: {
-            nome: "Contato 3",
-            telefone: "Telefone 3",
-            email: "Email 3",
-            endereco: "Endereço 3"
-        }
+        responsavel: "Ana Costa",
+        contato: { nome: "Lucia Almeida", telefone: "(51) 9999-3333", email: "lucia@email.com", endereco: "Rua dos Pinheiros, 789" }
     },
     {
-        ID: "4",
-        endereco: "Endereço 4",
-        descricao: "Descrição 4",
+        ID: "4", // ID único
+        endereco: "Travessa Estrela, 10, Niterói",
+        descricao: "Poda de contenção em sibipiruna.",
         prazo: 60,
         status: "Pendente",
-        responsavel: "Responsável 4",
-        contato: {
-            nome: "Contato 4",
-            telefone: "Telefone 4",
-            email: "Email 4",
-            endereco: "Endereço 4"
-        }
+        responsavel: "João Silva",
+        contato: { nome: "Roberto Lima", telefone: "(51) 9999-4444", email: "roberto@email.com", endereco: "Travessa Estrela, 10" }
     },
     {
-        ID: "5",
-        endereco: "Endereço 5",
-        descricao: "Descrição 5",
-        prazo: 60,
+        ID: "5", // ID único
+        endereco: "Rua da República, 20, Centro",
+        descricao: "Avaliação de risco de queda de eucalipto.",
+        prazo: 20,
         status: "Pendente",
-        responsavel: "Responsável 5",
-        contato: {
-            nome: "Contato 5",
-            telefone: "Telefone 5",
-            email: "Email 5",
-            endereco: "Endereço 5"
-        }
+        responsavel: "Mariana Dias",
+        contato: { nome: "Fernanda Rocha", telefone: "(51) 9999-5555", email: "fernanda@email.com", endereco: "Rua da República, 20" }
     },
     {
-        ID: "6",
-        endereco: "Endereço 6",
-        descricao: "Descrição 6",
-        prazo: 60,
-        status: "Pendente",
-        responsavel: "Responsável 6",
-        contato: {
-            nome: "Contato 6",
-            telefone: "Telefone 6",
-            email: "Email 6",
-            endereco: "Endereço 6"
-        }
+        ID: "6", // ID único
+        endereco: "Avenida Getúlio Vargas, 300, Centro",
+        descricao: "Supressão de ligustro invasor.",
+        prazo: 15,
+        status: "Em andamento",
+        responsavel: "Pedro Martins",
+        contato: { nome: "José Santos", telefone: "(51) 9999-6666", email: "jose@email.com", endereco: "Avenida Getúlio Vargas, 300" }
     },
     {
-        ID: "7",
-        endereco: "Endereço 7",
-        descricao: "Descrição 7",
-        prazo: 60,
-        status: "Pendente",
-        responsavel: "Responsável 7",
-        contato: {
-            nome: "Contato 7",
-            telefone: "Telefone 7",
-            email: "Email 7",
-            endereco: "Endereço 7"
-        }
+        ID: "7", // ID único
+        endereco: "Rua Sete de Setembro, 40, Igara",
+        descricao: "Plantio de nova muda em calçada.",
+        prazo: 10,
+        status: "Concluído",
+        responsavel: "Ana Costa",
+        contato: { nome: "Beatriz Mello", telefone: "(51) 9999-7777", email: "beatriz@email.com", endereco: "Rua Sete de Setembro, 40" }
     }
 ];
 
@@ -114,7 +79,6 @@ const demandas: DemandaType[] = [
 export default function DemandasPage() {
     const [viewMode, setViewMode] = useState('card');
     const [filtro, setFiltro] = useState('');
-    const [loading, setLoading] = useState(true);
 
     const demandasFiltradas = useMemo(() => {
         const filtroLowerCase = filtro.toLowerCase();
@@ -201,11 +165,6 @@ export default function DemandasPage() {
                     <ViewListIcon />
                 </IconButton>
             </div>
-            {viewMode === 'card' ? (
-                <ListaCardDemanda demandas={demandasFiltradas} />
-            ) : (
-                <ListaListDemanda demandas={demandasFiltradas} />
-            )}
             {demandasFiltradas.length > 0 ? (
                 // Se houver demandas, mostre a visualização normal
                 viewMode === 'card' ? (
