@@ -37,10 +37,9 @@ export default function Home() {
         <div className="fixed top-12 left-0 h-screen z-20">
           <Sidebar onNavigate={handleNavigate} />
         </div>
-
-          <div className="w-full text-black" style={{ background: "#F5F5DC"  }}>
-            {pageContent[currentPage]}
-          </div>
+        <div className="w-full text-black" style={{ background: "#F5F5DC" }}>
+          {pageContent[currentPage]}
+        </div>
       </div>
     </div>
   );
