@@ -112,16 +112,16 @@ const demandas: DemandaType[] = [
 export default function DemandasPage() {
     const [viewMode, setViewMode] = useState('card');
     const [filtro, setFiltro] = useState('');
-const demandasFiltradas = useMemo(() => {
+    const demandasFiltradas = useMemo(() => {
         const filtroLowerCase = filtro.toLowerCase();
 
         if (!filtroLowerCase) {
             return demandas; // Se o filtro estiver vazio, retorna a lista completa
         }
 
-        return demandas.filter(demanda => 
+        return demandas.filter(demanda =>
             demanda.endereco.toLowerCase().includes(filtroLowerCase) ||
-            demanda.contato.nome.toLowerCase().includes(filtroLowerCase)  ||
+            demanda.contato.nome.toLowerCase().includes(filtroLowerCase) ||
             demanda.descricao.toLowerCase().includes(filtroLowerCase)
         );
     }, [filtro]); // A lista só será recalculada se 'filtro' ou 'demandas' mudar
@@ -132,17 +132,43 @@ const demandasFiltradas = useMemo(() => {
             <h1 className="text-2xl font-bold mb-4" style={{ margin: "16px" }}>Demandas Page</h1>
 
             <div>
-                <Button>Adicionar</Button>
-                <Button>Importar em massa</Button>
-                <Button>Importar PDF</Button>
-                <TextField 
-                    label="Filtrar por end, desc ou solicitante" 
-                    variant="outlined" 
+                <Button
+                    variant="contained" // Define o botão com um fundo sólido
+                    sx={{
+                        backgroundColor: '#4CAF50', // Sua cor verde
+                        '&:hover': {
+                            backgroundColor: '#81C784' // Uma cor um pouco mais escura para o efeito hover
+                        }, mx: 1
+                    }}
+                >
+                    Adicionar
+                </Button>
+                                <Button
+                    variant="contained" // Define o botão com um fundo sólido
+                    sx={{
+                        backgroundColor: '#4CAF50', // Sua cor verde
+                        '&:hover': {
+                            backgroundColor: '#81C784' // Uma cor um pouco mais escura para o efeito hover
+                        }, mx: 1
+                    }}
+                >Importar em massa</Button>
+                <Button
+                    variant="contained"
+                    sx={{
+                        backgroundColor: '#4CAF50',
+                        '&:hover': {
+                            backgroundColor: '#81C784'
+                        }, mx: 1
+                    }}
+                >Importar PDF</Button>
+                <TextField
+                    label="Filtrar por end, desc ou solicitante"
+                    variant="outlined"
                     size="small"
                     value={filtro}
                     onChange={(e) => setFiltro(e.target.value)}
-                    sx={{ 
-                        flexGrow: 1, 
+                    sx={{
+                        flexGrow: 1,
                         maxWidth: 400,
                         // 1. Estilo para o label quando o campo está focado
                         '& label.Mui-focused': {
