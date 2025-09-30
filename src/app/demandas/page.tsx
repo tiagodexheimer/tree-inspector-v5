@@ -1,10 +1,10 @@
 'use client';
 import ListaCardDemanda from "@/componets/ListaCardDemanda";
 import ListaListDemanda from "@/componets/ListaListDemanda";
-import { IconButton } from "@mui/material";
+import { Button, IconButton, TextField } from "@mui/material";
 import ViewListIcon from '@mui/icons-material/ViewList';
 import ViewModuleIcon from '@mui/icons-material/ViewModule';
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { DemandaType } from "@/types/demanda";
 
 const demandas: DemandaType[] = [
@@ -111,34 +111,71 @@ const demandas: DemandaType[] = [
 
 export default function DemandasPage() {
     const [viewMode, setViewMode] = useState('card');
+    const [filtro, setFiltro] = useState('');
+const demandasFiltradas = useMemo(() => {
+        const filtroLowerCase = filtro.toLowerCase();
+
+        if (!filtroLowerCase) {
+            return demandas; // Se o filtro estiver vazio, retorna a lista completa
+        }
+
+        return demandas.filter(demanda => 
+            demanda.endereco.toLowerCase().includes(filtroLowerCase) ||
+            demanda.contato.nome.toLowerCase().includes(filtroLowerCase)  ||
+            demanda.descricao.toLowerCase().includes(filtroLowerCase)
+        );
+    }, [filtro]); // A lista só será recalculada se 'filtro' ou 'demandas' mudar
+
+
     return (
         <div>
             <h1 className="text-2xl font-bold mb-4" style={{ margin: "16px" }}>Demandas Page</h1>
 
             <div>
-<IconButton
-                        onClick={() => setViewMode('card')}
-                        sx={{ color: viewMode === 'card' ? '#81C784' : 'default' }}
-                    >
-                        <ViewModuleIcon />
-                    </IconButton>
+                <Button>Adicionar</Button>
+                <Button>Importar em massa</Button>
+                <Button>Importar PDF</Button>
+                <TextField 
+                    label="Filtrar por end, desc ou solicitante" 
+                    variant="outlined" 
+                    size="small"
+                    value={filtro}
+                    onChange={(e) => setFiltro(e.target.value)}
+                    sx={{ 
+                        flexGrow: 1, 
+                        maxWidth: 400,
+                        // 1. Estilo para o label quando o campo está focado
+                        '& label.Mui-focused': {
+                            color: '#81C784',
+                        },
+                        // 2. Estilo para a borda do campo quando está focado
+                        '& .MuiOutlinedInput-root': {
+                            '&.Mui-focused fieldset': {
+                                borderColor: '#81C784',
+                            },
+                        },
+                    }}
+                />
+                <IconButton
+                    onClick={() => setViewMode('card')}
+                    sx={{ color: viewMode === 'card' ? '#81C784' : 'default' }}
+                >
+                    <ViewModuleIcon />
+                </IconButton>
 
-                    {/* Botão para visão de Lista */}
-                    <IconButton
-                        onClick={() => setViewMode('list')}
-                        // E aqui também
-                        sx={{ color: viewMode === 'list' ? '#81C784' : 'default' }}
-                    >
-                        <ViewListIcon />
-                    </IconButton>
+                {/* Botão para visão de Lista */}
+                <IconButton
+                    onClick={() => setViewMode('list')}
+                    sx={{ color: viewMode === 'list' ? '#81C784' : 'default' }}
+                >
+                    <ViewListIcon />
+                </IconButton>
             </div>
             {viewMode === 'card' ? (
-                <ListaCardDemanda demandas={demandas} />
+                <ListaCardDemanda demandas={demandasFiltradas} />
             ) : (
-                <ListaListDemanda demandas={demandas} />
+                <ListaListDemanda demandas={demandasFiltradas} />
             )}
-            
-            {/* <CardDemanda demandas={demandas} /> */}
         </div>
     );
 }
