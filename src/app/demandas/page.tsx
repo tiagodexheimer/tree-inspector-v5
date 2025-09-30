@@ -1,11 +1,13 @@
 'use client';
 import ListaCardDemanda from "@/componets/ListaCardDemanda";
 import ListaListDemanda from "@/componets/ListaListDemanda";
-import { Button, IconButton, TextField } from "@mui/material";
+import { Box, Button, IconButton, TextField, Typography } from "@mui/material";
 import ViewListIcon from '@mui/icons-material/ViewList';
 import ViewModuleIcon from '@mui/icons-material/ViewModule';
 import { useMemo, useState } from "react";
+import InfoOutlinedIcon from '@mui/icons-material/InfoOutlined';
 import { DemandaType } from "@/types/demanda";
+
 
 const demandas: DemandaType[] = [
     {
@@ -112,6 +114,8 @@ const demandas: DemandaType[] = [
 export default function DemandasPage() {
     const [viewMode, setViewMode] = useState('card');
     const [filtro, setFiltro] = useState('');
+    const [loading, setLoading] = useState(true);
+
     const demandasFiltradas = useMemo(() => {
         const filtroLowerCase = filtro.toLowerCase();
 
@@ -143,7 +147,7 @@ export default function DemandasPage() {
                 >
                     Adicionar
                 </Button>
-                                <Button
+                <Button
                     variant="contained" // Define o botão com um fundo sólido
                     sx={{
                         backgroundColor: '#4CAF50', // Sua cor verde
@@ -201,6 +205,34 @@ export default function DemandasPage() {
                 <ListaCardDemanda demandas={demandasFiltradas} />
             ) : (
                 <ListaListDemanda demandas={demandasFiltradas} />
+            )}
+            {demandasFiltradas.length > 0 ? (
+                // Se houver demandas, mostre a visualização normal
+                viewMode === 'card' ? (
+                    <ListaCardDemanda demandas={demandasFiltradas} />
+                ) : (
+                    <ListaListDemanda demandas={demandasFiltradas} />
+                )
+            ) : (
+                // Se NÃO houver demandas, mostre o estado vazio
+                <Box
+                    sx={{
+                        display: 'flex',
+                        flexDirection: 'column',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        height: '50vh', // Ocupa uma boa parte da altura da tela
+                        color: 'grey.600', // Um tom de cinza
+                    }}
+                >
+                    <InfoOutlinedIcon sx={{ fontSize: 60, mb: 2 }} />
+                    <Typography variant="h6">
+                        Nenhuma demanda encontrada
+                    </Typography>
+                    <Typography variant="body2">
+                        {filtro ? "Tente ajustar os termos da sua busca." : "Aguardando novas solicitações."}
+                    </Typography>
+                </Box>
             )}
         </div>
     );
