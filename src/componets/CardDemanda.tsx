@@ -15,12 +15,27 @@ export default function CardDemanda(props: DemandaType) {
     return (
         <div>
             <Card sx={{
-                maxWidth: 500,
+                width: 400, 
+                height: 500,
                 display: 'flex',
-                flexDirection: 'column'
+                flexDirection: 'column',
+                justifyContent: 'space-between'
             }}>
                 <Box>
-                    <CardHeader title={`Demanda ${ID}`} />
+                    <CardHeader 
+                    title={`Demanda ${ID}`} 
+                    subheader={endereco}
+                    // 1. Adicione a propriedade 'action'
+                    action={
+                        <StatusDemanda status={status} />
+                    }
+                    sx={{ 
+                        pb: 0,
+                        // Alinha o status no topo, caso o título quebre em duas linhas
+                        alignItems: 'flex-start'
+                    }}
+                />
+
                     <CardContent>
                         <Box sx={{
                             position: 'relative', // Essencial para o posicionamento do filho
@@ -62,10 +77,7 @@ export default function CardDemanda(props: DemandaType) {
                         {descricao}
                     </Typography>
                     <p>Prazo: {prazo} dias</p>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', margin: '12px 0' }}>
-                        <span><b>Status:</b></span>
-                        <StatusDemanda status={status} />
-                    </div>
+
 
 
                     <Button variant="outlined" size="small" onClick={handleOpenModal} sx={{ mt: 1 }}>
