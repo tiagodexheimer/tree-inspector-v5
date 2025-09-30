@@ -1,6 +1,6 @@
-import CardDemanda from "@/componets/CardDemanda";
+import ListaCardDemanda from "@/componets/ListaCardDemanda";
 import ListaListDemanda from "@/componets/ListaListDemanda";
-import { List } from "@mui/material";
+import ListDemanda from "@/componets/ListDemanda";
 
 const demandas = [
     {
@@ -60,45 +60,45 @@ const demandas = [
         }
     },
     {
-        ID: "4",
-        endereco: "Endereço 4",
-        descricao: "Descrição 4",
+        ID: "5",
+        endereco: "Endereço 5",
+        descricao: "Descrição 5",
         prazo: 60,
         status: "Pendente",
-        responsavel: "Responsável 4",
+        responsavel: "Responsável 5",
         contato: {
-            nome: "Contato 4",
-            telefone: "Telefone 4",
-            email: "Email 4",
-            endereco: "Endereço 4"
+            nome: "Contato 5",
+            telefone: "Telefone 5",
+            email: "Email 5",
+            endereco: "Endereço 5"
         }
     },
     {
-        ID: "4",
-        endereco: "Endereço 4",
-        descricao: "Descrição 4",
+        ID: "6",
+        endereco: "Endereço 6",
+        descricao: "Descrição 6",
         prazo: 60,
         status: "Pendente",
-        responsavel: "Responsável 4",
+        responsavel: "Responsável 6",
         contato: {
-            nome: "Contato 4",
-            telefone: "Telefone 4",
-            email: "Email 4",
-            endereco: "Endereço 4"
+            nome: "Contato 6",
+            telefone: "Telefone 6",
+            email: "Email 6",
+            endereco: "Endereço 6"
         }
     },
     {
-        ID: "4",
-        endereco: "Endereço 4",
-        descricao: "Descrição 4",
+        ID: "7",
+        endereco: "Endereço 7",
+        descricao: "Descrição 7",
         prazo: 60,
         status: "Pendente",
-        responsavel: "Responsável 4",
+        responsavel: "Responsável 7",
         contato: {
-            nome: "Contato 4",
-            telefone: "Telefone 4",
-            email: "Email 4",
-            endereco: "Endereço 4"
+            nome: "Contato 7",
+            telefone: "Telefone 7",
+            email: "Email 7",
+            endereco: "Endereço 7"
         }
     }
 ];
@@ -107,8 +107,9 @@ const demandas = [
 export default function DemandasPage() {
     return (
         <div>
-            <ListaListDemanda demandas={demandas} />
             <h1 className="text-2xl font-bold mb-4" style={{ margin: "16px" }}>Demandas Page</h1>
+            <ListaCardDemanda demandas={demandas} />
+            
             {/* <CardDemanda demandas={demandas} /> */}
         </div>
     );

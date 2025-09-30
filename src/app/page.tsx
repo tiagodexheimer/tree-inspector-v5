@@ -29,8 +29,8 @@ export default function Home() {
   };
 
   return (
-    <div className="flex flex-col">
-      <div className="flex fixed w-full z-10">
+    <div className="flex flex-col h-screen-full">
+      <div className="flex fixed top-0 w-full">
         <Header />
       </div>
       <div className="flex  h-full">

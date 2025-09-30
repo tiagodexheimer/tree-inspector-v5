@@ -1,21 +1,7 @@
-import { Card, CardHeader, CardContent, Link, Box } from "@mui/material";
+import { DemandaType } from "@/types/demanda";
+import { Card, CardHeader, CardContent, Box } from "@mui/material";
 
-interface iDemandaProps {
-    ID: string;
-    endereco: string;
-    descricao: string;
-    prazo: number;
-    status: string;
-    responsavel: string;
-    contato: {
-        nome: string;
-        telefone: string;
-        email: string;
-        endereco: string;
-    };
-}
-
-export default function CardDemanda({ ID, endereco, descricao, prazo, status, responsavel, contato }: iDemandaProps) {
+export default function CardDemanda({ ID, endereco, descricao, prazo, status, responsavel, contato }: DemandaType) {
     return (
         <Card sx={{ display: 'flex' }}>
             <Box>

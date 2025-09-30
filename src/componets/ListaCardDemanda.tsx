@@ -1,8 +1,11 @@
 import { DemandaType } from "@/types/demanda";
 import CardDemanda from "./CardDemanda";
 
+interface ListDemandaProps {
+    demandas: DemandaType[];
+}
 
-export default function ListaCardDemanda({ demandas }: { demandas: DemandaType[] }){
+export default function ListaCardDemanda({ demandas }: ListDemandaProps){
     return (
             <div className="flex flex-wrap gap-4" style={{ padding: "16px" }}>
                 {demandas.map((demanda) => (
