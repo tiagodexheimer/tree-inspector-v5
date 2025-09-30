@@ -1,15 +1,20 @@
+'use client';
 import { DemandaType } from "@/types/demanda";
-import CardDemanda from "./CardDemanda";
-import ListDemanda from "./ListDemanda";
-import { TableContainer, Table, TableHead, TableRow, TableCell, TableBody, Paper, List, ListItem, ListItemText } from "@mui/material";
+import { TableContainer, Table, TableHead, TableRow, TableCell, TableBody, Paper, List, ListItem, ListItemText, IconButton } from "@mui/material";
+import ViewListIcon from '@mui/icons-material/ViewList';
+import ViewModuleIcon from '@mui/icons-material/ViewModule';
+import { useState } from "react";
 
 interface ListDemandaProps {
     demandas: DemandaType[];
 }
 
 export default function ListaListDemanda({ demandas }: ListDemandaProps) {
+    const [viewMode, setViewMode] = useState("list");
+
     return (
         <div className="flex flex-wrap gap-4" style={{ padding: "16px" }}>
+
             <TableContainer component={Paper}>
                 <Table>
                     <TableHead>

@@ -1,7 +1,9 @@
+'use client';
 import ListaCardDemanda from "@/componets/ListaCardDemanda";
 import ListaListDemanda from "@/componets/ListaListDemanda";
-import ListDemanda from "@/componets/ListDemanda";
-
+import { IconButton } from "@mui/material";
+import ViewListIcon from '@mui/icons-material/ViewList';
+import ViewModuleIcon from '@mui/icons-material/ViewModule';
 const demandas = [
     {
         ID: "1",
@@ -103,12 +105,35 @@ const demandas = [
     }
 ];
 
+import { useState } from "react";
 
 export default function DemandasPage() {
+    const [viewMode, setViewMode] = useState('card');
     return (
         <div>
             <h1 className="text-2xl font-bold mb-4" style={{ margin: "16px" }}>Demandas Page</h1>
-            <ListaCardDemanda demandas={demandas} />
+            <div>
+<IconButton
+                        onClick={() => setViewMode('card')}
+                        sx={{ color: viewMode === 'card' ? '#81C784' : 'default' }}
+                    >
+                        <ViewModuleIcon />
+                    </IconButton>
+
+                    {/* Botão para visão de Lista */}
+                    <IconButton
+                        onClick={() => setViewMode('list')}
+                        // E aqui também
+                        sx={{ color: viewMode === 'list' ? '#81C784' : 'default' }}
+                    >
+                        <ViewListIcon />
+                    </IconButton>
+            </div>
+            {viewMode === 'card' ? (
+                <ListaCardDemanda demandas={demandas} />
+            ) : (
+                <ListaListDemanda demandas={demandas} />
+            )}
             
             {/* <CardDemanda demandas={demandas} /> */}
         </div>
