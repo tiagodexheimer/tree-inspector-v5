@@ -1,6 +1,6 @@
 import { Card, CardHeader, CardContent, Link, Box } from "@mui/material";
 
-interface iCardDemandaProps {
+interface iDemandaProps {
     ID: string;
     endereco: string;
     descricao: string;
@@ -15,7 +15,7 @@ interface iCardDemandaProps {
     };
 }
 
-export default function CardDemanda({ ID, endereco, descricao, prazo, status, responsavel, contato }: iCardDemandaProps) {
+export default function CardDemanda({ ID, endereco, descricao, prazo, status, responsavel, contato }: iDemandaProps) {
     return (
         <Card sx={{ display: 'flex' }}>
             <Box>

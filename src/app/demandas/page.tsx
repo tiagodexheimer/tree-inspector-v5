@@ -1,5 +1,6 @@
 import CardDemanda from "@/componets/CardDemanda";
-import { Card, CardHeader, CardContent } from "@mui/material";
+import ListaListDemanda from "@/componets/ListaListDemanda";
+import { List } from "@mui/material";
 
 const demandas = [
     {
@@ -57,6 +58,48 @@ const demandas = [
             email: "Email 4",
             endereco: "Endereço 4"
         }
+    },
+    {
+        ID: "4",
+        endereco: "Endereço 4",
+        descricao: "Descrição 4",
+        prazo: 60,
+        status: "Pendente",
+        responsavel: "Responsável 4",
+        contato: {
+            nome: "Contato 4",
+            telefone: "Telefone 4",
+            email: "Email 4",
+            endereco: "Endereço 4"
+        }
+    },
+    {
+        ID: "4",
+        endereco: "Endereço 4",
+        descricao: "Descrição 4",
+        prazo: 60,
+        status: "Pendente",
+        responsavel: "Responsável 4",
+        contato: {
+            nome: "Contato 4",
+            telefone: "Telefone 4",
+            email: "Email 4",
+            endereco: "Endereço 4"
+        }
+    },
+    {
+        ID: "4",
+        endereco: "Endereço 4",
+        descricao: "Descrição 4",
+        prazo: 60,
+        status: "Pendente",
+        responsavel: "Responsável 4",
+        contato: {
+            nome: "Contato 4",
+            telefone: "Telefone 4",
+            email: "Email 4",
+            endereco: "Endereço 4"
+        }
     }
 ];
 
@@ -64,14 +107,9 @@ const demandas = [
 export default function DemandasPage() {
     return (
         <div>
+            <ListaListDemanda demandas={demandas} />
             <h1 className="text-2xl font-bold mb-4" style={{ margin: "16px" }}>Demandas Page</h1>
-            <div className="flex flex-wrap gap-4" style={{ padding: "16px" }}>
-                {demandas.map((demanda) => (
-                    <CardDemanda key={demanda.ID} ID={demanda.ID} endereco={demanda.endereco} descricao={demanda.descricao} prazo={demanda.prazo} status={demanda.status} responsavel={demanda.responsavel} contato={demanda.contato} />
-                ))}
-
-            </div>
-
+            {/* <CardDemanda demandas={demandas} /> */}
         </div>
     );
 }

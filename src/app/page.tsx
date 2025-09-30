@@ -22,25 +22,21 @@ type Page = keyof typeof pageContent;
 export default function Home() {
   const [currentPage, setCurrentPage] = useState<Page>('home');
 
-  
+
 
   const handleNavigate = (page: Page) => {
     setCurrentPage(page);
   };
 
   return (
-    <div className="flex flex-col h-screen w-screen">
-      <div className="flex w-full justify-center " style={{         position: 'fixed', // Define a posição como fixa
-        top: 0,            // Posiciona no topo da tela
-        left: 0,           // Posiciona na esquerda da tela
-        width: '100%',     // Ocupa toda a largura da tela
-        backgroundColor: 'lightblue', // Cor de fundo para visualização
-        zIndex: 1000       // Garante que ele fique sobre outros elementos 
-        }}>
-        <Header  />
-      </div> 
-      <div className="flex ">
-        <Sidebar onNavigate={handleNavigate} />
+    <div className="flex flex-col">
+      <div className="flex fixed w-full z-10">
+        <Header />
+      </div>
+      <div className="flex  h-full">
+        <div className="flex">
+          <Sidebar onNavigate={handleNavigate} />
+        </div>
         <div className="flex w-full text-black" style={{ background: "#F5F5DC" }}>
           {pageContent[currentPage]}
         </div>
