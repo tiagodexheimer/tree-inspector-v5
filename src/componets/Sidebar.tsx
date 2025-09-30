@@ -4,7 +4,7 @@ interface SidebarProps {
 
 export default function Sidebar({ onNavigate }: SidebarProps) {
     return (
-        <aside className=" w-50 p-4 bg-amber-900 text-white" >
+        <aside className=" w-56 h-full p-4 bg-amber-900 text-white" >
             <h2 className="text-xl font-bold mb-2">Sidebar</h2>
             <ul>
                 <li>

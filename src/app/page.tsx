@@ -30,16 +30,17 @@ export default function Home() {
 
   return (
     <div className="flex flex-col min-h-screen">
-      <div className="flex fixed top-0 w-full">
+      <div className="fixed top-0 left-0 w-full z-30">
         <Header />
       </div>
-      <div className="flex flex-grow mt-12">
-        <div className="flex">
+      <div className="relative z-0 flex flex-grow mt-12">
+        <div className="fixed top-12 left-0 h-screen z-20">
           <Sidebar onNavigate={handleNavigate} />
         </div>
-        <div className="flex w-full text-black" style={{ background: "#F5F5DC" }}>
-          {pageContent[currentPage]}
-        </div>
+
+          <div className="w-full text-black" style={{ background: "#F5F5DC"  }}>
+            {pageContent[currentPage]}
+          </div>
       </div>
     </div>
   );
