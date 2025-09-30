@@ -1,9 +1,12 @@
-type DemandaType = {
+
+export type Status = 'Pendente' | 'Em andamento' | 'Concluído';
+
+export type DemandaType = {
     ID: string;
     endereco: string;
     descricao: string;
     prazo: number;
-    status: string;
+    status: Status;
     responsavel: string;
     contato: {
         nome: string;
@@ -12,4 +15,3 @@ type DemandaType = {
         endereco: string;
     };
 };
-export type { DemandaType };

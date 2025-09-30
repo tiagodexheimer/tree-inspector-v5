@@ -1,16 +1,13 @@
 'use client';
 import { DemandaType } from "@/types/demanda";
-import { TableContainer, Table, TableHead, TableRow, TableCell, TableBody, Paper, List, ListItem, ListItemText, IconButton } from "@mui/material";
-import ViewListIcon from '@mui/icons-material/ViewList';
-import ViewModuleIcon from '@mui/icons-material/ViewModule';
-import { useState } from "react";
+import { TableContainer, Table, TableHead, TableRow, TableCell, TableBody, Paper } from "@mui/material";
+import StatusDemanda from "./StatusDemanda";
 
 interface ListDemandaProps {
     demandas: DemandaType[];
 }
 
 export default function ListaListDemanda({ demandas }: ListDemandaProps) {
-    const [viewMode, setViewMode] = useState("list");
 
     return (
         <div className="flex flex-wrap gap-4" style={{ padding: "16px" }}>
@@ -35,7 +32,7 @@ export default function ListaListDemanda({ demandas }: ListDemandaProps) {
                             <TableCell size="small">{demanda.endereco}</TableCell>
                             <TableCell size="small">{demanda.descricao}</TableCell>
                             <TableCell size="small">{demanda.prazo}</TableCell>
-                            <TableCell size="small">{demanda.status}</TableCell>
+                            <TableCell size="small"><StatusDemanda status={demanda.status} /></TableCell>
                             <TableCell size="small">{demanda.responsavel}</TableCell>
                              <TableCell>{demanda.contato.telefone}</TableCell>
                              <TableCell>{demanda.contato.nome}</TableCell>

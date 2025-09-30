@@ -1,4 +1,4 @@
-import { List, ListItem, ListItemText, TableContainer, Table, TableBody, TableCell, TableHead, TableRow } from "@mui/material";
+import { List, ListItem, ListItemText, TableCell, TableRow } from "@mui/material";
 import { DemandaType } from "@/types/demanda";
 
 type iDemandaProps = DemandaType

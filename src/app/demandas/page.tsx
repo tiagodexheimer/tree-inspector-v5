@@ -4,7 +4,10 @@ import ListaListDemanda from "@/componets/ListaListDemanda";
 import { IconButton } from "@mui/material";
 import ViewListIcon from '@mui/icons-material/ViewList';
 import ViewModuleIcon from '@mui/icons-material/ViewModule';
-const demandas = [
+import { useState } from "react";
+import { DemandaType } from "@/types/demanda";
+
+const demandas: DemandaType[] = [
     {
         ID: "1",
         endereco: "Endereço 1",
@@ -105,13 +108,13 @@ const demandas = [
     }
 ];
 
-import { useState } from "react";
 
 export default function DemandasPage() {
     const [viewMode, setViewMode] = useState('card');
     return (
         <div>
             <h1 className="text-2xl font-bold mb-4" style={{ margin: "16px" }}>Demandas Page</h1>
+
             <div>
 <IconButton
                         onClick={() => setViewMode('card')}

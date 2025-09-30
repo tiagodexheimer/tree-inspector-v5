@@ -1,5 +1,6 @@
 import { DemandaType } from "@/types/demanda";
 import { Card, CardHeader, CardContent, Box } from "@mui/material";
+import StatusDemanda from "./StatusDemanda";
 
 export default function CardDemanda({ ID, endereco, descricao, prazo, status, responsavel, contato }: DemandaType) {
     return (
@@ -14,7 +15,7 @@ export default function CardDemanda({ ID, endereco, descricao, prazo, status, re
             <p>Endereço: {endereco}</p>
             <p>Descrição: {descricao}</p>
             <p>Prazo: {prazo} dias</p>
-            <p>Status: {status}</p>
+            <p>Status: <StatusDemanda status={status} /></p>
             <p>Responsável: {responsavel}</p>
             <p>Contato: {contato.nome} - {contato.telefone} - {contato.email} - {contato.endereco}</p>
             <button className="bg-blue-500 text-white px-4 py-2 rounded">Detalhes</button>
