@@ -7,6 +7,7 @@ import ViewModuleIcon from '@mui/icons-material/ViewModule';
 import { useMemo, useState } from "react";
 import InfoOutlinedIcon from '@mui/icons-material/InfoOutlined';
 import { DemandaType } from "@/types/demanda";
+import AddDemandaModal from "@/componets/AddDemandaModal";
 
 
 const demandas: DemandaType[] = [
@@ -79,6 +80,7 @@ const demandas: DemandaType[] = [
 export default function DemandasPage() {
     const [viewMode, setViewMode] = useState('card');
     const [filtro, setFiltro] = useState('');
+    const [addModalOpen, setAddModalOpen] = useState(false);
 
     const demandasFiltradas = useMemo(() => {
         const filtroLowerCase = filtro.toLowerCase();
@@ -101,31 +103,28 @@ export default function DemandasPage() {
 
             <div>
                 <Button
-                    variant="contained" // Define o botão com um fundo sólido
-                    sx={{
-                        backgroundColor: '#4CAF50', // Sua cor verde
-                        '&:hover': {
-                            backgroundColor: '#81C784' // Uma cor um pouco mais escura para o efeito hover
-                        }, mx: 1
-                    }}
+                    variant="contained"
+                    sx={{ backgroundColor: '#257e1a', '&:hover': { backgroundColor: '#60b34e' } }}
+                    // 3. Adicione o onClick para abrir o modal
+                    onClick={() => setAddModalOpen(true)}
                 >
                     Adicionar
                 </Button>
                 <Button
                     variant="contained" // Define o botão com um fundo sólido
                     sx={{
-                        backgroundColor: '#4CAF50', // Sua cor verde
+                        backgroundColor: '#257e1a', // Sua cor verde
                         '&:hover': {
-                            backgroundColor: '#81C784' // Uma cor um pouco mais escura para o efeito hover
+                            backgroundColor: '#60b34e' // Uma cor um pouco mais escura para o efeito hover
                         }, mx: 1
                     }}
                 >Importar em massa</Button>
                 <Button
                     variant="contained"
                     sx={{
-                        backgroundColor: '#4CAF50',
+                        backgroundColor: '#257e1a',
                         '&:hover': {
-                            backgroundColor: '#81C784'
+                            backgroundColor: '#60b34e'
                         }, mx: 1
                     }}
                 >Importar PDF</Button>
@@ -193,6 +192,10 @@ export default function DemandasPage() {
                     </Typography>
                 </Box>
             )}
+            <AddDemandaModal
+                open={addModalOpen}
+                onClose={() => setAddModalOpen(false)}
+            />
         </div>
     );
 }

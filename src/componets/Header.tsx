@@ -4,7 +4,7 @@ import MenuIcon from '@mui/icons-material/Menu'
 
 export default function Header() {
     return (
-        <div className='flex w-full justify-betweenitems-center bg-green-700 text-white'>
+        <div className='flex w-full justify-between items-center  text-white' style={{ background: '#257e1a' }}>
             <Toolbar variant="dense" className='w-full flex justify-between shadow-lg'>
             <div>
                 <IconButton edge="start" color="inherit" aria-label="menu">
