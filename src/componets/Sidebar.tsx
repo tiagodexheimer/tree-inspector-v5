@@ -1,8 +1,6 @@
-interface SidebarProps {
-  onNavigate: (page: 'demandas' | 'rotas' | 'gerenciar' | 'relatorios') => void;
-}
+import Link from 'next/link';
 
-export default function Sidebar({ onNavigate }: SidebarProps) {
+export default function Sidebar() {
     return (
        <aside 
             className="w-56 h-full p-4 text-white"
@@ -11,24 +9,24 @@ export default function Sidebar({ onNavigate }: SidebarProps) {
             <h2 className="text-xl font-bold mb-2">Sidebar</h2>
             <ul>
                 <li>
-                    <a onClick={() => onNavigate('demandas')} className="text-stone-300 hover:text-white">
+                    <Link href="/demandas" className="text-stone-300 hover:text-white">
                         Demandas
-                    </a>
+                    </Link>
                 </li>
                 <li>
-                    <a onClick={() => onNavigate('rotas')} className="text-stone-300 hover:text-white">
+                    <Link href="/rotas" className="text-stone-300 hover:text-white">
                         Rotas
-                    </a>
+                    </Link>
                 </li>
                 <li>
-                    <a onClick={() => onNavigate('gerenciar')} className="text-stone-300 hover:text-white">
+                    <Link href="/gerenciar" className="text-stone-300 hover:text-white">
                         Gerenciar
-                    </a>
+                    </Link>
                 </li>
                 <li>
-                    <a onClick={() => onNavigate('relatorios')} className="text-stone-300 hover:text-white">
+                    <Link href="/relatorios" className="text-stone-300 hover:text-white">
                         Relatórios
-                    </a>
+                    </Link>
                 </li>
             </ul>
         </aside>

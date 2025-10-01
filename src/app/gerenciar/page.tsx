@@ -1,4 +1,5 @@
 import { Card } from "@mui/material";
+import ForestIcon from '@mui/icons-material/Forest';
 import Link from "next/link";
 
 export default function GerenciarPage() {
@@ -11,7 +12,8 @@ export default function GerenciarPage() {
 
                 <Card sx={{ width: 250, height: 150 }} className="p-4 mb-4 flex items-center justify-center hover:shadow-lg transition-shadow">
                     <Link href="/gerenciar/especies" className="text-lg font-medium text-blue-600 hover:underline">
-                        Gerenciar Espécies
+                        <p>Gerenciar Espécies</p>
+                        <p><ForestIcon width={60} height={60}/></p>
                     </Link>
                 </Card>
 
