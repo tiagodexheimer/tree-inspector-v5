@@ -9,13 +9,16 @@ export default function GerenciarPage() {
 
             <div className="flex items-center justify-start p-4 gap-8 flex-wrap">
 
+                <Link href="/gerenciar/especies" className="text-xl font-bold text-[#257e1a] no-underline hover:opacity-80">
+                    <Card sx={{ width: 250, height: 150 }} className="p-4 mb-4 flex items-center justify-center hover:shadow-lg transition-shadow">
 
-                <Card sx={{ width: 250, height: 150 }} className="p-4 mb-4 flex items-center justify-center hover:shadow-lg transition-shadow">
-                    <Link href="/gerenciar/especies" className="text-lg font-medium text-blue-600 hover:underline">
-                        <p>Gerenciar Espécies</p>
-                        <p><ForestIcon width={60} height={60}/></p>
-                    </Link>
-                </Card>
+                        <div className="flex flex-col items-center justify-center">
+                            <p>Gerenciar Espécies</p>
+                            <p><ForestIcon sx={{ fontSize: 60, color: '#257e1a' }} /></p>
+                        </div>
+
+                    </Card>
+                </Link>
 
                 <Card sx={{ width: 250, height: 150 }} className="p-4 mb-4 flex items-center justify-center hover:shadow-lg transition-shadow">
                     <Link href="/gerenciar/demandas" className="text-lg font-medium text-blue-600 hover:underline">
