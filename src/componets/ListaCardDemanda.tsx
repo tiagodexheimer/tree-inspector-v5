@@ -3,21 +3,21 @@ import CardDemanda from "./CardDemanda";
 
 interface ListDemandaProps {
     demandas: DemandaType[];
+    selectedDemandas: string[];
+    onSelectDemanda: (id: string) => void;
 }
 
-export default function ListaCardDemanda({ demandas }: ListDemandaProps){
+export default function ListaCardDemanda({ demandas, selectedDemandas, onSelectDemanda }: ListDemandaProps){
     return (
-            <div className="flex flex-wrap gap-4" style={{ padding: "16px" }}>
-                {demandas.map((demanda) => (
-                    <CardDemanda key={demanda.ID} 
-                    ID={demanda.ID} 
-                    endereco={demanda.endereco} 
-                    descricao={demanda.descricao} 
-                    prazo={demanda.prazo} 
-                    status={demanda.status} 
-                    responsavel={demanda.responsavel} 
-                    contato={demanda.contato} />
-                ))}
-            </div>
+        <div className="flex flex-wrap gap-4" style={{ padding: "16px" }}>
+            {demandas.map((demanda) => (
+                <CardDemanda 
+                    key={demanda.ID} 
+                    {...demanda} // Passa todas as props da demanda
+                    isSelected={selectedDemandas.includes(demanda.ID)} // Informa se o card está selecionado
+                    onSelect={onSelectDemanda} // Passa a função de seleção
+                />
+            ))}
+        </div>
     );
 }

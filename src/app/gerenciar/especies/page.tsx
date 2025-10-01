@@ -243,8 +243,11 @@ export default function EspeciesPage() {
       <Dialog open={openDelete} onClose={handleCloseDelete}>
         <DialogTitle>Confirmar Exclusão</DialogTitle>
         <DialogContent>
-          <DialogContentText>
-            Você tem certeza que deseja deletar a espécie &quot;{currentEspecie?.nomeComum}&quot;? Essa ação não poderá ser desfeita.
+          <DialogContentText component="div">
+            Você tem certeza que deseja deletar a espécie &quot;{currentEspecie?.nomeComum}&quot;?
+            <br />
+            <br />
+            <strong>Essa ação não poderá ser desfeita.</strong>
           </DialogContentText>
         </DialogContent>
         <DialogActions>
