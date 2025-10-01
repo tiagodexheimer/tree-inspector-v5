@@ -1,8 +1,11 @@
 export default function Body() {
+    // A tag <main> foi trocada por uma <div>
     return (
-        <main className="flex w-full text-black" style={{ background: "#F5F5DC" }}>
-            <h2>Main Content</h2>
-            <p>This is the main content area.</p>
-        </main>
+        <div className="flex w-full text-black p-4" style={{ background: "#F5F5DC" }}>
+            <div>
+                <h2>Main Content</h2>
+                <p>This is the main content area.</p>
+            </div>
+        </div>
     );
 }
