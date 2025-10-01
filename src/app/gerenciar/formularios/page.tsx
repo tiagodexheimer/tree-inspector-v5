@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { 
     Box, Typography, Paper, TextField, Checkbox, FormControlLabel, Select, MenuItem, 
-    FormControl, InputLabel, Button, IconButton, Accordion, AccordionSummary, AccordionDetails,
+    FormControl, InputLabel, Button, IconButton,
     Tabs, Tab, Table, TableContainer, TableHead, TableBody, TableRow, TableCell
 } from '@mui/material';
 import { DndContext, closestCenter, DragEndEvent, UniqueIdentifier } from '@dnd-kit/core';

@@ -1,8 +1,8 @@
 'use client';
 
 import { 
-    Box, Typography, TextField, FormControlLabel, Checkbox, Select, MenuItem, 
-    Button, FormControl, InputLabel, IconButton, Accordion, AccordionSummary, AccordionDetails 
+    Box, Typography, TextField,
+    Button, IconButton, Accordion, AccordionSummary, AccordionDetails 
 } from '@mui/material';
 import { UniqueIdentifier } from '@dnd-kit/core';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';

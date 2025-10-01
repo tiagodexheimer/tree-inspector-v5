@@ -5,10 +5,11 @@ import { useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import { Paper } from '@mui/material';
 import DragIndicatorIcon from '@mui/icons-material/DragIndicator';
+import { UniqueIdentifier } from '@dnd-kit/core'; // 1. Importando o tipo correto
 
 // Props que o item precisa receber
 interface SortableItemProps {
-    id: any;
+    id: UniqueIdentifier; // 2. Substituímos 'any' pelo tipo 'UniqueIdentifier'
     children: React.ReactNode;
 }
 
