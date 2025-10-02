@@ -8,7 +8,7 @@ import {
 } from '@mui/material';
 import { DndContext, closestCenter, DragEndEvent, UniqueIdentifier } from '@dnd-kit/core';
 import { SortableContext, arrayMove, verticalListSortingStrategy } from '@dnd-kit/sortable';
-import { SortableItem } from '@/componets/dnd/SortableItem';
+import { SortableItem } from '@/components/dnd/SortableItem';
 import AddCircleOutlineIcon from '@mui/icons-material/AddCircleOutline';
 import FormFieldEditor, { FormField, FieldType } from '@/componets/FormFieldEditor';
 import EditIcon from '@mui/icons-material/Edit';
