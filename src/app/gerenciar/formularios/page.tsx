@@ -10,7 +10,7 @@ import { DndContext, closestCenter, DragEndEvent, UniqueIdentifier } from '@dnd-
 import { SortableContext, arrayMove, verticalListSortingStrategy } from '@dnd-kit/sortable';
 import { SortableItem } from '@/components/dnd/SortableItem';
 import AddCircleOutlineIcon from '@mui/icons-material/AddCircleOutline';
-import FormFieldEditor, { FormField, FieldType } from '@/componets/FormFieldEditor';
+import FormFieldEditor, { FormField, FieldType } from '@/components/FormFieldEditor';
 import EditIcon from '@mui/icons-material/Edit';
 import DeleteIcon from '@mui/icons-material/Delete';
 
