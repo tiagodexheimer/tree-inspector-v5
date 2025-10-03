@@ -8,18 +8,46 @@ import {
   Fade,
   Paper,
   IconButton,
+  Button,
+  Card,
 } from "@mui/material";
 import { useState } from "react";
 
 import ChangeHistoryIcon from "@mui/icons-material/ChangeHistory"; // Ícone de triângulo (Voltar)
 import RadioButtonUncheckedIcon from "@mui/icons-material/RadioButtonUnchecked"; // Ícone de círculo (Home)
 import CropSquareIcon from "@mui/icons-material/CropSquare"; // Ícone de quadrado (Apps Recentes)
+import RenderFormField from "@/components/RenderFormField";
+import { FormField } from "@/types/demanda";
 
 interface TabPanelProps {
   children?: React.ReactNode;
   index: number;
   value: number;
 }
+
+const camposDeExemplo: FormField[] = [
+  {
+    id: "ex1",
+    type: "input",
+    label: "Nome do Vistoriador",
+    placeholder: "Digite seu nome completo",
+  },
+  {
+    id: "ex2",
+    type: "select",
+    label: "Condição da Árvore",
+    placeholder: "",
+    options: ["Saudável", "Com Pragas", "Morta"],
+  },
+  {
+    id: "ex3",
+    type: "checkbox",
+    label: "Documentos Anexados",
+    placeholder: "",
+    options: ["ART", "Laudo Antigo", "Fotos"],
+  },
+  { id: "ex4", type: "switch", label: "Requer Ação Urgente?", placeholder: "" },
+];
 
 function TabPanel(props: TabPanelProps) {
   const { children, value, index } = props;
@@ -80,8 +108,15 @@ export default function FormulariosPage() {
                 Campos Disponíveis
               </Typography>
               <Typography variant="body2" color="text.secondary">
-                (Aqui ficarão os componentes arrastáveis como Input, Checkbox,
-                etc.)
+                <Box component="form" className=" space-y-2">
+                  {camposDeExemplo.map((campo) => (
+                    <Card key={campo.id} variant="outlined" className="p-2">
+                      <RenderFormField field={campo} />
+                    </Card>
+                  ))}
+
+                  <Button>Salvar Laudo</Button>
+                </Box>
               </Typography>
             </Paper>
 
