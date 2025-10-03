@@ -13,7 +13,6 @@ import {
   FormLabel,
   FormGroup,
   Typography,
-  Box,
 } from "@mui/material";
 
 // O componente recebe um 'field' e (opcionalmente) um 'value' e uma função 'onChange'
