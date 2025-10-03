@@ -1,154 +1,185 @@
-'use client';
+"use client";
+import ListaFormularios from "@/components/ListaFormularios";
+import {
+  Box,
+  Tabs,
+  Tab,
+  Typography,
+  Fade,
+  Paper,
+  IconButton,
+} from "@mui/material";
+import { useState } from "react";
 
-import { useState } from 'react';
-import { 
-    Box, Typography, Paper, TextField, Checkbox, FormControlLabel, Select, MenuItem, 
-    FormControl, InputLabel, Button, IconButton,
-    Tabs, Tab, Table, TableContainer, TableHead, TableBody, TableRow, TableCell
-} from '@mui/material';
-import { DndContext, closestCenter, DragEndEvent, UniqueIdentifier } from '@dnd-kit/core';
-import { SortableContext, arrayMove, verticalListSortingStrategy } from '@dnd-kit/sortable';
-import { SortableItem } from '@/components/dnd/SortableItem';
-import AddCircleOutlineIcon from '@mui/icons-material/AddCircleOutline';
-import FormFieldEditor, { FormField, FieldType } from '@/components/FormFieldEditor';
-import EditIcon from '@mui/icons-material/Edit';
-import DeleteIcon from '@mui/icons-material/Delete';
+import ChangeHistoryIcon from "@mui/icons-material/ChangeHistory"; // Ícone de triângulo (Voltar)
+import RadioButtonUncheckedIcon from "@mui/icons-material/RadioButtonUnchecked"; // Ícone de círculo (Home)
+import CropSquareIcon from "@mui/icons-material/CropSquare"; // Ícone de quadrado (Apps Recentes)
 
-// Dados de exemplo para a nova aba
-const laudosSalvosExemplo = [
-    { id: 'laudo-001', nome: 'Laudo de Vistoria Padrão', dataCriacao: '2023-10-26' },
-    { id: 'laudo-002', nome: 'Relatório Fotográfico Simplificado', dataCriacao: '2023-10-25' },
-    { id: 'laudo-003', nome: 'Laudo de Supressão de Indivíduo', dataCriacao: '2023-10-22' },
-];
+interface TabPanelProps {
+  children?: React.ReactNode;
+  index: number;
+  value: number;
+}
 
-// --- Componente Principal da Página ---
-export default function FormBuilderPage() {
-    const [formFields, setFormFields] = useState<FormField[]>([]);
-    const [activeTab, setActiveTab] = useState(0);
+function TabPanel(props: TabPanelProps) {
+  const { children, value, index } = props;
 
-    const handleTabChange = (event: React.SyntheticEvent, newValue: number) => {
-        setActiveTab(newValue);
-    };
+  return (
+    <div hidden={value !== index}>
+      {value === index && (
+        <Fade in={value === index}>
+          <Box sx={{ p: 3 }}>{children}</Box>
+        </Fade>
+      )}
+    </div>
+  );
+}
 
-    // As funções auxiliares agora estão definidas APENAS UMA VEZ aqui.
-    const handleDragEnd = (event: DragEndEvent) => {
-        const { active, over } = event;
-        if (over && active.id !== over.id) {
-            setFormFields((items) => {
-                const oldIndex = items.findIndex((item) => item.id === active.id);
-                const newIndex = items.findIndex((item) => item.id === over.id);
-                if (oldIndex > -1 && newIndex > -1) {
-                    return arrayMove(items, oldIndex, newIndex);
-                }
-                return items;
-            });
-        }
-    };
-    
-    const addField = (type: FieldType) => {
-        const newField: FormField = { 
-            id: `field-${Date.now()}`, 
-            type: type, 
-            label: `Novo Campo (${type})`, 
-            placeholder: 'Dica de escrita...',
-            ...(type === 'checkbox' || type === 'select' ? { options: ['Opção 1'] } : {})
-        };
-        setFormFields((fields) => [...fields, newField]);
-    };
+export default function FormulariosPage() {
+  const [activeTab, setActiveTab] = useState(0);
 
-    const updateField = (id: UniqueIdentifier, updatedProps: Partial<FormField>) => {
-        setFormFields(fields => fields.map(f => f.id === id ? { ...f, ...updatedProps } : f));
-    };
+  const handleTabChange = (event: React.SyntheticEvent, newValue: number) => {
+    setActiveTab(newValue);
+  };
 
-    const deleteField = (id: UniqueIdentifier) => {
-        setFormFields(fields => fields.filter(f => f.id !== id));
-    };
-    
-    const renderFormBuilder = () => (
-        <DndContext onDragEnd={handleDragEnd} collisionDetection={closestCenter}>
-            <Box sx={{ display: 'flex', flexGrow: 1, p: 2, gap: 2, backgroundColor: '#f4f6f8' }}>
-                <Paper sx={{ width: '20%', p: 2, overflowY: 'auto' }}>
-                    <Typography variant="h6" gutterBottom>Campos Disponíveis</Typography>
-                    <Button variant="outlined" fullWidth sx={{ mb: 1 }} onClick={() => addField('input')}>Adicionar Input</Button>
-                    <Button variant="outlined" fullWidth sx={{ mb: 1 }} onClick={() => addField('checkbox')}>Adicionar Checkbox</Button>
-                    <Button variant="outlined" fullWidth sx={{ mb: 1 }} onClick={() => addField('select')}>Adicionar Select</Button>
-                </Paper>
-                
-                <Paper sx={{ width: '50%', p: 2, display: 'flex', flexDirection: 'column' }}>
-                    <Typography variant="h6" gutterBottom>Estrutura do Laudo</Typography>
-                    <div style={{ flexGrow: 1, width: '100%' }}>
-                        <SortableContext items={formFields.map(f => f.id)} strategy={verticalListSortingStrategy}>
-                            {formFields.length === 0 ? (
-                                <Box sx={{ border: '2px dashed #ccc', borderRadius: 1, height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column', color: '#999' }}>
-                                    <AddCircleOutlineIcon sx={{ fontSize: 40, mb: 1 }} />
-                                    <Typography>Adicione campos para começar</Typography>
-                                </Box>
-                            ) : (
-                                formFields.map(field => (
-                                    <SortableItem key={field.id} id={field.id}>
-                                        <FormFieldEditor field={field} updateField={updateField} deleteField={deleteField} />
-                                    </SortableItem>
-                                ))
-                            )}
-                        </SortableContext>
-                    </div>
-                </Paper>
+  return (
+    <div className="p-4">
+      <Box sx={{ width: "100%" }}>
+        <Box
+          sx={{
+            borderBottom: 1,
+            borderColor: "divider",
+            backgroundColor: "#F5F5F5",
+          }}
+        >
+          <Tabs value={activeTab} onChange={handleTabChange}>
+            <Tab label="Listar Formulários" />
+            <Tab label="Criar Novo Formulário" />
+          </Tabs>
+        </Box>
 
-                <Box sx={{ width: '30%', display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
-                     <Paper elevation={4} sx={{ width: 375, height: '90%', borderRadius: '40px', border: '10px solid black', p: '20px', boxSizing: 'border-box', overflowY: 'auto', backgroundColor: 'white' }}>
-                        <Typography variant="h6" align="center" gutterBottom>Pré-visualização</Typography>
-                        {formFields.map(field => (
-                            <Box key={field.id} sx={{ mb: 2 }}>
-                                {field.type === 'input' && (<FormControl fullWidth><Typography variant="subtitle1" sx={{ mb: 0.5 }}>{field.label}</Typography><TextField placeholder={field.placeholder} fullWidth /></FormControl>)}
-                                {field.type === 'checkbox' && (<FormControl component="fieldset"><Typography variant="subtitle1">{field.label}</Typography>{field.options?.map(option => <FormControlLabel key={option} control={<Checkbox />} label={option} />)}</FormControl>)}
-                                {field.type === 'select' && (<FormControl fullWidth><InputLabel>{field.label}</InputLabel><Select label={field.label} value="">{field.options?.map(option => <MenuItem key={option} value={option}>{option}</MenuItem>)}</Select></FormControl>)}
-                            </Box>
-                        ))}
-                    </Paper>
+        <TabPanel value={activeTab} index={0}>
+          <Typography variant="h5">Laudos Salvos</Typography>
+          <ListaFormularios />
+        </TabPanel>
+
+        <TabPanel value={activeTab} index={1}>
+          <Typography variant="h5">Construtor de Formulários</Typography>
+          <Box
+            sx={{
+              display: "flex",
+              height: "100%",
+              p: 2,
+              gap: 2,
+              backgroundColor: "#f4f6f8",
+            }}
+          >
+            {/* Coluna 1: Ferramentas */}
+            <Paper sx={{ width: "20%", p: 2, overflowY: "auto" }}>
+              <Typography variant="h6" gutterBottom>
+                Campos Disponíveis
+              </Typography>
+              <Typography variant="body2" color="text.secondary">
+                (Aqui ficarão os componentes arrastáveis como Input, Checkbox,
+                etc.)
+              </Typography>
+            </Paper>
+
+            {/* Coluna 2: Montador */}
+            <Paper sx={{ width: "50%", p: 2, overflowY: "auto" }}>
+              <Typography variant="h6" gutterBottom>
+                Estrutura do Laudo
+              </Typography>
+              <Typography variant="body2" color="text.secondary">
+                (Esta é a área principal onde os campos serão soltos para montar
+                o formulário.)
+              </Typography>
+            </Paper>
+
+            {/* Coluna 3: Pré-visualização no Celular */}
+            <Box
+              sx={{
+                width: "30%",
+                display: "flex",
+                justifyContent: "center",
+                alignItems: "center",
+              }}
+            >
+              <Paper
+                elevation={4}
+                sx={{
+                  width: 310,
+                  height: 700,
+                  borderRadius: "40px",
+                  border: "10px solid black",
+                  p: "20px",
+                  boxSizing: "border-box",
+                  overflowY: "auto",
+                  backgroundColor: "white",
+                  display: "flex",
+                  flexDirection: "column",
+                }}
+              >
+                <Box
+                  sx={{
+                    py: 1.5,
+                    px: 2,
+                    backgroundColor: "#257e1a", // Cor escura para a barra
+                    color: "white",
+                    textAlign: "center",
+                  }}
+                >
+                  <Typography variant="h6" component="div">
+                    Pré-visualização
+                  </Typography>
                 </Box>
-            </Box>
-        </DndContext>
-    );
 
-    const renderSavedFormsList = () => (
-        <Box sx={{ p: 2 }}>
-            <TableContainer component={Paper}>
-                <Table>
-                    <TableHead>
-                        <TableRow>
-                            <TableCell>Nome do Laudo</TableCell>
-                            <TableCell>Data de Criação</TableCell>
-                            <TableCell align="right">Ações</TableCell>
-                        </TableRow>
-                    </TableHead>
-                    <TableBody>
-                        {laudosSalvosExemplo.map((laudo) => (
-                            <TableRow key={laudo.id} hover>
-                                <TableCell>{laudo.nome}</TableCell>
-                                <TableCell>{laudo.dataCriacao}</TableCell>
-                                <TableCell align="right">
-                                    <IconButton title="Editar Laudo"><EditIcon /></IconButton>
-                                    <IconButton title="Apagar Laudo"><DeleteIcon /></IconButton>
-                                </TableCell>
-                            </TableRow>
-                        ))}
-                    </TableBody>
-                </Table>
-            </TableContainer>
-        </Box>
-    );
-
-    return (
-        <Box sx={{ width: '100%', height: 'calc(100vh - 48px)', display: 'flex', flexDirection: 'column' }}>
-            <Box sx={{ borderBottom: 1, borderColor: 'divider', backgroundColor: 'white' }}>
-                <Tabs value={activeTab} onChange={handleTabChange}>
-                    <Tab label="Criar / Editar Laudo" />
-                    <Tab label="Laudos Salvos" />
-                </Tabs>
+                {/* 2. A Área de Conteúdo (Body) */}
+                <Box
+                  sx={{
+                    flexGrow: 1, // Faz esta área ocupar todo o espaço vertical restante
+                    overflowY: "auto", // Torna apenas esta área rolável
+                    p: 2,
+                  }}
+                >
+                  {/* O conteúdo do formulário (que virá depois) ficará aqui */}
+                  <Typography
+                    color="text.secondary"
+                    align="center"
+                    sx={{
+                      flexGrow: 1,
+                      verflowY: "auto",
+                      p: 2,
+                    }}
+                  >
+                    Os campos do formulário aparecerão aqui.
+                  </Typography>
+                </Box>
+                <Box
+                  sx={{
+                    py: 0.5,
+                    backgroundColor: "#212121", // Mesma cor da barra de título
+                    color: "white",
+                    display: "flex",
+                    justifyContent: "space-around",
+                    alignItems: "center",
+                  }}
+                >
+                  <IconButton color="inherit">
+                    <ChangeHistoryIcon />
+                  </IconButton>
+                  <IconButton color="inherit">
+                    <RadioButtonUncheckedIcon />
+                  </IconButton>
+                  <IconButton color="inherit">
+                    <CropSquareIcon />
+                  </IconButton>
+                </Box>
+              </Paper>
             </Box>
-            
-            {activeTab === 0 && renderFormBuilder()}
-            {activeTab === 1 && renderSavedFormsList()}
-        </Box>
-    );
+          </Box>
+        </TabPanel>
+      </Box>
+    </div>
+  );
 }
