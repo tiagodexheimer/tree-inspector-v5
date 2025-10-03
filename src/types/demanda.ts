@@ -1,3 +1,5 @@
+import { UniqueIdentifier } from "@dnd-kit/core";
+
 export type Status = "Pendente" | "Em andamento" | "Concluído";
 
 export type DemandaType = {

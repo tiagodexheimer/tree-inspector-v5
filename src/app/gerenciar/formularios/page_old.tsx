@@ -39,7 +39,7 @@ import AddCircleOutlineIcon from "@mui/icons-material/AddCircleOutline";
 import FormFieldEditor, {
   FormField,
   FieldType,
-} from "@/components/FormFieldEditor";
+} from "@/components/FormFieldEditor_old";
 import EditIcon from "@mui/icons-material/Edit";
 import DeleteIcon from "@mui/icons-material/Delete";
 

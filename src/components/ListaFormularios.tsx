@@ -10,7 +10,6 @@ import {
   TableContainer,
   TableHead,
   TableRow,
-  Typography,
   IconButton,
   TextField,
   TableSortLabel,
