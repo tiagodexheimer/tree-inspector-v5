@@ -110,8 +110,8 @@ export default function FormulariosPage() {
               <Typography variant="body2" color="text.secondary">
                 <Box component="form" className=" space-y-2">
                   {camposDeExemplo.map((campo) => (
-                    <Card variant="outlined" className="p-2">
-                      <RenderFormField key={campo.id} field={campo} />
+                    <Card key={campo.id} variant="outlined" className="p-2">
+                      <RenderFormField field={campo} />
                     </Card>
                   ))}
 
