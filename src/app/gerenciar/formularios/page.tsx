@@ -9,6 +9,7 @@ import {
   Paper,
   IconButton,
   Button,
+  Card,
 } from "@mui/material";
 import { useState } from "react";
 
@@ -107,11 +108,11 @@ export default function FormulariosPage() {
                 Campos Disponíveis
               </Typography>
               <Typography variant="body2" color="text.secondary">
-                <Box component="form">
-                  <h1>Supressão</h1>
-
+                <Box component="form" className=" space-y-2">
                   {camposDeExemplo.map((campo) => (
-                    <RenderFormField key={campo.id} field={campo} />
+                    <Card variant="outlined" className="p-2">
+                      <RenderFormField key={campo.id} field={campo} />
+                    </Card>
                   ))}
 
                   <Button>Salvar Laudo</Button>
