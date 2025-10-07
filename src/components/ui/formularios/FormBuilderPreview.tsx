@@ -1,64 +1,58 @@
-// src/app/gerenciar/formularios/FormBuilderPreview.tsx
+// src/components/ui/formularios/FormBuilderPreview.tsx
 "use client";
 
-import { Box, Typography, IconButton } from "@mui/material";
+import { Box, Typography } from "@mui/material";
 import ChangeHistoryIcon from "@mui/icons-material/ChangeHistory";
 import RadioButtonUncheckedIcon from "@mui/icons-material/RadioButtonUnchecked";
 import CropSquareIcon from "@mui/icons-material/CropSquare";
 import { FormField } from "@/types/demanda";
 import RenderFormField from "@/components/ui/formularios/RenderFormField";
 import React from "react";
+import { Paper, IconButton } from "@mui/material";
 
 interface FormBuilderPreviewProps {
-  // Recebe a lista de campos para renderizar a pré-visualização
   droppedFields: FormField[];
 }
 
-/**
- * Coluna lateral direita para pré-visualização do formulário em um mockup de celular.
- */
 export function FormBuilderPreview({ droppedFields }: FormBuilderPreviewProps) {
   return (
-    // Removendo Paper e estilos fixos para que o Paper pai em page.tsx gerencie o layout.
-    <Box 
-      sx={{ 
-        width: "100%", // Preenche o Paper pai (que tem 35% da tela)
-        p: 2, 
-        height: '100%', // Preenche a altura do Paper pai
+    <Paper
+      sx={{
+        width: "30%", // Ajuste da largura da coluna
+        p: 2,
+        position: "sticky",
+        top: 20,
+        height: "calc(100vh - 120px)",
         overflowY: "auto",
       }}
     >
-      {/* REMOVIDO: <Typography variant="h6">Pré-visualização</Typography> */}
+      <Typography variant="h6">Pré-visualização</Typography>
       <Box
         sx={{
-          // Estilo de celular para simular a visualização em campo
           width: 375,
           height: 667,
           borderRadius: 5,
           border: "10px solid #333",
           boxShadow: 3,
-          mx: "auto", // Centraliza o mock-up
+          mx: "auto",
           mt: 2,
           display: "flex",
           flexDirection: "column",
           backgroundColor: "white",
         }}
       >
-        {/* Conteúdo da Tela do Celular (Scrollable) */}
         <Box
           sx={{
-            flexGrow: 1, 
-            overflowY: "auto", 
+            flexGrow: 1,
+            overflowY: "auto",
             p: 2,
           }}
         >
           {droppedFields.length > 0 ? (
-            // Renderiza os campos do formulário
             droppedFields.map((field) => (
               <RenderFormField key={field.id} field={field} />
             ))
           ) : (
-            // Mensagem de placeholder quando a área está vazia
             <Typography
               color="text.secondary"
               align="center"
@@ -72,17 +66,16 @@ export function FormBuilderPreview({ droppedFields }: FormBuilderPreviewProps) {
           )}
         </Box>
 
-        {/* Barra de Navegação Inferior (Mockup) */}
         <Box
           sx={{
             py: 0.5,
-            backgroundColor: "#212121", 
+            backgroundColor: "#212121",
             color: "white",
             display: "flex",
             justifyContent: "space-around",
             alignItems: "center",
-            borderBottomLeftRadius: '5px', 
-            borderBottomRightRadius: '5px',
+            borderBottomLeftRadius: "5px",
+            borderBottomRightRadius: "5px",
           }}
         >
           <IconButton color="inherit" size="small">
@@ -96,6 +89,6 @@ export function FormBuilderPreview({ droppedFields }: FormBuilderPreviewProps) {
           </IconButton>
         </Box>
       </Box>
-    </Box>
+    </Paper>
   );
 }
