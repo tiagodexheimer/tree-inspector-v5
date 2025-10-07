@@ -17,13 +17,13 @@ import {
 } from "@dnd-kit/sortable";
 
 // Nossos componentes customizados (definidos abaixo)
-import { DraggableField } from "./DraggableField"; // Componente para a lista de origem
-import { SortableField } from "./SortableField"; // Componente para a lista de destino
-import { Droppable } from "./Droppable"; // Nossa área de drop
+import { DraggableField } from "@/components/ui/formularios/DraggableField"; // Componente para a lista de origem
+import { SortableField } from "@/components/ui/formularios/SortableField"; // Componente para a lista de destino
+import { Droppable } from "@/components/ui/formularios/Droppable"; // Nossa área de drop
 
 // Tipos e dados
 import { FormField } from "@/types/demanda";
-import RenderFormField from "@/components/RenderFormField";
+import RenderFormField from "@/components/ui/formularios/RenderFormField";
 
 // --- DADOS DE EXEMPLO ---
 const camposDeExemplo: FormField[] = [

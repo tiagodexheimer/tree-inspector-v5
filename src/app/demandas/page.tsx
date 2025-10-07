@@ -1,14 +1,14 @@
 'use client';
-import ListaCardDemanda from "@/components/ListaCardDemanda";
-import ListaListDemanda from "@/components/ListaListDemanda";
+import ListaCardDemanda from "@/components/ui/demandas/ListaCardDemanda";
+import ListaListDemanda from "@/components/ui/demandas/ListaListDemanda";
 import { Box, Button, Dialog, DialogActions, DialogContent, DialogContentText, DialogTitle, IconButton, TextField, Typography } from "@mui/material";
 import ViewListIcon from '@mui/icons-material/ViewList';
 import ViewModuleIcon from '@mui/icons-material/ViewModule';
 import { useMemo, useState } from "react";
 import InfoOutlinedIcon from '@mui/icons-material/InfoOutlined';
 import { DemandaType } from "@/types/demanda";
-import AddDemandaModal from "@/components/AddDemandaModal";
-import CriarRotaModal from "@/components/CriarRotaModal";
+import AddDemandaModal from "@/components/ui/demandas/AddDemandaModal";
+import CriarRotaModal from "@/components/ui/demandas/CriarRotaModal";
 
 
 const demandas: DemandaType[] = [
