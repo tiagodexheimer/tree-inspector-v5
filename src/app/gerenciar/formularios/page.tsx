@@ -1,220 +1,264 @@
 "use client";
-import ListaFormularios from "@/components/ListaFormularios";
-import {
-  Box,
-  Tabs,
-  Tab,
-  Typography,
-  Fade,
-  Paper,
-  IconButton,
-  Button,
-  Card,
-} from "@mui/material";
 import { useState } from "react";
+import { Box, Tabs, Tab, Typography, Paper, Card } from "@mui/material";
 
-import ChangeHistoryIcon from "@mui/icons-material/ChangeHistory"; // Ícone de triângulo (Voltar)
-import RadioButtonUncheckedIcon from "@mui/icons-material/RadioButtonUnchecked"; // Ícone de círculo (Home)
-import CropSquareIcon from "@mui/icons-material/CropSquare"; // Ícone de quadrado (Apps Recentes)
-import RenderFormField from "@/components/RenderFormField";
+// Dnd-kit imports
+import {
+  DndContext,
+  DragEndEvent,
+  DragStartEvent,
+  DragOverlay,
+  closestCenter,
+} from "@dnd-kit/core";
+import {
+  SortableContext,
+  arrayMove,
+  verticalListSortingStrategy,
+} from "@dnd-kit/sortable";
+
+// Nossos componentes customizados (definidos abaixo)
+import { DraggableField } from "./DraggableField"; // Componente para a lista de origem
+import { SortableField } from "./SortableField"; // Componente para a lista de destino
+import { Droppable } from "./Droppable"; // Nossa área de drop
+
+// Tipos e dados
 import { FormField } from "@/types/demanda";
+import RenderFormField from "@/components/RenderFormField";
 
-interface TabPanelProps {
-  children?: React.ReactNode;
-  index: number;
-  value: number;
-}
-
+// --- DADOS DE EXEMPLO ---
 const camposDeExemplo: FormField[] = [
   {
-    id: "ex1",
+    id: "input-vistoriador",
     type: "input",
     label: "Nome do Vistoriador",
     placeholder: "Digite seu nome completo",
   },
   {
-    id: "ex2",
+    id: "select-condicao",
     type: "select",
     label: "Condição da Árvore",
     placeholder: "",
     options: ["Saudável", "Com Pragas", "Morta"],
   },
   {
-    id: "ex3",
+    id: "checkbox-documentos",
     type: "checkbox",
     label: "Documentos Anexados",
     placeholder: "",
     options: ["ART", "Laudo Antigo", "Fotos"],
   },
-  { id: "ex4", type: "switch", label: "Requer Ação Urgente?", placeholder: "" },
+  {
+    id: "switch-urgente",
+    type: "switch",
+    label: "Requer Ação Urgente?",
+    placeholder: "",
+  },
 ];
-
-function TabPanel(props: TabPanelProps) {
-  const { children, value, index } = props;
-
-  return (
-    <div hidden={value !== index}>
-      {value === index && (
-        <Fade in={value === index}>
-          <Box sx={{ p: 3 }}>{children}</Box>
-        </Fade>
-      )}
-    </div>
-  );
-}
 
 export default function FormulariosPage() {
   const [activeTab, setActiveTab] = useState(0);
+
+  // --- 1. GERENCIAMENTO DE ESTADO ---
+  const [droppedFields, setDroppedFields] = useState<FormField[]>([]);
+  const [activeField, setActiveField] = useState<FormField | null>(null);
 
   const handleTabChange = (event: React.SyntheticEvent, newValue: number) => {
     setActiveTab(newValue);
   };
 
+  // --- 2. LÓGICA DO DRAG-AND-DROP ---
+
+  // Quando um item começa a ser arrastado
+  function handleDragStart(event: DragStartEvent) {
+    const { active } = event;
+    // Encontra o objeto do campo completo (tanto da lista de origem quanto da de destino)
+    const field =
+      camposDeExemplo.find((f) => f.id === active.id) ||
+      droppedFields.find((f) => f.id === active.id);
+    if (field) {
+      setActiveField(field);
+    }
+  }
+
+  // Quando um item é solto
+  function handleDragEnd(event: DragEndEvent) {
+    const { active, over } = event;
+
+    // Se não soltou sobre uma área válida, verifica se é para apagar
+    if (!over) {
+      // Verifica se o item arrastado era da lista de destino
+      const isFromDroppedList = droppedFields.some((f) => f.id === active.id);
+      if (isFromDroppedList) {
+        // Apaga o item
+        setDroppedFields((fields) =>
+          fields.filter((field) => field.id !== active.id)
+        );
+      }
+      setActiveField(null);
+      return;
+    }
+
+    const activeId = String(active.id);
+    const overId = String(over.id);
+
+    // Lógica de REORDENAÇÃO (dentro da área de destino)
+    const isOverSortableArea = droppedFields.some((f) => f.id === overId);
+    if (isOverSortableArea && activeId !== overId) {
+      const oldIndex = droppedFields.findIndex(
+        (field) => field.id === activeId
+      );
+      const newIndex = droppedFields.findIndex((field) => field.id === overId);
+      setDroppedFields((fields) => arrayMove(fields, oldIndex, newIndex));
+    }
+
+    // Lógica para ADICIONAR um novo item da origem para o destino
+    const isOverDroppableContainer = over.id === "droppable-area";
+    const isFromSourceList = camposDeExemplo.some((f) => f.id === activeId);
+
+    if (isOverDroppableContainer && isFromSourceList) {
+      const fieldToAdd = camposDeExemplo.find((f) => f.id === activeId);
+      if (fieldToAdd) {
+        // Opcional: impedir itens duplicados
+        if (droppedFields.some((f) => f.id === fieldToAdd.id)) {
+          // Poderia mostrar um alerta para o usuário aqui
+        } else {
+          setDroppedFields((fields) => [...fields, fieldToAdd]);
+        }
+      }
+    }
+
+    setActiveField(null); // Limpa o estado ativo
+  }
+
   return (
-    <div className="p-4">
-      <Box sx={{ width: "100%" }}>
-        <Box
-          sx={{
-            borderBottom: 1,
-            borderColor: "divider",
-            backgroundColor: "#F5F5F5",
-          }}
-        >
-          <Tabs value={activeTab} onChange={handleTabChange}>
+    <DndContext
+      onDragStart={handleDragStart}
+      onDragEnd={handleDragEnd}
+      collisionDetection={closestCenter}
+    >
+      <div className="p-4">
+        <Box sx={{ width: "100%" }}>
+          <Tabs value={activeTab} onChange={handleTabChange} /* ... */>
             <Tab label="Listar Formulários" />
             <Tab label="Criar Novo Formulário" />
           </Tabs>
-        </Box>
 
-        <TabPanel value={activeTab} index={0}>
-          <Typography variant="h5">Laudos Salvos</Typography>
-          <ListaFormularios />
-        </TabPanel>
+          {/* ... TabPanel de Listar Formulários ... */}
 
-        <TabPanel value={activeTab} index={1}>
-          <Typography variant="h5">Construtor de Formulários</Typography>
-          <Box
-            sx={{
-              display: "flex",
-              height: "100%",
-              p: 2,
-              gap: 2,
-              backgroundColor: "#f4f6f8",
-            }}
-          >
-            {/* Coluna 1: Ferramentas */}
-            <Paper sx={{ width: "20%", p: 2, overflowY: "auto" }}>
-              <Typography variant="h6" gutterBottom>
-                Campos Disponíveis
-              </Typography>
-              <Typography variant="body2" color="text.secondary">
-                <Box component="form" className=" space-y-2">
-                  {camposDeExemplo.map((campo) => (
-                    <Card key={campo.id} variant="outlined" className="p-2">
-                      <RenderFormField field={campo} />
-                    </Card>
-                  ))}
-
-                  <Button>Salvar Laudo</Button>
-                </Box>
-              </Typography>
-            </Paper>
-
-            {/* Coluna 2: Montador */}
-            <Paper sx={{ width: "50%", p: 2, overflowY: "auto" }}>
-              <Typography variant="h6" gutterBottom>
-                Estrutura do Laudo
-              </Typography>
-              <Typography variant="body2" color="text.secondary">
-                (Esta é a área principal onde os campos serão soltos para montar
-                o formulário.)
-              </Typography>
-            </Paper>
-
-            {/* Coluna 3: Pré-visualização no Celular */}
+          <TabPanel value={activeTab} index={1}>
+            <Typography variant="h5">Construtor de Formulários</Typography>
             <Box
-              sx={{
-                width: "30%",
-                display: "flex",
-                justifyContent: "center",
-                alignItems: "center",
-              }}
+              sx={{ display: "flex", gap: 2, p: 2, backgroundColor: "#f4f6f8" }}
             >
+              {/* Coluna 1: Ferramentas (Origem) */}
               <Paper
-                elevation={4}
                 sx={{
-                  width: 310,
-                  height: 700,
-                  borderRadius: "40px",
-                  border: "10px solid black",
-                  p: "20px",
-                  boxSizing: "border-box",
+                  width: "20%",
+                  p: 2,
                   overflowY: "auto",
-                  backgroundColor: "white",
+                  overflowX: "hidden",
+                }}
+              >
+                <Typography variant="h6" gutterBottom>
+                  Campos Disponíveis
+                </Typography>
+                <Box component="div" className="space-y-4">
+                  {camposDeExemplo.map((campo) => (
+                    <DraggableField key={campo.id} id={campo.id}>
+                      <Card variant="outlined" className="p-2 cursor-grab">
+                        <RenderFormField field={campo} />
+                      </Card>
+                    </DraggableField>
+                  ))}
+                </Box>
+              </Paper>
+
+              {/* Coluna 2: Montador (Destino) */}
+              <Paper
+                sx={{
+                  width: "50%",
+                  p: 2,
                   display: "flex",
                   flexDirection: "column",
                 }}
               >
-                <Box
-                  sx={{
-                    py: 1.5,
-                    px: 2,
-                    backgroundColor: "#257e1a", // Cor escura para a barra
-                    color: "white",
-                    textAlign: "center",
-                  }}
-                >
-                  <Typography variant="h6" component="div">
-                    Pré-visualização
-                  </Typography>
-                </Box>
-
-                {/* 2. A Área de Conteúdo (Body) */}
-                <Box
-                  sx={{
-                    flexGrow: 1, // Faz esta área ocupar todo o espaço vertical restante
-                    overflowY: "auto", // Torna apenas esta área rolável
-                    p: 2,
-                  }}
-                >
-                  {/* O conteúdo do formulário (que virá depois) ficará aqui */}
-                  <Typography
-                    color="text.secondary"
-                    align="center"
-                    sx={{
-                      flexGrow: 1,
-                      verflowY: "auto",
-                      p: 2,
-                    }}
+                <Typography variant="h6" gutterBottom>
+                  Estrutura do Laudo
+                </Typography>
+                <Droppable id="droppable-area">
+                  <SortableContext
+                    items={droppedFields.map((f) => f.id)}
+                    strategy={verticalListSortingStrategy}
                   >
-                    Os campos do formulário aparecerão aqui.
-                  </Typography>
-                </Box>
-                <Box
-                  sx={{
-                    py: 0.5,
-                    backgroundColor: "#212121", // Mesma cor da barra de título
-                    color: "white",
-                    display: "flex",
-                    justifyContent: "space-around",
-                    alignItems: "center",
-                  }}
-                >
-                  <IconButton color="inherit">
-                    <ChangeHistoryIcon />
-                  </IconButton>
-                  <IconButton color="inherit">
-                    <RadioButtonUncheckedIcon />
-                  </IconButton>
-                  <IconButton color="inherit">
-                    <CropSquareIcon />
-                  </IconButton>
-                </Box>
+                    <Box className="space-y-4 h-full">
+                      {droppedFields.length > 0 ? (
+                        droppedFields.map((field) => (
+                          <SortableField key={field.id} id={field.id}>
+                            <Card
+                              variant="outlined"
+                              className="p-2 cursor-grab"
+                            >
+                              <RenderFormField field={field} />
+                            </Card>
+                          </SortableField>
+                        ))
+                      ) : (
+                        <Box
+                          sx={{
+                            display: "flex",
+                            alignItems: "center",
+                            justifyContent: "center",
+                            height: "100%",
+                            border: "2px dashed #ccc",
+                            borderRadius: "4px",
+                            minHeight: "150px",
+                          }}
+                        >
+                          <Typography color="text.secondary">
+                            Arraste os campos aqui
+                          </Typography>
+                        </Box>
+                      )}
+                    </Box>
+                  </SortableContext>
+                </Droppable>
+              </Paper>
+
+              {/* Coluna 3: Pré-visualização (ainda sem lógica) */}
+              <Paper sx={{ width: "30%", p: 2 }}>
+                <Typography variant="h6">Pré-visualização</Typography>
+                {/* A pré-visualização pode simplesmente renderizar o array `droppedFields` */}
               </Paper>
             </Box>
-          </Box>
-        </TabPanel>
-      </Box>
+          </TabPanel>
+        </Box>
+      </div>
+
+      {/* --- 3. CAMADA DE OVERLAY PARA O CLONE --- */}
+      <DragOverlay>
+        {activeField ? (
+          <Card variant="outlined" className="p-2" elevation={3}>
+            <RenderFormField field={activeField} />
+          </Card>
+        ) : null}
+      </DragOverlay>
+    </DndContext>
+  );
+}
+
+// --- Componentes Auxiliares ---
+// (Estes podem ficar no mesmo arquivo ou serem movidos para seus próprios arquivos)
+
+// O TabPanel pode ficar aqui ou importado de outro lugar
+function TabPanel(props: {
+  children?: React.ReactNode;
+  index: number;
+  value: number;
+}) {
+  const { children, value, index } = props;
+  return (
+    <div hidden={value !== index}>
+      {value === index && <Box sx={{ p: 3 }}>{children}</Box>}
     </div>
   );
 }
