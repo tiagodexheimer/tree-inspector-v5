@@ -1,7 +1,7 @@
 // src/app/gerenciar/formularios/page.tsx
 "use client";
 import { useState } from "react";
-import { Box, Tabs, Tab, Typography, Card } from "@mui/material";
+import { Box, Tabs, Tab, Typography, Card, Paper } from "@mui/material";
 
 // Dnd-kit imports - apenas os componentes e métodos necessários para o contexto central
 import {
@@ -10,13 +10,15 @@ import {
   DragStartEvent,
   DragOverlay,
   closestCenter,
+  DragOverEvent, 
+  UniqueIdentifier
 } from "@dnd-kit/core";
 import { arrayMove } from "@dnd-kit/sortable";
 
 // Componentes da página Formulários
-import ListaFormularios from "@/components/ui/formularios/ListaFormularios"; // Para a aba 1
-import RenderFormField from "@/components/ui/formularios/RenderFormField"; // Para o DragOverlay
-
+import ListaFormularios from "@/components/ui/formularios/ListaFormularios";
+import RenderFormField from "@/components/ui/formularios/RenderFormField";
+import { FieldConfigurator } from "@/components/ui/formularios/FieldConfigurator";
 // Novos Componentes de Coluna
 import { FormBuilderSidebar } from "@/components/ui/formularios/FormBuilderSidebar";
 import { FormBuilderCanvas } from "@/components/ui/formularios/FormBuilderCanvas";
@@ -55,21 +57,86 @@ const camposDeExemplo: FormField[] = [
   },
 ];
 
+// --- Componente Auxiliar para Abas Internas ---
+function ConfigTabPanel(props: {
+    children?: React.ReactNode;
+    index: number;
+    value: number;
+}) {
+    const { children, value, index } = props;
+    return (
+        <div hidden={value !== index} style={{ height: '100%', overflow: 'auto' }}>
+            {value === index && <Box sx={{ height: '100%' }}>{children}</Box>}
+        </div>
+    );
+}
+// --- Componente Auxiliar TabPanel (mantido na página) ---
+function TabPanel(props: {
+  children?: React.ReactNode;
+  index: number;
+  value: number;
+}) {
+  const { children, value, index } = props;
+  return (
+    <div hidden={value !== index}>
+      {value === index && <Box sx={{ p: 3 }}>{children}</Box>}
+    </div>
+  );
+}
+
+
 export default function FormulariosPage() {
   const [activeTab, setActiveTab] = useState(0);
 
   // --- 1. GERENCIAMENTO DE ESTADO ---
   const [droppedFields, setDroppedFields] = useState<FormField[]>([]);
   const [activeField, setActiveField] = useState<FormField | null>(null);
+  const [overId, setOverId] = useState<UniqueIdentifier | null>(null);
+  
+  // Estado para rastrear o ID do campo atualmente selecionado para edição
+  const [selectedFieldId, setSelectedFieldId] = useState<UniqueIdentifier | null>(null);
+  // Controla a aba da coluna de configuração (0: Preview, 1: Editor)
+  const [configTab, setConfigTab] = useState(0); 
+  
+  // NOVO: A flag que desabilita o drag-and-drop. True se a aba "Editar Campo" (configTab === 1) estiver ativa.
+  const isDragDisabled = configTab === 1; 
+
+  const selectedField = droppedFields.find(f => f.id === selectedFieldId) || null;
 
   const handleTabChange = (event: React.SyntheticEvent, newValue: number) => {
     setActiveTab(newValue);
   };
+  
+  // --- FUNÇÕES DE EDIÇÃO/DELEÇÃO (Usadas pelo FieldConfigurator) ---
 
-  // --- 2. LÓGICA DO DRAG-AND-DROP (Permanece centralizada) ---
+  const handleUpdateField = (id: UniqueIdentifier, updatedField: Partial<FormField>) => {
+      setDroppedFields(fields => 
+          fields.map(field => 
+              field.id === id ? { ...field, ...updatedField } : field
+          )
+      );
+  };
+
+  const handleDeleteField = (id: UniqueIdentifier) => {
+      setDroppedFields(fields => fields.filter(field => field.id !== id));
+      setSelectedFieldId(null); // Limpa a seleção após deletar
+      setConfigTab(0); // Volta para a aba de Preview
+  };
+
+  const handleFieldSelect = (id: UniqueIdentifier) => {
+      // Se clicar no campo, sempre muda para a aba de edição (configTab=1) e seleciona.
+      // Isso desabilita o drag-and-drop.
+      setSelectedFieldId(id);
+      setConfigTab(1); 
+  };
+
+
+  // --- 2. LÓGICA DO DRAG-AND-DROP (Centralizada e Corrigida) ---
 
   // Quando um item começa a ser arrastado
   function handleDragStart(event: DragStartEvent) {
+    if (isDragDisabled) return; // IGNORA se o drag estiver desabilitado
+
     const { active } = event;
     const field =
       camposDeExemplo.find((f) => f.id === active.id) ||
@@ -77,60 +144,106 @@ export default function FormulariosPage() {
     if (field) {
       setActiveField(field);
     }
+    setSelectedFieldId(null); // Deseleciona o campo ao iniciar o arrasto
+    setConfigTab(0); // Volta para a aba de Preview ao arrastar
+  }
+
+  // Quando um item é sobrevoado, atualiza o overId para o indicador visual
+  function handleDragOver(event: DragOverEvent) {
+    if (isDragDisabled) return; // IGNORA se o drag estiver desabilitado
+
+    const { over } = event;
+    setOverId(over ? over.id : null);
   }
 
   // Quando um item é solto
    function handleDragEnd(event: DragEndEvent) {
+    if (isDragDisabled) {
+        // Limpa estados caso o DndContext tenha iniciado um drag "fantasma"
+        setActiveField(null);
+        setOverId(null);
+        return; 
+    }
+
     const { active, over } = event;
 
-    // A. Lógica para REMOÇÃO/DESCARTE (Melhoria na condição de "drop fora" ou na lixeira)
-    // Verifica se o item veio da lista do canvas.
-    const isFromDroppedList = droppedFields.some((f) => f.id === active.id);
-    
-    // O item é descartado se: 1) for jogado fora OU 2) for jogado na área da lixeira.
+    // Limpa o estado `overId` no final do arrasto
+    setOverId(null); 
+
+    const activeId = String(active.id);
+    const isFromSourceList = camposDeExemplo.some((f) => f.id === activeId);
+    const isFromDroppedList = droppedFields.some((f) => f.id === activeId);
+
+    // Define os IDs da tela
+    const DROPPABLE_AREA_ID = "droppable-area";
+    const TRASH_CAN_ID = "trash-can-area";
+    const DROP_END_AREA_ID = "drop-end-area";
+
+    // A. Lógica para REMOÇÃO/DESCARTE
     const droppedOutside = !over;
-    const droppedOnTrashCan = over?.id === "trash-can-area";
+    const droppedOnTrashCan = over?.id === TRASH_CAN_ID;
     
     if (isFromDroppedList && (droppedOutside || droppedOnTrashCan)) {
       setDroppedFields((fields) =>
         fields.filter((field) => field.id !== active.id)
       );
+      setSelectedFieldId(null); // Limpa seleção
+      setConfigTab(0); // Volta para o Preview
       setActiveField(null);
       return;
     }
     
-    // Se não houver 'over' e não for um descarte válido (ou seja, veio da barra lateral e soltou fora), 
-    // apenas limpamos o campo ativo e saímos.
+    // Se não houver 'over', sai
     if (!over) {
       setActiveField(null);
       return;
     }
 
-    const activeId = String(active.id);
     const overId = String(over.id);
+    const isOverDropEndArea = overId === DROP_END_AREA_ID;
 
-    // B. Lógica de REORDENAÇÃO (dentro da área de destino)
-    const isOverSortableItem = droppedFields.some((f) => f.id === overId) && activeId !== overId;
-    if (isOverSortableItem) {
-      const oldIndex = droppedFields.findIndex(
-        (field) => field.id === activeId
-      );
-      const newIndex = droppedFields.findIndex((field) => field.id === overId);
+    // Lógica para Reordenação (Item interno sobre outro item interno)
+    const oldIndex = droppedFields.findIndex((field) => field.id === activeId);
+    const newIndex = droppedFields.findIndex((field) => field.id === overId);
+
+    // B. Lógica de MOVIMENTAÇÃO (Reordenação ou Inserção em posição específica)
+    
+    // Se o alvo for um item que já está no Canvas (newIndex > -1)
+    if (newIndex > -1 && activeId !== overId) {
       if (oldIndex > -1) { 
+        // B1. REORDENAÇÃO (Item interno sobre outro item interno)
         setDroppedFields((fields) => arrayMove(fields, oldIndex, newIndex));
+      } else if (isFromSourceList) {
+        // B2. INSERÇÃO (Item NOVO da barra lateral sobre um item interno)
+        const fieldToAdd = camposDeExemplo.find((f) => f.id === activeId);
+        if (fieldToAdd) {
+            // Cria um novo campo com ID único
+            const newField = { ...fieldToAdd, id: `field-${Date.now()}` }; 
+            setDroppedFields((fields) => {
+                const newFields = [...fields];
+                // Insere o novo campo na posição newIndex (antes do item "over")
+                newFields.splice(newIndex, 0, newField); 
+                return newFields;
+            });
+            setSelectedFieldId(newField.id); // Seleciona o novo campo
+            setConfigTab(1); // Manda para a aba de edição
+        }
       }
-    }
+    } 
 
-    // C. Lógica para ADICIONAR um novo item (da barra lateral para o canvas principal OU para a lixeira/área extra)
-    const isOverDroppableContainer = over.id === "droppable-area" || over.id === "trash-can-area";
-    const isFromSourceList = camposDeExemplo.some((f) => f.id === activeId);
+    // C. Lógica para ADICIONAR um novo item no final (Drop na área "droppable-area" vazia OU drop-end-area)
+    const isOverDroppableContainer = over.id === DROPPABLE_AREA_ID;
+    const isActiveFieldNew = isFromSourceList && !isFromDroppedList; 
 
-    if (isOverDroppableContainer && isFromSourceList) {
+    // Adiciona ao final se for um campo novo e o alvo for a área principal vazia OU a nova área de drop no final
+    if (isActiveFieldNew && (isOverDroppableContainer || isOverDropEndArea)) {
       const fieldToAdd = camposDeExemplo.find((f) => f.id === activeId);
       if (fieldToAdd) {
-        // Clonar o item para que o original possa ser arrastado novamente e para dar um ID único.
+        // Clonar o item e adicionar no final (append)
         const newField = { ...fieldToAdd, id: `field-${Date.now()}` }; 
         setDroppedFields((fields) => [...fields, newField]);
+        setSelectedFieldId(newField.id); // Seleciona o novo campo
+        setConfigTab(1); // Manda para a aba de edição
       }
     }
 
@@ -140,6 +253,7 @@ export default function FormulariosPage() {
   return (
     <DndContext
       onDragStart={handleDragStart}
+      onDragOver={handleDragOver}
       onDragEnd={handleDragEnd}
       collisionDetection={closestCenter}
     >
@@ -163,14 +277,67 @@ export default function FormulariosPage() {
             <Box
               sx={{ display: "flex", gap: 2, p: 2, backgroundColor: "#f4f6f8" }}
             >
-              {/* Coluna 1: Ferramentas (Origem) */}
-              <FormBuilderSidebar camposDisponiveis={camposDeExemplo} />
+              {/* Coluna 1: Ferramentas (20%) */}
+              <FormBuilderSidebar 
+                camposDisponiveis={camposDeExemplo} 
+                isDragDisabled={isDragDisabled} // PASSA PROP DE CONTROLE
+              />
 
-              {/* Coluna 2: Montador (Destino/Canvas) */}
-              <FormBuilderCanvas droppedFields={droppedFields} />
+              {/* Coluna 2: Montador (45%) */}
+              <FormBuilderCanvas 
+                droppedFields={droppedFields} 
+                overId={overId}
+                selectedFieldId={selectedFieldId}
+                onFieldSelect={handleFieldSelect}
+                isDragDisabled={isDragDisabled} // PASSA PROP DE CONTROLE
+              />
 
-              {/* Coluna 3: Pré-visualização (Celular) */}
-              <FormBuilderPreview droppedFields={droppedFields} />
+              {/* Coluna 3: Configuração/Pré-visualização (35%) */}
+              <Paper 
+                sx={{ 
+                  width: "35%", 
+                  position: "sticky", 
+                  top: 20, 
+                  height: 'calc(100vh - 120px)',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  overflow: 'hidden'
+                }}
+              >
+                {/* Abas de Configuração/Visualização */}
+                <Tabs value={configTab} onChange={(e, newValue) => setConfigTab(newValue)} sx={{ borderBottom: 1, borderColor: 'divider' }}>
+                    <Tab label="Pré-visualizar" />
+                    <Tab label="Editar Campo" disabled={!selectedField} />
+                </Tabs>
+
+                {/* Conteúdo da Aba 1: Pré-visualizar */}
+                <ConfigTabPanel value={configTab} index={0}>
+                  <FormBuilderPreview droppedFields={droppedFields} />
+                </ConfigTabPanel>
+
+                {/* Conteúdo da Aba 2: Editar Campo */}
+                <ConfigTabPanel value={configTab} index={1}>
+                  {selectedField ? (
+                    <FieldConfigurator 
+                        field={selectedField}
+                        updateField={handleUpdateField}
+                        deleteField={handleDeleteField}
+                        // Fecha o painel e volta para Preview
+                        onClose={() => { 
+                            setSelectedFieldId(null);
+                            setConfigTab(0);
+                        }}
+                    />
+                  ) : (
+                      <Box sx={{ p: 2 }}>
+                          <Typography color="text.secondary">
+                            Clique em um campo na Estrutura do Laudo para editá-lo.
+                          </Typography>
+                      </Box>
+                  )}
+                </ConfigTabPanel>
+
+              </Paper>
             </Box>
           </TabPanel>
         </Box>
@@ -185,19 +352,5 @@ export default function FormulariosPage() {
         ) : null}
       </DragOverlay>
     </DndContext>
-  );
-}
-
-// --- Componente Auxiliar TabPanel (mantido na página) ---
-function TabPanel(props: {
-  children?: React.ReactNode;
-  index: number;
-  value: number;
-}) {
-  const { children, value, index } = props;
-  return (
-    <div hidden={value !== index}>
-      {value === index && <Box sx={{ p: 3 }}>{children}</Box>}
-    </div>
   );
 }

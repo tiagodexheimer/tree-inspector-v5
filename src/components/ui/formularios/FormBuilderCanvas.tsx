@@ -7,22 +7,41 @@ import { SortableField } from "./SortableField";
 import RenderFormField from "@/components/ui/formularios/RenderFormField";
 import React from "react";
 import DeleteOutlineIcon from "@mui/icons-material/DeleteOutline";
+import { UniqueIdentifier } from "@dnd-kit/core";
 
 interface FormBuilderCanvasProps {
   droppedFields: FormField[];
+  overId: UniqueIdentifier | null; 
+  selectedFieldId: UniqueIdentifier | null; 
+  onFieldSelect: (id: UniqueIdentifier) => void;
+  // Prop para indicar se o drag está desabilitado
+  isDragDisabled: boolean;
 }
 
 /**
  * Coluna central, a área de drop principal onde o formulário é montado.
  */
-export function FormBuilderCanvas({ droppedFields }: FormBuilderCanvasProps) {
-  // Usamos um ID separado para a "lixeira" dentro do canvas
+export function FormBuilderCanvas({ droppedFields, overId, selectedFieldId, onFieldSelect, isDragDisabled }: FormBuilderCanvasProps) {
+  const DROPPABLE_AREA_ID = "droppable-area";
   const TRASH_CAN_ID = "trash-can-area";
+  const DROP_END_AREA_ID = "drop-end-area";
+
+  const isOverDroppableArea = overId === DROPPABLE_AREA_ID;
+  const isOverDropEndArea = overId === DROP_END_AREA_ID;
+
+  // Handler que chama a seleção e pára a propagação.
+  const handleCardClick = (e: React.MouseEvent, id: UniqueIdentifier) => {
+      e.stopPropagation(); 
+      onFieldSelect(id);
+  }
+
+  // Define o estilo do cursor baseado no modo. Se o drag está desabilitado, vira pointer.
+  const cardCursorClass = isDragDisabled ? 'cursor-pointer' : 'cursor-grab';
 
   return (
     <Paper
       sx={{
-        width: "50%",
+        width: "45%",
         p: 2,
         display: "flex",
         flexDirection: "column",
@@ -33,7 +52,7 @@ export function FormBuilderCanvas({ droppedFields }: FormBuilderCanvasProps) {
       </Typography>
       
       {/* 1. Área principal de drop e reordenação com barra de rolagem */}
-      <Droppable id="droppable-area">
+      <Droppable id={DROPPABLE_AREA_ID}>
         <SortableContext
           items={droppedFields.map((f) => f.id)}
           strategy={verticalListSortingStrategy}
@@ -41,24 +60,60 @@ export function FormBuilderCanvas({ droppedFields }: FormBuilderCanvasProps) {
           <Box 
             className="space-y-4" 
             sx={{ 
-                maxHeight: 'calc(100vh - 300px)', // Altura máxima para ativar o scroll
+                maxHeight: 'calc(100vh - 300px)',
                 overflowY: 'auto', 
-                p: 1, // Adiciona padding para que a barra de rolagem não esconda o conteúdo
+                p: 1,
                 minHeight: '200px',
             }}
           >
             {droppedFields.length > 0 ? (
-              // Mapeia os campos soltos, transformando-os em itens reordenáveis
-              droppedFields.map((field) => (
-                <SortableField key={field.id} id={field.id}>
-                  <Card
-                    variant="outlined"
-                    className="p-2 cursor-grab"
+              <>
+                {/* Itens do Formulário */}
+                {droppedFields.map((field) => (
+                  <SortableField 
+                    key={field.id} 
+                    id={field.id}
+                    isDragDisabled={isDragDisabled} // PASSA PROP DE CONTROLE
                   >
-                    <RenderFormField field={field} />
-                  </Card>
-                </SortableField>
-              ))
+                    <Card
+                      variant="outlined"
+                      // Ação de clique para edição
+                      onClick={(e) => handleCardClick(e, field.id)}
+                      className={`p-2 ${cardCursorClass}`} // Usa a classe de cursor condicional
+                      sx={{
+                        border: field.id === selectedFieldId ? '2px solid #2196F3' : '1px solid rgba(0, 0, 0, 0.12)',
+                        boxShadow: field.id === selectedFieldId ? 3 : 1,
+                        transition: 'all 0.1s',
+                      }}
+                    >
+                      <RenderFormField field={field} />
+                    </Card>
+                  </SortableField>
+                ))}
+                
+                {/* Drop Zone Explícito no Fim da Lista */}
+                <Droppable id={DROP_END_AREA_ID}>
+                    <Box
+                      sx={{
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        minHeight: "50px",
+                        // O drop na área final só deve ter indicador visual se o drag NÃO estiver desabilitado
+                        border: !isDragDisabled && isOverDropEndArea ? "2px solid #257e1a" : "2px dashed #ccc",
+                        backgroundColor: !isDragDisabled && isOverDropEndArea ? "#e8f5e9" : "transparent",
+                        borderRadius: "4px",
+                        transition: 'all 0.2s',
+                        mt: 2,
+                        cursor: isDragDisabled ? 'not-allowed' : 'auto',
+                      }}
+                    >
+                        <Typography color="text.secondary">
+                            Soltar aqui para adicionar ao final
+                        </Typography>
+                    </Box>
+                </Droppable>
+              </>
             ) : (
               // Mensagem de placeholder quando a área está vazia
               <Box
@@ -67,9 +122,13 @@ export function FormBuilderCanvas({ droppedFields }: FormBuilderCanvasProps) {
                   alignItems: "center",
                   justifyContent: "center",
                   height: "100%",
-                  border: "2px dashed #ccc",
+                  // O drop na área vazia só deve ter indicador visual se o drag NÃO estiver desabilitado
+                  border: !isDragDisabled && isOverDroppableArea ? "2px solid #257e1a" : "2px dashed #ccc",
+                  backgroundColor: !isDragDisabled && isOverDroppableArea ? "#e8f5e9" : "transparent",
                   borderRadius: "4px",
                   minHeight: "150px",
+                  transition: 'all 0.2s',
+                  cursor: isDragDisabled ? 'not-allowed' : 'auto',
                 }}
               >
                 <Typography color="text.secondary">
@@ -87,19 +146,18 @@ export function FormBuilderCanvas({ droppedFields }: FormBuilderCanvasProps) {
           <Box
             sx={{
               p: 2,
-              border: '2px dashed #ff9800',
+              // O indicador visual para a lixeira só deve funcionar se o drag NÃO estiver desabilitado
+              border: !isDragDisabled && overId === TRASH_CAN_ID ? '2px solid #e65100' : '2px dashed #ff9800',
               borderRadius: '4px',
+              backgroundColor: !isDragDisabled && overId === TRASH_CAN_ID ? '#fbe9e7' : '#fff3e0',
               textAlign: 'center',
-              backgroundColor: '#fff3e0',
               minHeight: '100px',
               display: 'flex',
               flexDirection: 'column',
               alignItems: 'center',
               justifyContent: 'center',
-              '&:hover': {
-                borderColor: '#e65100',
-                backgroundColor: '#ffe0b2',
-              },
+              transition: 'all 0.2s',
+              cursor: isDragDisabled ? 'not-allowed' : 'auto',
             }}
           >
             <DeleteOutlineIcon color="warning" sx={{ fontSize: 40 }} />

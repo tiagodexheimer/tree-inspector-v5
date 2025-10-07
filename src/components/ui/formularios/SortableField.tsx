@@ -8,19 +8,35 @@ interface SortableFieldProps {
   // Altere o tipo aqui
   id: UniqueIdentifier;
   children: React.ReactNode;
+  // Recebe o estado para desabilitar o drag
+  isDragDisabled: boolean;
 }
 
-export function SortableField({ id, children }: SortableFieldProps) {
-  const { attributes, listeners, setNodeRef, transform, transition } =
-    useSortable({ id });
+export function SortableField({ id, children, isDragDisabled }: SortableFieldProps) {
+  const { 
+    attributes, 
+    listeners, 
+    setNodeRef, 
+    transform, 
+    transition 
+  } = useSortable({ 
+    id, 
+    disabled: isDragDisabled 
+  });
 
   const style = {
     transform: CSS.Transform.toString(transform),
     transition,
   };
+  
+  // CORREÇÃO CRUCIAL: Aplicamos os listeners e attributes SOMENTE se o drag NÃO estiver desabilitado.
+  // Se o drag estiver desabilitado, dragProps é um objeto vazio, permitindo que o onClick do Card funcione.
+  const dragProps = isDragDisabled ? {} : { ...listeners, ...attributes };
+
 
   return (
-    <div ref={setNodeRef} style={style} {...listeners} {...attributes}>
+    // Aplica dragProps condicionalmente
+    <div ref={setNodeRef} style={style} {...dragProps}>
       {children}
     </div>
   );

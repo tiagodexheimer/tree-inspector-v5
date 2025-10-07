@@ -1,7 +1,7 @@
 // src/app/gerenciar/formularios/FormBuilderPreview.tsx
 "use client";
 
-import { Box, Paper, Typography, IconButton } from "@mui/material";
+import { Box, Typography, IconButton } from "@mui/material";
 import ChangeHistoryIcon from "@mui/icons-material/ChangeHistory";
 import RadioButtonUncheckedIcon from "@mui/icons-material/RadioButtonUnchecked";
 import CropSquareIcon from "@mui/icons-material/CropSquare";
@@ -19,17 +19,16 @@ interface FormBuilderPreviewProps {
  */
 export function FormBuilderPreview({ droppedFields }: FormBuilderPreviewProps) {
   return (
-    <Paper 
+    // Removendo Paper e estilos fixos para que o Paper pai em page.tsx gerencie o layout.
+    <Box 
       sx={{ 
-        width: "30%", 
+        width: "100%", // Preenche o Paper pai (que tem 35% da tela)
         p: 2, 
-        // Mantém o preview fixo no topo
-        position: "sticky",
-        top: 20,
-        height: 'calc(100vh - 120px)', // Altura total menos o cabeçalho e margens
+        height: '100%', // Preenche a altura do Paper pai
+        overflowY: "auto",
       }}
     >
-      <Typography variant="h6">Pré-visualização</Typography>
+      {/* REMOVIDO: <Typography variant="h6">Pré-visualização</Typography> */}
       <Box
         sx={{
           // Estilo de celular para simular a visualização em campo
@@ -97,6 +96,6 @@ export function FormBuilderPreview({ droppedFields }: FormBuilderPreviewProps) {
           </IconButton>
         </Box>
       </Box>
-    </Paper>
+    </Box>
   );
 }

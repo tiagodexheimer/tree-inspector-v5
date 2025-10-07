@@ -7,12 +7,14 @@ import React from "react";
 
 interface FormBuilderSidebarProps {
   camposDisponiveis: FormField[];
+  // NOVO: Prop para indicar se o drag está desabilitado
+  isDragDisabled: boolean;
 }
 
 /**
  * Coluna lateral esquerda com os campos disponíveis para arrastar.
  */
-export function FormBuilderSidebar({ camposDisponiveis }: FormBuilderSidebarProps) {
+export function FormBuilderSidebar({ camposDisponiveis, isDragDisabled }: FormBuilderSidebarProps) {
   return (
     <Paper
       sx={{
@@ -31,8 +33,12 @@ export function FormBuilderSidebar({ camposDisponiveis }: FormBuilderSidebarProp
       </Typography>
       <Box component="div" className="space-y-4">
         {camposDisponiveis.map((campo) => (
-          <DraggableField key={campo.id} id={campo.id}>
-            <Card variant="outlined" className="p-2 cursor-grab">
+          <DraggableField 
+            key={campo.id} 
+            id={campo.id}
+            isDragDisabled={isDragDisabled} // PASSA PROP
+          >
+            <Card variant="outlined" className="p-2">
               <RenderFormField field={campo} />
             </Card>
           </DraggableField>
