@@ -19,7 +19,16 @@ interface FormBuilderPreviewProps {
  */
 export function FormBuilderPreview({ droppedFields }: FormBuilderPreviewProps) {
   return (
-    <Paper sx={{ width: "30%", p: 2 }}>
+    <Paper 
+      sx={{ 
+        width: "30%", 
+        p: 2, 
+        // Mantém o preview fixo no topo
+        position: "sticky",
+        top: 20,
+        height: 'calc(100vh - 120px)', // Altura total menos o cabeçalho e margens
+      }}
+    >
       <Typography variant="h6">Pré-visualização</Typography>
       <Box
         sx={{
@@ -31,7 +40,7 @@ export function FormBuilderPreview({ droppedFields }: FormBuilderPreviewProps) {
           boxShadow: 3,
           mx: "auto", // Centraliza o mock-up
           mt: 2,
-          display: "flex", // Adicionado para organizar a tela e a barra de navegação
+          display: "flex",
           flexDirection: "column",
           backgroundColor: "white",
         }}
@@ -39,8 +48,8 @@ export function FormBuilderPreview({ droppedFields }: FormBuilderPreviewProps) {
         {/* Conteúdo da Tela do Celular (Scrollable) */}
         <Box
           sx={{
-            flexGrow: 1, // Faz esta área ocupar todo o espaço vertical restante
-            overflowY: "auto", // Torna apenas esta área rolável
+            flexGrow: 1, 
+            overflowY: "auto", 
             p: 2,
           }}
         >
@@ -68,13 +77,13 @@ export function FormBuilderPreview({ droppedFields }: FormBuilderPreviewProps) {
         <Box
           sx={{
             py: 0.5,
-            backgroundColor: "#212121", // Cor da barra de navegação do celular
+            backgroundColor: "#212121", 
             color: "white",
             display: "flex",
             justifyContent: "space-around",
             alignItems: "center",
-            borderBottomLeftRadius: '9px', // Arredonda a borda inferior para combinar com o "chassi"
-            borderBottomRightRadius: '9px',
+            borderBottomLeftRadius: '5px', 
+            borderBottomRightRadius: '5px',
           }}
         >
           <IconButton color="inherit" size="small">

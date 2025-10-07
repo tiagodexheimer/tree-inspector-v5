@@ -1,3 +1,4 @@
+// src/app/gerenciar/formularios/page.tsx
 "use client";
 import { useState } from "react";
 import { Box, Tabs, Tab, Typography, Card } from "@mui/material";
@@ -70,7 +71,6 @@ export default function FormulariosPage() {
   // Quando um item começa a ser arrastado
   function handleDragStart(event: DragStartEvent) {
     const { active } = event;
-    // Encontra o objeto do campo completo (tanto da lista de origem quanto da de destino)
     const field =
       camposDeExemplo.find((f) => f.id === active.id) ||
       droppedFields.find((f) => f.id === active.id);
@@ -80,19 +80,28 @@ export default function FormulariosPage() {
   }
 
   // Quando um item é solto
-  function handleDragEnd(event: DragEndEvent) {
+   function handleDragEnd(event: DragEndEvent) {
     const { active, over } = event;
 
-    // Se não soltou sobre uma área válida, verifica se é para apagar
+    // A. Lógica para REMOÇÃO/DESCARTE (Melhoria na condição de "drop fora" ou na lixeira)
+    // Verifica se o item veio da lista do canvas.
+    const isFromDroppedList = droppedFields.some((f) => f.id === active.id);
+    
+    // O item é descartado se: 1) for jogado fora OU 2) for jogado na área da lixeira.
+    const droppedOutside = !over;
+    const droppedOnTrashCan = over?.id === "trash-can-area";
+    
+    if (isFromDroppedList && (droppedOutside || droppedOnTrashCan)) {
+      setDroppedFields((fields) =>
+        fields.filter((field) => field.id !== active.id)
+      );
+      setActiveField(null);
+      return;
+    }
+    
+    // Se não houver 'over' e não for um descarte válido (ou seja, veio da barra lateral e soltou fora), 
+    // apenas limpamos o campo ativo e saímos.
     if (!over) {
-      // Verifica se o item arrastado era da lista de destino
-      const isFromDroppedList = droppedFields.some((f) => f.id === active.id);
-      if (isFromDroppedList) {
-        // Apaga o item
-        setDroppedFields((fields) =>
-          fields.filter((field) => field.id !== active.id)
-        );
-      }
       setActiveField(null);
       return;
     }
@@ -100,28 +109,26 @@ export default function FormulariosPage() {
     const activeId = String(active.id);
     const overId = String(over.id);
 
-    // Lógica de REORDENAÇÃO (dentro da área de destino)
-    // Verifica se o over é um item já na lista (não o container pai)
+    // B. Lógica de REORDENAÇÃO (dentro da área de destino)
     const isOverSortableItem = droppedFields.some((f) => f.id === overId) && activeId !== overId;
     if (isOverSortableItem) {
       const oldIndex = droppedFields.findIndex(
         (field) => field.id === activeId
       );
       const newIndex = droppedFields.findIndex((field) => field.id === overId);
-      // Garante que o item ativo era um item existente para reordenar
       if (oldIndex > -1) { 
         setDroppedFields((fields) => arrayMove(fields, oldIndex, newIndex));
       }
     }
 
-    // Lógica para ADICIONAR um novo item da origem para o destino
-    const isOverDroppableContainer = over.id === "droppable-area";
+    // C. Lógica para ADICIONAR um novo item (da barra lateral para o canvas principal OU para a lixeira/área extra)
+    const isOverDroppableContainer = over.id === "droppable-area" || over.id === "trash-can-area";
     const isFromSourceList = camposDeExemplo.some((f) => f.id === activeId);
 
     if (isOverDroppableContainer && isFromSourceList) {
       const fieldToAdd = camposDeExemplo.find((f) => f.id === activeId);
       if (fieldToAdd) {
-        // Opção: Clonar o item para que o original possa ser arrastado novamente
+        // Clonar o item para que o original possa ser arrastado novamente e para dar um ID único.
         const newField = { ...fieldToAdd, id: `field-${Date.now()}` }; 
         setDroppedFields((fields) => [...fields, newField]);
       }
@@ -159,7 +166,7 @@ export default function FormulariosPage() {
               {/* Coluna 1: Ferramentas (Origem) */}
               <FormBuilderSidebar camposDisponiveis={camposDeExemplo} />
 
-              {/* Coluna 2: Montador (Destino) */}
+              {/* Coluna 2: Montador (Destino/Canvas) */}
               <FormBuilderCanvas droppedFields={droppedFields} />
 
               {/* Coluna 3: Pré-visualização (Celular) */}

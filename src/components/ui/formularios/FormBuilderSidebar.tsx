@@ -6,7 +6,6 @@ import RenderFormField from "@/components/ui/formularios/RenderFormField";
 import React from "react";
 
 interface FormBuilderSidebarProps {
-  // Recebe a lista de campos que podem ser arrastados
   camposDisponiveis: FormField[];
 }
 
@@ -19,6 +18,10 @@ export function FormBuilderSidebar({ camposDisponiveis }: FormBuilderSidebarProp
       sx={{
         width: "20%",
         p: 2,
+        // Mantém a sidebar fixa no topo
+        position: "sticky",
+        top: 20, 
+        height: 'calc(100vh - 120px)', // Altura total menos o cabeçalho e margens
         overflowY: "auto",
         overflowX: "hidden",
       }}

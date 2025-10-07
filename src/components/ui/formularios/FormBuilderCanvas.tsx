@@ -6,9 +6,9 @@ import { Droppable } from "./Droppable";
 import { SortableField } from "./SortableField";
 import RenderFormField from "@/components/ui/formularios/RenderFormField";
 import React from "react";
+import DeleteOutlineIcon from "@mui/icons-material/DeleteOutline";
 
 interface FormBuilderCanvasProps {
-  // Recebe a lista de campos que foram soltos e que podem ser reordenados
   droppedFields: FormField[];
 }
 
@@ -16,6 +16,9 @@ interface FormBuilderCanvasProps {
  * Coluna central, a área de drop principal onde o formulário é montado.
  */
 export function FormBuilderCanvas({ droppedFields }: FormBuilderCanvasProps) {
+  // Usamos um ID separado para a "lixeira" dentro do canvas
+  const TRASH_CAN_ID = "trash-can-area";
+
   return (
     <Paper
       sx={{
@@ -28,14 +31,22 @@ export function FormBuilderCanvas({ droppedFields }: FormBuilderCanvasProps) {
       <Typography variant="h6" gutterBottom>
         Estrutura do Laudo
       </Typography>
-      {/* O Droppable define a área que aceita a ação de soltar */}
+      
+      {/* 1. Área principal de drop e reordenação com barra de rolagem */}
       <Droppable id="droppable-area">
-        {/* O SortableContext permite reordenar os itens já existentes */}
         <SortableContext
           items={droppedFields.map((f) => f.id)}
           strategy={verticalListSortingStrategy}
         >
-          <Box className="space-y-4 h-full">
+          <Box 
+            className="space-y-4" 
+            sx={{ 
+                maxHeight: 'calc(100vh - 300px)', // Altura máxima para ativar o scroll
+                overflowY: 'auto', 
+                p: 1, // Adiciona padding para que a barra de rolagem não esconda o conteúdo
+                minHeight: '200px',
+            }}
+          >
             {droppedFields.length > 0 ? (
               // Mapeia os campos soltos, transformando-os em itens reordenáveis
               droppedFields.map((field) => (
@@ -69,6 +80,35 @@ export function FormBuilderCanvas({ droppedFields }: FormBuilderCanvasProps) {
           </Box>
         </SortableContext>
       </Droppable>
+
+      {/* 2. Área Extra de Drop/Descarte (Trash Can) - Mantida no final do canvas */}
+      <Box sx={{ flexGrow: 1, pt: 4, mt: 'auto' }}>
+        <Droppable id={TRASH_CAN_ID}>
+          <Box
+            sx={{
+              p: 2,
+              border: '2px dashed #ff9800',
+              borderRadius: '4px',
+              textAlign: 'center',
+              backgroundColor: '#fff3e0',
+              minHeight: '100px',
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              justifyContent: 'center',
+              '&:hover': {
+                borderColor: '#e65100',
+                backgroundColor: '#ffe0b2',
+              },
+            }}
+          >
+            <DeleteOutlineIcon color="warning" sx={{ fontSize: 40 }} />
+            <Typography variant="body1" color="#e65100">
+              Arraste para Remover ou solte aqui para adicionar no final!
+            </Typography>
+          </Box>
+        </Droppable>
+      </Box>
     </Paper>
   );
 }
