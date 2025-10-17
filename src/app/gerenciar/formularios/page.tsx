@@ -50,7 +50,7 @@ export default function FormulariosPage() {
     return (
         <div className='p-4'>
             <Box
-                sx={{ flexGrow: 1, bgcolor: 'background.paper', display: 'flex', height: 550, padding: 2}}
+                sx={{ flexGrow: 1, bgcolor: 'background.paper', display: 'flex', height: '100vh)', padding: 2}}
             >
                 <Tabs
                     orientation="vertical"
