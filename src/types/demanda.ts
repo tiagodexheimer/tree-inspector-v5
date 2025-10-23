@@ -6,7 +6,7 @@ export type DemandaType = {
   ID: string;
   endereco: string;
   descricao: string;
-  prazo: number;
+  prazo: Date;
   status: Status;
   responsavel?: string;
   contato?: {

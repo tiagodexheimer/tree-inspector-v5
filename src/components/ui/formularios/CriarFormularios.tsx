@@ -1,11 +1,11 @@
 // src/components/ui/formularios/CriarFormularios.tsx
 import {
   CheckBox, RadioButtonChecked, ShortText, Subject, // Ícones para os campos
-  ToggleOn, ArrowDropDownCircle, CheckCircleOutline as CheckCircleOutlineIcon
+ ToggleOn, ArrowDropDownCircle, CheckCircleOutline as CheckCircleOutlineIcon,
 } from "@mui/icons-material";
 import {
-  Box, Card, Input, Typography, Button, TextField, TextareaAutosize as MuiTextareaAutosize,
-  Dialog, DialogTitle, DialogContent, DialogActions, FormControlLabel, Radio, Switch as MuiSwitch,
+ Box, Card, Typography, Button, TextField,
+  Dialog, DialogTitle, DialogContent, DialogActions,
   List, ListItem, ListItemText, Divider, FormControl, InputLabel, Select, MenuItem, SelectChangeEvent
 } from "@mui/material";
 import React from "react";
@@ -34,7 +34,7 @@ export default function CriarFormularios() {
 
   const handleInserirCampos = (tipo: CampoTipo) => {
     const novoId = `campo_${Date.now()}`;
-    let novoCampoBase = { id: novoId, name: novoId }; // Base comum
+    const novoCampoBase = { id: novoId, name: novoId }; // Base comum
 
     let novoCampo: CampoDef;
 

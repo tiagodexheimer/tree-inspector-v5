@@ -1,10 +1,13 @@
 // src/components/ui/formularios/CampoFormularios.tsx
 import {
-  Checkbox, FormControlLabel, Input, Select, TextareaAutosize as MuiTextareaAutosize,
-  MenuItem, SelectChangeEvent, RadioGroup, Radio, Switch as MuiSwitch, FormControl, FormLabel // Adicionados RadioGroup, Radio, Switch, FormControl, FormLabel
+    Checkbox, FormControlLabel, Select,
+    MenuItem, SelectChangeEvent, RadioGroup, Radio, Switch as MuiSwitch, FormControl, FormLabel,
+    TextField, // Adicionado TextField
+    InputLabel // Adicionado InputLabel
 } from '@mui/material';
 import React from 'react';
-import { CampoOpcao, CampoTipo } from './CriarFormularios'; // Importa tipos
+// Certifique-se que está a importar do local correto
+import { CampoOpcao, CampoTipo } from '@/types/formularios';
 
 // Define a interface para as props
 interface CampoProps {
@@ -16,7 +19,7 @@ interface CampoProps {
     options?: CampoOpcao[]; // Usa o tipo exportado
     defaultValue?: string | boolean; // Adicionado para switch
     rows?: number; // Adicionado para textarea
-    [key: string]: any; // Para capturar ...rest (placeholder, required, etc.)
+    [key: string]: unknown; // Para capturar ...rest (placeholder, required, etc.)
 }
 
 const CampoFormularios: React.FC<CampoProps> = ({
@@ -35,66 +38,72 @@ const CampoFormularios: React.FC<CampoProps> = ({
 
     switch (type) {
         case 'textarea':
+            // Usar TextField multiline em vez de MuiTextareaAutosize para consistência
             inputElement = (
-                <MuiTextareaAutosize
+                 <TextField
+                    fullWidth
+                    variant="outlined"
+                    label={label}
                     id={name}
                     name={name}
-                    value={value as string}
+                    value={value as string || ''}
                     onChange={onChange as (e: React.ChangeEvent<HTMLTextAreaElement>) => void}
-                    minRows={rows || 3} // Usa a prop rows
+                    multiline // Habilita múltiplas linhas
+                    rows={rows || 3} // Usa a prop rows
                     {...rest}
-                    style={{ width: '100%', padding: '8px', border: '1px solid #ccc', borderRadius: '4px', fontFamily: 'inherit' }} // Estilo básico
-                />
+                    // O estilo pode ser removido, TextField lida com isso
+                 />
             );
             break;
 
         case 'select':
-            inputElement = (
-                <Select
-                    fullWidth
-                    id={name}
-                    name={name}
-                    value={value as string || ''} // Garante que value não seja undefined/null
-                    onChange={onChange as (e: SelectChangeEvent<string>) => void}
-                    displayEmpty // Permite mostrar o placeholder
-                    {...rest}
-                >
-                    {/* Placeholder */}
-                    <MenuItem value="" disabled>Selecione uma opção</MenuItem>
-                    {options.map((option) => (
-                        <MenuItem key={option.id} value={option.value}> {/* Usa option.id como key */}
-                            {option.label}
-                        </MenuItem>
-                    ))}
-                </Select>
-            );
-            break;
+             inputElement = (
+                 <FormControl fullWidth variant="outlined">
+                   <InputLabel id={`${name}-label`}>{label}</InputLabel>
+                   <Select
+                     labelId={`${name}-label`}
+                     label={label}
+                     id={name}
+                     name={name}
+                     value={value as string || ''}
+                     onChange={onChange as (e: SelectChangeEvent<string>) => void}
+                     displayEmpty
+                     {...rest}
+                    >
+                     <MenuItem value="" disabled>Selecione uma opção</MenuItem>
+                     {options.map((option) => (
+                         <MenuItem key={option.id} value={option.value}>
+                             {option.label}
+                         </MenuItem>
+                     ))}
+                   </Select>
+                 </FormControl>
+             );
+            // Retorna diretamente pois já inclui o label no FormControl
+            return <div className="form-group" style={{ margin: '16px 0' }}>{inputElement}</div>;
 
         case 'checkbox':
-            // Checkbox individual continua o mesmo
+            // Checkbox não precisa de wrapper extra, FormControlLabel já lida com isso
             return (
                 <FormControlLabel
                     label={label}
                     control={
                         <Checkbox checked={!!value} onChange={onChange as (e: React.ChangeEvent<HTMLInputElement>) => void} name={name} id={name} {...rest} />
                     }
-                    sx={{ display: 'flex', alignItems: 'center', mb: 1 }} // Ajuste de layout
+                    sx={{ display: 'flex', alignItems: 'center', mb: 1, width: '100%' }} // Ocupa largura total
                 />
             );
 
-        // --- NOVO: Radio Group ---
         case 'radio':
-             // Usa FormControl para agrupar Label e RadioGroup
              inputElement = (
                 <FormControl component="fieldset" fullWidth>
-                    {/* Usa FormLabel como o <label> principal */}
                     <FormLabel component="legend">{label}</FormLabel>
                     <RadioGroup
                         aria-label={label}
                         name={name}
                         value={value as string || ''}
                         onChange={onChange as (e: React.ChangeEvent<HTMLInputElement>) => void}
-                        row // Opcional: para alinhar horizontalmente
+                        row // Alinha horizontalmente
                     >
                         {options.map((option) => (
                             <FormControlLabel
@@ -110,9 +119,8 @@ const CampoFormularios: React.FC<CampoProps> = ({
             // Retorna diretamente pois já inclui o label no FormControl
             return <div className="form-group" style={{ margin: '16px 0' }}>{inputElement}</div>;
 
-        // --- NOVO: Switch ---
         case 'switch':
-            // Similar ao Checkbox, usa FormControlLabel
+            // Switch não precisa de wrapper extra
              return (
                  <FormControlLabel
                     label={label}
@@ -122,36 +130,125 @@ const CampoFormularios: React.FC<CampoProps> = ({
                             onChange={onChange as (e: React.ChangeEvent<HTMLInputElement>) => void}
                             name={name}
                             id={name}
-                            defaultChecked={!!defaultValue} // Usa defaultValue se fornecido
+                            defaultChecked={!!defaultValue}
                             {...rest}
                         />
                     }
-                    sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 1, mr: 0 }} // Layout para switch
+                    // Justifica o conteúdo para alinhar o label à esquerda e o switch à direita
+                    sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 1, mr: 0, width: '100%' }}
                 />
             );
 
-
-        // --- Default (Input Text, Number, etc.) ---
+        // --- Blocos `case` separados para cada tipo de input ---
         case 'text':
-        case 'password':
-        case 'email':
-        case 'number':
-        case 'date':
-        default:
             inputElement = (
-                <Input fullWidth type={type} id={name} name={name} value={value as string || ''} onChange={onChange as (e: React.ChangeEvent<HTMLInputElement>) => void} {...rest} />
-            );
+               <TextField
+                 fullWidth
+                 variant="outlined"
+                 label={label}
+                 type="text"
+                 id={name}
+                 name={name}
+                 value={value as string || ''}
+                 onChange={onChange as (e: React.ChangeEvent<HTMLInputElement>) => void}
+                 {...rest}
+               />
+             );
+            break;
+        case 'password':
+            inputElement = (
+               <TextField
+                 fullWidth
+                 variant="outlined"
+                 label={label}
+                 type="password"
+                 id={name}
+                 name={name}
+                 value={value as string || ''}
+                 onChange={onChange as (e: React.ChangeEvent<HTMLInputElement>) => void}
+                 {...rest}
+               />
+             );
+            break;
+        case 'email':
+            inputElement = (
+               <TextField
+                 fullWidth
+                 variant="outlined"
+                 label={label}
+                 type="email"
+                 id={name}
+                 name={name}
+                 value={value as string || ''}
+                 onChange={onChange as (e: React.ChangeEvent<HTMLInputElement>) => void}
+                 {...rest}
+               />
+             );
+            break;
+        case 'number':
+            inputElement = (
+               <TextField
+                 fullWidth
+                 variant="outlined"
+                 label={label}
+                 type="number"
+                 id={name}
+                 name={name}
+                 // Lidar com valor numérico ou string vazia
+                 value={value === '' ? '' : Number(value)}
+                 onChange={(e: React.ChangeEvent<HTMLInputElement>) => {
+                    // Passa o valor como string ou número, dependendo se está vazio
+                    const newValue = e.target.value === '' ? '' : Number(e.target.value);
+                    // Cria um evento sintético se necessário para compatibilidade com onChange
+                    const syntheticEvent = {
+                        ...e,
+                        target: {
+                            ...e.target,
+                            value: newValue, // Garante que o valor no evento corresponda ao que o estado espera
+                            name: name
+                        }
+                    } as React.ChangeEvent<HTMLInputElement>; // Ajusta o tipo do evento sintético
+                     onChange(syntheticEvent);
+                 }}
+                 {...rest}
+               />
+             );
+            break;
+        case 'date':
+             inputElement = (
+               <TextField
+                 fullWidth
+                 variant="outlined"
+                 label={label}
+                 type="date"
+                 id={name}
+                 name={name}
+                 value={value as string || ''} // Datas são geralmente strings no formato YYYY-MM-DD
+                 onChange={onChange as (e: React.ChangeEvent<HTMLInputElement>) => void}
+                 InputLabelProps={{ shrink: true }} // Garante que o label não sobreponha a data
+                 {...rest}
+               />
+             );
+            break;
+
+        // O default agora pode ficar vazio ou lançar um erro se um tipo inválido for passado
+        default:
+            console.warn(`Tipo de campo não reconhecido: ${type}`);
+            inputElement = null; // Ou um placeholder indicando erro
     }
 
-    // Wrapper padrão para text, select, textarea... (Radio e Switch retornam antes)
-    return (
-        <div className="form-group" style={{ margin: '16px 0' }}>
-            <label htmlFor={name} style={{ display: 'block', marginBottom: '4px', fontWeight: '500' }}>
-                {label}
-            </label>
-            {inputElement}
-        </div>
-    );
+    // Wrapper padrão para os TextField (text, password, email, number, date, textarea)
+    // Os outros tipos (checkbox, switch, radio, select) retornam antes
+    if (inputElement) {
+        return (
+            <div className="form-group" style={{ margin: '16px 0' }}>
+                {/* O label já está dentro do TextField, não precisa mais aqui */}
+                {inputElement}
+            </div>
+        );
+    }
+
+    return null; // Caso nenhum elemento seja renderizado
 };
 
 export default CampoFormularios;

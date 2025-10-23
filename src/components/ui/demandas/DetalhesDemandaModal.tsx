@@ -24,13 +24,13 @@ export default function DetalhesDemandaModal({ open, onClose, demanda }: Detalhe
         <Typography gutterBottom variant="h6">Informações do Solicitante</Typography>
         <List dense>
           <ListItem>
-            <ListItemText primary="Nome" secondary={demanda.contato.nome} />
+            <ListItemText primary="Nome" secondary={demanda.contato?.nome} />
           </ListItem>
           <ListItem>
-            <ListItemText primary="Telefone" secondary={demanda.contato.telefone} />
+            <ListItemText primary="Telefone" secondary={demanda.contato?.telefone} />
           </ListItem>
           <ListItem>
-            <ListItemText primary="Email" secondary={demanda.contato.email} />
+            <ListItemText primary="Email" secondary={demanda.contato?.email} />
           </ListItem>
         </List>
 

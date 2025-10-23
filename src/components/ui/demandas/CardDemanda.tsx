@@ -10,6 +10,12 @@ interface CardDemandaProps extends DemandaType {
     isSelected: boolean;
     onSelect: (id: string) => void;
 }
+function countPrazo(prazo: Date) {
+    const today = new Date();
+    const timeDiff = prazo.getTime() - today.getTime();
+    const daysDiff = Math.ceil(timeDiff / (1000 * 3600 * 24));
+    return daysDiff;
+}
 
 export default function CardDemanda(props: CardDemandaProps) {
     const { ID, endereco, descricao, prazo, status, isSelected, onSelect } = props;
@@ -57,7 +63,7 @@ export default function CardDemanda(props: CardDemandaProps) {
                 <CardContent>
                     <p>Endereço: {endereco}</p>
                     <Typography variant="body2" color="text.secondary">{descricao}</Typography>
-                    <p>Prazo: {prazo} dias</p>
+                    <p>Prazo: {countPrazo(prazo)} dias</p>
                     {/* O botão "Detalhes" agora tem sua própria função de clique que para a propagação */}
                     <Button variant="outlined" size="small" onClick={handleOpenModal} sx={{ mt: 1 }}>
                         Detalhes

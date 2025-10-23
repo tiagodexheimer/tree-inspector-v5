@@ -1,16 +1,22 @@
 // src/components/ui/formularios/PreVisualizarFormularios.tsx
 import React from 'react';
-import { Box, Typography } from '@mui/material';
-import { CampoDef } from './CriarFormularios'; // Ajuste o caminho se moveu a interface
+// FIX: Add SelectChangeEvent to the import from @mui/material
+import { Box, Typography, SelectChangeEvent } from '@mui/material';
+import { CampoDef } from './CriarFormularios'; // Assuming this import is correct
 import CampoFormularios from './CampoFormularios';
 
 interface PreviaProps {
     campos: CampoDef[];
 }
 
-export default function PreVisualizarFormularios({ campos }: PreviaProps) {
-    const [formData, setFormData] = React.useState<any>({});
+// Define a more specific type for the form data state
+type FormDataState = Record<string, string | boolean | number>;
 
+export default function PreVisualizarFormularios({ campos }: PreviaProps) {
+    // Use the specific type FormDataState instead of any
+    const [formData, setFormData] = React.useState<FormDataState>({});
+
+    // The type annotation here now has the imported SelectChangeEvent
     const handleFormChange = (event: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement> | SelectChangeEvent<string>) => {
         // Verifica se é um evento de SelectChangeEvent
         if (typeof event === 'object' && event && 'target' in event) {
@@ -20,13 +26,13 @@ export default function PreVisualizarFormularios({ campos }: PreviaProps) {
              // Lógica especial para Checkbox e Switch
             if (type === 'checkbox' || type === 'switch') { // Adicionado 'switch'
                 const { checked } = target as HTMLInputElement; // Cast para acessar 'checked'
-                setFormData((prevData: any) => ({
+                setFormData((prevData: FormDataState) => ({
                     ...prevData,
                     [name]: checked
                 }));
             } else {
                  // Para outros tipos (text, textarea, select, radio)
-                setFormData((prevData: any) => ({
+                setFormData((prevData: FormDataState) => ({
                     ...prevData,
                     [name]: value
                 }));

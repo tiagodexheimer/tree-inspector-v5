@@ -16,7 +16,7 @@ const demandas: DemandaType[] = [
         ID: "1",
         endereco: "Rua das Flores, 123, Centro",
         descricao: "Poda de galho que ameaça a fiação. a demanda se extende por mais de duas linhas para testar o corte de texto na descrição do card. Por isto é importante que o texto seja cortado corretamente.",
-        prazo: 7,
+        prazo: new Date('2025-11-30'),
         status: "Pendente",
         responsavel: "João Silva",
         contato: { nome: "Maria Souza", telefone: "(51) 9999-1111", email: "maria@email.com", endereco: "Rua das Flores, 123" }
@@ -25,7 +25,7 @@ const demandas: DemandaType[] = [
         ID: "2",
         endereco: "Avenida Brasil, 456, Igara",
         descricao: "Remoção de árvore caída após temporal.",
-        prazo: 14,
+        prazo: new Date('2025-10-30'),
         status: "Em andamento",
         responsavel: "Pedro Martins",
         contato: { nome: "Carlos Pereira", telefone: "(51) 9999-2222", email: "carlos@email.com", endereco: "Avenida Brasil, 456" }
@@ -34,7 +34,7 @@ const demandas: DemandaType[] = [
         ID: "3",
         endereco: "Rua dos Pinheiros, 789, Marechal Rondon",
         descricao: "Análise de fitossanidade de ipê.",
-        prazo: 30,
+        prazo: new Date('2025-10-10'),
         status: "Concluído",
         responsavel: "Ana Costa",
         contato: { nome: "Lucia Almeida", telefone: "(51) 9999-3333", email: "lucia@email.com", endereco: "Rua dos Pinheiros, 789" }
@@ -43,7 +43,7 @@ const demandas: DemandaType[] = [
         ID: "4", // ID único
         endereco: "Travessa Estrela, 10, Niterói",
         descricao: "Poda de contenção em sibipiruna.",
-        prazo: 60,
+        prazo: new Date('2025-10-30'),
         status: "Pendente",
         responsavel: "João Silva",
         contato: { nome: "Roberto Lima", telefone: "(51) 9999-4444", email: "roberto@email.com", endereco: "Travessa Estrela, 10" }
@@ -52,7 +52,7 @@ const demandas: DemandaType[] = [
         ID: "5", // ID único
         endereco: "Rua da República, 20, Centro",
         descricao: "Avaliação de risco de queda de eucalipto.",
-        prazo: 20,
+        prazo: new Date('2025-10-22'),
         status: "Pendente",
         responsavel: "Mariana Dias",
         contato: { nome: "Fernanda Rocha", telefone: "(51) 9999-5555", email: "fernanda@email.com", endereco: "Rua da República, 20" }
@@ -61,7 +61,7 @@ const demandas: DemandaType[] = [
         ID: "6", // ID único
         endereco: "Avenida Getúlio Vargas, 300, Centro",
         descricao: "Supressão de ligustro invasor.",
-        prazo: 15,
+        prazo: new Date('2025-10-30'),
         status: "Em andamento",
         responsavel: "Pedro Martins",
         contato: { nome: "José Santos", telefone: "(51) 9999-6666", email: "jose@email.com", endereco: "Avenida Getúlio Vargas, 300" }
@@ -70,7 +70,7 @@ const demandas: DemandaType[] = [
         ID: "7", // ID único
         endereco: "Rua Sete de Setembro, 40, Igara",
         descricao: "Plantio de nova muda em calçada.",
-        prazo: 10,
+        prazo: new Date('2025-10-10'),
         status: "Concluído",
         responsavel: "Ana Costa",
         contato: { nome: "Beatriz Mello", telefone: "(51) 9999-7777", email: "beatriz@email.com", endereco: "Rua Sete de Setembro, 40" }
@@ -98,7 +98,8 @@ export default function DemandasPage() {
 
         return demandas.filter(demanda =>
             demanda.endereco.toLowerCase().includes(filtroLowerCase) ||
-            demanda.contato.nome.toLowerCase().includes(filtroLowerCase) ||
+            // Fix: Add optional chaining (?.) and check if contato/nome exists
+            (demanda.contato?.nome && demanda.contato.nome.toLowerCase().includes(filtroLowerCase)) ||
             demanda.descricao.toLowerCase().includes(filtroLowerCase)
         );
     }, [filtro]); // A lista só será recalculada se 'filtro' ou 'demandas' mudar
