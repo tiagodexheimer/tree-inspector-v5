@@ -8,8 +8,8 @@ export type DemandaType = {
   descricao: string;
   prazo: number;
   status: Status;
-  responsavel: string;
-  contato: {
+  responsavel?: string;
+  contato?: {
     nome: string;
     telefone: string;
     email: string;
