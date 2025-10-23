@@ -1,0 +1,18 @@
+version: '3.8' # Especifica a versão do Docker Compose
+
+services:
+  db:
+    image: postgis/postgis:16-3.4 # Imagem oficial do PostGIS (PostgreSQL 16 com PostGIS 3.4)
+    container_name: postgis_db_crud # Nome do container (opcional, mas útil)
+    environment:
+      POSTGRES_USER: meuusuario       # Nome de usuário do banco de dados
+      POSTGRES_PASSWORD: minhasenhasecreta # Senha do banco de dados
+      POSTGRES_DB: meubanco_gis       # Nome do banco de dados a ser criado
+    ports:
+      - "5432:5432" # Mapeia a porta 5432 do container para a 5432 da sua máquina
+    volumes:
+      - postgres_data:/var/lib/postgresql/data # Volume para persistir os dados
+    restart: always # Reinicia o container se ele parar
+
+volumes:
+  postgres_data: # Define o volume nomeado para persistência
