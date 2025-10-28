@@ -1,25 +1,25 @@
 // src/components/ui/demandas/CardDemanda.tsx
 'use client';
 
-import { DemandaType } from "@/types/demanda"; // Remove Status import if unused here
-import { Card, CardHeader, CardContent, Box, Typography, Button } from "@mui/material";
+import { DemandaType } from "@/types/demanda";
+import { Card, CardHeader, CardContent, Box, Typography, Button, IconButton } from "@mui/material"; // Adicionado IconButton
 import StatusDemanda from "./StatusDemanda";
 import { useState } from "react";
 import DetalhesDemandaModal from "./DetalhesDemandaModal";
+import DeleteIcon from '@mui/icons-material/Delete'; // Importa o ícone de lixeira
 
-// Assuming CardDemandaProps includes DemandaType properties plus isSelected and onSelect
+// Interface atualizada para incluir onDelete
 interface CardDemandaProps extends DemandaType {
     isSelected: boolean;
-    // FIX: Change prop type to expect only number
     onSelect: (id: number) => void;
+    // Adiciona a prop para a função de deleção
+    onDelete: (id: number) => void;
 }
 
 export default function CardDemanda(props: CardDemandaProps) {
-
-    
-    // id is now correctly number | undefined
-    const { id, logradouro, numero, bairro, cidade, uf, tipo_demanda, // Campos de endereço
-            descricao, prazo, status, isSelected, onSelect } = props;
+    // Desestrutura onDelete das props
+    const { id, logradouro, numero, bairro, cidade, uf, tipo_demanda,
+            descricao, prazo, status, isSelected, onSelect, onDelete } = props;
     const [modalOpen, setModalOpen] = useState(false);
 
     const handleOpenModal = (e: React.MouseEvent) => {
@@ -27,36 +27,24 @@ export default function CardDemanda(props: CardDemandaProps) {
         setModalOpen(true);
     };
 
-    // Helper function (ensure it handles Date | null | undefined)
     const formatPrazo = (date: Date | null | undefined): string => {
        if (!date) return 'N/A';
         if (date instanceof Date && !isNaN(date.getTime())) {
-             try {
-                return date.toLocaleDateString('pt-BR');
-             } catch (e) {
-                console.error("Error formatting date:", date, e);
-                return 'Data inválida';
-            }
+             try { return date.toLocaleDateString('pt-BR'); }
+             catch (e) { console.error("Error formatting date:", date, e); return 'Data inválida'; }
         }
         console.warn("Invalid date value received:", date);
         return 'Data inválida';
     };
-// Formata um endereço mais curto para o subheader do card
+
     const formatEnderecoCurto = (): string => {
-        const parts = [
-            logradouro,
-            numero ? `, ${numero}` : '',
-            bairro ? ` - ${bairro}` : '',
-            // cidade ? `, ${cidade}` : '', // Pode ficar muito longo para o subheader
-            // uf ? `/${uf}` : '',
-        ];
+        const parts = [ logradouro, numero ? `, ${numero}` : '', bairro ? ` - ${bairro}` : '' ];
         return parts.filter(Boolean).join('').trim() || 'Endereço não informado';
     };
 
     return (
         <div>
             <Card
-                // Pass number id, use non-null assertion
                 onClick={() => onSelect(id!)}
                 sx={{
                     width: 400,
@@ -75,12 +63,39 @@ export default function CardDemanda(props: CardDemandaProps) {
             >
                 <Box>
                     <CardHeader
-                        action={status ? <StatusDemanda status={status} /> : null}
-                        title={tipo_demanda || `Demanda ${id}`} // Uses number id
+                        action={
+                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, mt: -1 }}>
+                                {status ? <StatusDemanda status={status} /> : null}
+                                <IconButton
+                                    aria-label={`Excluir demanda ${id}`}
+                                    color="error"
+                                    size="small"
+                                    onClick={(e) => {
+                                        e.stopPropagation();
+                                        onDelete(id!);
+                                    }}
+                                    title="Excluir Demanda"
+                                >
+                                    <DeleteIcon fontSize="small" />
+                                </IconButton>
+                            </Box>
+                        }
+                        title={tipo_demanda || `Demanda ${id}`}
                         subheader={formatEnderecoCurto()}
                         sx={{ pb: 0, alignItems: 'flex-start' }}
-                        // Aumenta o número de linhas para o subheader se necessário
-                        subheaderTypographyProps={{ noWrap: false, variant: 'body2', color: 'text.secondary', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}
+                        titleTypographyProps={{ textTransform: 'capitalize', fontWeight: 'bold' }}
+                        // FIX: Adjust the sx prop within subheaderTypographyProps
+                        subheaderTypographyProps={{
+                            variant: 'body2',
+                            color: 'text.secondary',
+                            sx: { // Apply the line clamp styles within an inner sx prop
+                                display: '-webkit-box',
+                                WebkitLineClamp: 2, // Keep camelCase here
+                                WebkitBoxOrient: 'vertical', // Keep camelCase here
+                                overflow: 'hidden',
+                                // noWrap: false, // Remove noWrap if using line clamp
+                            }
+                         }}
                     />
                     <CardContent>
                         <Box sx={{
@@ -100,7 +115,7 @@ export default function CardDemanda(props: CardDemandaProps) {
                         }}>
                         {descricao}
                     </Typography>
-                    <Typography variant="body2">Prazo: {formatPrazo(prazo)}</Typography>
+                    <Typography variant="body2" sx={{mt:1 /* ajuste espaçamento se necessário */}}>Prazo: {formatPrazo(prazo)}</Typography>
                     <Typography variant="caption" color="text.secondary" display="block">
                        {cidade && uf ? `${cidade}/${uf}` : (cidade || uf || '')}
                     </Typography>
