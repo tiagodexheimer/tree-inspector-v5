@@ -15,8 +15,11 @@ interface CardDemandaProps extends DemandaType {
 }
 
 export default function CardDemanda(props: CardDemandaProps) {
+
+    
     // id is now correctly number | undefined
-    const { id, endereco, descricao, prazo, status, isSelected, onSelect } = props;
+    const { id, logradouro, numero, bairro, cidade, uf, tipo_demanda, // Campos de endereço
+            descricao, prazo, status, isSelected, onSelect } = props;
     const [modalOpen, setModalOpen] = useState(false);
 
     const handleOpenModal = (e: React.MouseEvent) => {
@@ -38,7 +41,17 @@ export default function CardDemanda(props: CardDemandaProps) {
         console.warn("Invalid date value received:", date);
         return 'Data inválida';
     };
-
+// Formata um endereço mais curto para o subheader do card
+    const formatEnderecoCurto = (): string => {
+        const parts = [
+            logradouro,
+            numero ? `, ${numero}` : '',
+            bairro ? ` - ${bairro}` : '',
+            // cidade ? `, ${cidade}` : '', // Pode ficar muito longo para o subheader
+            // uf ? `/${uf}` : '',
+        ];
+        return parts.filter(Boolean).join('').trim() || 'Endereço não informado';
+    };
 
     return (
         <div>
@@ -63,9 +76,11 @@ export default function CardDemanda(props: CardDemandaProps) {
                 <Box>
                     <CardHeader
                         action={status ? <StatusDemanda status={status} /> : null}
-                        title={`Demanda ${id}`} // Uses number id
-                        subheader={endereco}
+                        title={tipo_demanda || `Demanda ${id}`} // Uses number id
+                        subheader={formatEnderecoCurto()}
                         sx={{ pb: 0, alignItems: 'flex-start' }}
+                        // Aumenta o número de linhas para o subheader se necessário
+                        subheaderTypographyProps={{ noWrap: false, variant: 'body2', color: 'text.secondary', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}
                     />
                     <CardContent>
                         <Box sx={{
@@ -86,6 +101,9 @@ export default function CardDemanda(props: CardDemandaProps) {
                         {descricao}
                     </Typography>
                     <Typography variant="body2">Prazo: {formatPrazo(prazo)}</Typography>
+                    <Typography variant="caption" color="text.secondary" display="block">
+                       {cidade && uf ? `${cidade}/${uf}` : (cidade || uf || '')}
+                    </Typography>
                     <Button variant="outlined" size="small" onClick={handleOpenModal} sx={{ mt: 1 }}>
                         Detalhes
                     </Button>

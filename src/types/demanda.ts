@@ -10,32 +10,39 @@ export interface GeoJsonPoint {
 }
 
 // Tipo atualizado para refletir o formulário e a geometria
-export type DemandaType = {
-  // Campos do formulário AddDemandaModal
-  id?: number; // ID será gerado pelo banco
-  protocolo?: string; // Podemos gerar um protocolo
+export interface DemandaType {
+  id?: number;
+  protocolo?: string;
   nome_solicitante: string;
   telefone_solicitante?: string | null;
   email_solicitante?: string | null;
-  endereco: string;
-  tipo_demanda: string; // Ex: 'poda', 'remocao', etc.
-  descricao: string;
-  // Campos de gestão (do tipo original)
-  prazo?: Date | null; // Data limite (agora Date, opcional)
-  status?: Status; // Status inicial, pode ser definido no backend
-  responsavel?: string | null; // Responsável técnico (opcional)
-  // Campo Geográfico
-  geom?: GeoJsonPoint | null; // Localização geocodificada (opcional no tipo, mas tentaremos preencher)
 
-  // Manter o campo contato opcional se ainda for usado em outros lugares,
-  // mas os campos individuais acima são preferíveis para a tabela.
+  // --- Campos de Endereço Atualizados ---
+  // endereco: string; // Remover esta linha
+  cep: string; // Obrigatório
+  logradouro?: string | null; // Preenchido via CEP
+  numero: string; // Obrigatório
+  complemento?: string | null; // Opcional
+  bairro?: string | null; // Preenchido via CEP
+  cidade?: string | null; // Preenchido via CEP
+  uf?: string | null; // Preenchido via CEP (UF)
+  // ------------------------------------
+
+  tipo_demanda: string;
+  descricao: string;
+  prazo?: Date | null;
+  status?: Status;
+  responsavel?: string | null;
+  geom?: GeoJsonPoint | null;
+
+  // Manter 'contato' se ainda for usado, mas pode ser redundante
   contato?: {
     nome: string;
     telefone: string;
     email: string;
-    endereco: string; // Pode ser redundante se já tivermos o campo 'endereco' principal
+    endereco: string; // Este campo 'endereco' dentro de 'contato' agora é provavelmente obsoleto
   };
-};
+}
 
 export type FormField = {
   id: UniqueIdentifier;
