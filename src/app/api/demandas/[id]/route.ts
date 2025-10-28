@@ -1,26 +1,20 @@
-// src/app/api/demandas/[id]/status/route.ts
+// src/app/api/demandas/[id]/route.ts
 import { NextRequest, NextResponse } from 'next/server';
-// Ajuste o caminho para seus arquivos lib/db e types/demanda
-import pool from '../../../../../lib/db';
-import { Status } from '../../../../../types/demanda';
+import pool from '../../../../lib/db';
+import { DemandaType } from '../../../../types/demanda';
 
-// Define o tipo de contexto esperado (params é uma Promise)
-// Isso resolve o erro de tipagem que pode ocorrer com `context.params`
-type ExpectedContext = { params: Promise<{ id: string }> };
+ // Interface para o corpo da requisição PUT/PATCH
+ type UpdateDemandaBody = Partial<DemandaType & { prazo: string }>; // Permite campos opcionais e prazo como string
 
-// Interface para o corpo da requisição PATCH
-interface UpdateStatusBody {
-    status?: Status; // Status é opcional mas esperado pela lógica
-}
+ // Defina o tipo de contexto esperado (igual ao DELETE)
+ type ExpectedContext = { params: Promise<{ id: string }> };
 
-// --- Handler para PATCH (Atualizar Status da Demanda) ---
-export async function PATCH(request: NextRequest, context: ExpectedContext) {
-    // Aguarda a resolução da Promise para obter os parâmetros
+ // --- Handler para PUT (Atualizar Demanda) ---
+ export async function PUT(request: NextRequest, context: ExpectedContext) {
     const params = await context.params;
     const id = params.id;
-    console.log(`[API] Recebido PATCH em /api/demandas/${id}/status`);
+    console.log(`[API] Recebido PUT em /api/demandas/${id}`);
 
-    // Valida se o ID é um número
     const numericId = parseInt(id, 10);
     if (isNaN(numericId)) {
         console.error('[API] Erro 400: ID inválido.');
@@ -28,57 +22,144 @@ export async function PATCH(request: NextRequest, context: ExpectedContext) {
     }
 
     try {
-        // Obtém o corpo da requisição
-        const body = await request.json() as UpdateStatusBody;
-        const newStatus = body.status;
-        console.log('[API] Novo status recebido:', newStatus);
+        const body = await request.json() as UpdateDemandaBody;
+        console.log('[API] Body recebido para atualização:', body);
 
-        // Validação do Status recebido
-        const validStatuses: Status[] = ['Pendente', 'Em andamento', 'Concluído'];
-        if (!newStatus || !validStatuses.includes(newStatus)) {
-            console.log('[API] Erro 400: Status inválido ou ausente.');
-            return NextResponse.json({ message: 'Status inválido ou ausente. Valores permitidos: Pendente, Em andamento, Concluído.' }, { status: 400 });
+        // Extrai e valida os campos necessários (similar ao POST)
+        const {
+            nome_solicitante, telefone_solicitante, email_solicitante,
+            cep, logradouro, numero, complemento, bairro, cidade, uf,
+            tipo_demanda, descricao, prazo,
+            // Poderia incluir 'status' se quisesse permitir a edição dele aqui
+        } = body;
+
+        // Validação Mínima (igual ao POST)
+         if (!nome_solicitante || !cep || !numero || !tipo_demanda || !descricao) {
+             console.log('[API] Erro 400: Campos obrigatórios ausentes na atualização.');
+             return NextResponse.json({ message: 'Campos obrigatórios ausentes: Nome, CEP, Número, Tipo e Descrição.' }, { status: 400 });
+        }
+        if (!/^\d{5}-?\d{3}$/.test(cep)) {
+             console.log('[API] Erro 400: Formato de CEP inválido na atualização.');
+             return NextResponse.json({ message: 'Formato de CEP inválido.' }, { status: 400 });
         }
 
-        // Monta a Query SQL UPDATE
-        // Atualiza o status e o campo updated_at (se existir na sua tabela)
-        const queryText = `
-            UPDATE demandas
-            SET status = $1,
-                updated_at = NOW() -- Assume que você tem um campo updated_at
-            WHERE id = $2
-            RETURNING id, status, updated_at; -- Retorna campos atualizados para confirmação
-        `;
+         // TODO: Geocodificar novamente SE os campos de endereço mudaram
+         // (Pode ser mais complexo, por enquanto vamos pular ou assumir que não muda)
+         // let coordinates: [number, number] | null = null;
+         // ... lógica de geocodificação aqui ...
+         // Por simplicidade, NÃO vamos atualizar geom neste exemplo inicial.
+         // Para atualizar, você precisaria buscar a demanda atual, comparar endereços,
+         // chamar a API de geocodificação se diferente, e incluir geom na query UPDATE.
 
-        const queryParams = [newStatus, numericId];
+         // Formata o prazo
+         const prazoDate = prazo && prazo.trim() !== '' ? new Date(prazo) : null;
+         const prazoValidoParaSQL = prazoDate instanceof Date && !isNaN(prazoDate.getTime()) ? prazoDate : null;
 
-        console.log('[API] Executando query UPDATE status:', queryText, queryParams);
+         // Monta a Query SQL UPDATE
+         const queryText = `
+            UPDATE demandas SET
+                nome_solicitante = $1,
+                telefone_solicitante = $2,
+                email_solicitante = $3,
+                cep = $4,
+                logradouro = $5,
+                numero = $6,
+                complemento = $7,
+                bairro = $8,
+                cidade = $9,
+                uf = $10,
+                tipo_demanda = $11,
+                descricao = $12,
+                prazo = $13
+                -- Não estamos atualizando 'protocolo', 'status' ou 'geom' aqui
+            WHERE id = $14
+            RETURNING id, protocolo, nome_solicitante, status, created_at, updated_at, prazo, ST_AsGeoJSON(geom) as geom;
+         `;
+
+        // Parâmetros para a query UPDATE
+        const queryParams = [
+            nome_solicitante,
+            telefone_solicitante || null,
+            email_solicitante || null,
+            cep.replace(/\D/g,''), // Salva apenas dígitos
+            logradouro || null,
+            numero,
+            complemento || null,
+            bairro || null,
+            cidade || null,
+            uf ? uf.toUpperCase() : null,
+            tipo_demanda,
+            descricao,
+            prazoValidoParaSQL, // Prazo
+            numericId // O ID da demanda a ser atualizada
+        ];
+
+        console.log('[API] Executando query UPDATE:', queryText);
+        // console.log('[API] Com parâmetros:', queryParams); // Cuidado ao logar dados sensíveis
 
         // Executa a Query
         const result = await pool.query(queryText, queryParams);
 
-        // Verifica se alguma linha foi afetada (se a demanda com o ID existe)
         if (result.rowCount === 0) {
-            console.warn(`[API] Demanda com ID ${numericId} não encontrada para atualização de status.`);
-            return NextResponse.json({ message: `Demanda com ID ${numericId} não encontrada.` }, { status: 404 });
+             console.warn(`[API] Demanda com ID ${numericId} não encontrada para atualização.`);
+             return NextResponse.json({ message: `Demanda com ID ${numericId} não encontrada.` }, { status: 404 });
         }
 
-        const updatedFields = result.rows[0];
-        console.log('[API] Status da demanda atualizado com sucesso:', updatedFields);
+        // Prepara e Envia a Resposta
+        const updatedDemanda = result.rows[0];
+        if (updatedDemanda.geom) { updatedDemanda.geom = JSON.parse(updatedDemanda.geom); }
+        if (updatedDemanda.prazo) { updatedDemanda.prazo = new Date(updatedDemanda.prazo); }
+         // updated_at é atualizado automaticamente pelo banco (se configurado com trigger ou default)
 
-        // Retorna uma resposta de sucesso
+        console.log('[API] Demanda atualizada com sucesso:', updatedDemanda);
         return NextResponse.json({
-            message: 'Status da demanda atualizado com sucesso!',
-            demanda: updatedFields // Retorna os campos atualizados (id, status, updated_at)
+            message: 'Demanda atualizada com sucesso!',
+            demanda: updatedDemanda
         }, { status: 200 });
 
     } catch (error) {
-        // Tratamento de erro genérico
-        console.error(`[API] Erro ao atualizar status da demanda ${id}:`, error);
+        console.error(`[API] Erro ao atualizar demanda ${id}:`, error);
         const errorMessage = error instanceof Error ? error.message : 'Erro desconhecido';
-        return NextResponse.json({ message: `Erro interno ao atualizar status da demanda ${id}.`, error: errorMessage }, { status: 500 });
+         // Poderia adicionar tratamento específico para erros de constraint, etc.
+         return NextResponse.json({ message: `Erro interno ao atualizar demanda ${id}.`, error: errorMessage }, { status: 500 });
     }
 }
 
-// Opcional: Adicionar outros métodos HTTP (GET, POST, etc.) se necessário para esta rota específica
-// export async function GET(request: NextRequest, context: ExpectedContext) { ... }
+
+export async function DELETE(
+    request: NextRequest,
+    // Use o tipo esperado pelo erro
+    context: ExpectedContext
+) {
+    // Como params é uma Promise, precisamos usar await
+    const params = await context.params;
+    const id = params.id;
+    console.log(`[API] Recebido DELETE em /api/demandas/${id}`);
+
+    const numericId = parseInt(id, 10);
+    if (isNaN(numericId)) {
+        console.error('[API] Erro 400: ID inválido.');
+        return NextResponse.json({ message: 'ID da demanda inválido.' }, { status: 400 });
+    }
+
+    try {
+        const queryText = 'DELETE FROM demandas WHERE id = $1 RETURNING id';
+        const queryParams = [numericId];
+
+        console.log('[API] Executando query:', queryText, queryParams);
+        const result = await pool.query(queryText, queryParams);
+
+        if (result.rowCount === 0) {
+            console.warn(`[API] Demanda com ID ${numericId} não encontrada para deleção.`);
+            return NextResponse.json({ message: `Demanda com ID ${numericId} não encontrada.` }, { status: 404 });
+        }
+
+        console.log(`[API] Demanda com ID ${numericId} deletada com sucesso.`);
+        return NextResponse.json({ message: `Demanda ${numericId} deletada com sucesso.` }, { status: 200 });
+
+    } catch (error) {
+        console.error(`[API] Erro ao deletar demanda ${numericId}:`, error);
+        const errorMessage = error instanceof Error ? error.message : 'Erro desconhecido';
+        return NextResponse.json({ message: `Erro interno ao deletar demanda ${numericId}.`, error: errorMessage }, { status: 500 });
+    }
+}

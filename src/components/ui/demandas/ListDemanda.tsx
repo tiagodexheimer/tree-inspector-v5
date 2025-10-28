@@ -1,7 +1,8 @@
 // src/components/ui/demandas/ListDemanda.tsx
 import { TableCell, TableRow } from "@mui/material";
 import { DemandaType } from "@/types/demanda"; // Importa o tipo DemandaType
-import StatusDemanda from "./StatusDemanda"; // Importa StatusDemanda para exibir o status
+// Remove a importação não utilizada de StatusDemanda
+// import StatusDemanda from "./StatusDemanda"; // Importa StatusDemanda para exibir o status
 
 // Usa DemandaType diretamente como tipo das props, já que este componente representa uma demanda
 type iDemandaProps = DemandaType;
@@ -76,10 +77,11 @@ export default function ListDemanda({
             </TableCell>
             {/* Formata o prazo */}
             <TableCell>{formatPrazo(prazo)}</TableCell>
+            {/* ***** CORREÇÃO AQUI: Apenas exibe o texto do status ***** */}
             <TableCell>
-                {/* Renderiza StatusDemanda se status existir */}
-                {status ? <StatusDemanda status={status} /> : 'N/A'}
+                {status ?? 'N/A'} {/* Exibe o texto do status ou N/A */}
             </TableCell>
+             {/* ***** FIM DA CORREÇÃO ***** */}
             <TableCell>{responsavel ?? 'N/A'}</TableCell> {/* Mostra N/A se responsavel for null/undefined */}
             <TableCell>
                 {/* Formata as informações de contato */}
