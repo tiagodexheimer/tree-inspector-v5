@@ -1,18 +1,18 @@
 // src/app/demandas/page.tsx
 'use client';
-import ListaCardDemanda from "@/components/ui/demandas/ListaCardDemanda"; //
-import ListaListDemanda from "@/components/ui/demandas/ListaListDemanda"; //
+import ListaCardDemanda from "@/components/ui/demandas/ListaCardDemanda";
+import ListaListDemanda from "@/components/ui/demandas/ListaListDemanda";
 import {
     Box, Button, Dialog, DialogActions, DialogContent, DialogContentText,
     DialogTitle, IconButton, TextField, Typography, CircularProgress, Alert
-} from "@mui/material"; // Adicionado CircularProgress, Alert
+} from "@mui/material";
 import ViewListIcon from '@mui/icons-material/ViewList';
 import ViewModuleIcon from '@mui/icons-material/ViewModule';
 import { useMemo, useState, useEffect } from "react";
-import InfoOutlinedIcon from '@mui/icons-material/InfoOutlined';// Ícone para o botão de deleção
-import { DemandaType } from "@/types/demanda"; //
-import AddDemandaModal from "@/components/ui/demandas/AddDemandaModal"; //
-import CriarRotaModal from "@/components/ui/demandas/CriarRotaModal"; //
+import InfoOutlinedIcon from '@mui/icons-material/InfoOutlined';
+import { DemandaType, Status } from "@/types/demanda"; // Importa Status
+import AddDemandaModal from "@/components/ui/demandas/AddDemandaModal";
+import CriarRotaModal from "@/components/ui/demandas/CriarRotaModal";
 
 export default function DemandasPage() {
     // Estados de UI e Modais
@@ -20,7 +20,7 @@ export default function DemandasPage() {
     const [filtro, setFiltro] = useState('');
     const [addModalOpen, setAddModalOpen] = useState(false);
     const [criarRotaModalOpen, setCriarRotaModalOpen] = useState(false);
-    const [confirmacaoRotaOpen, setConfirmacaoRotaOpen] = useState(false); // Renomeado para clareza
+    const [confirmacaoRotaOpen, setConfirmacaoRotaOpen] = useState(false);
     const [nomeNovaRota, setNomeNovaRota] = useState('');
 
     // Estados de Dados e Seleção
@@ -28,27 +28,35 @@ export default function DemandasPage() {
     const [selectedDemandas, setSelectedDemandas] = useState<number[]>([]);
 
     // Estados de Carregamento e Erro
-    const [isLoading, setIsLoading] = useState<boolean>(true); // Carregamento inicial da lista
-    const [error, setError] = useState<string | null>(null); // Erro geral (principalmente de busca)
+    const [isLoading, setIsLoading] = useState<boolean>(true);
+    const [error, setError] = useState<string | null>(null);
 
     // Estados para Deleção
-    const [demandaParaDeletar, setDemandaParaDeletar] = useState<number | null>(null); // ID da demanda a deletar (controla modal)
-    const [isDeleting, setIsDeleting] = useState<boolean>(false); // Loading específico da deleção
-    const [deleteError, setDeleteError] = useState<string | null>(null); // Erro específico da deleção
+    const [demandaParaDeletar, setDemandaParaDeletar] = useState<number | null>(null);
+    const [isDeleting, setIsDeleting] = useState<boolean>(false);
+    const [deleteError, setDeleteError] = useState<string | null>(null);
+
+    // Estados para Edição
+    const [editModalOpen, setEditModalOpen] = useState(false);
+    const [demandaParaEditar, setDemandaParaEditar] = useState<DemandaType | null>(null);
+
+    // Estado para erro de atualização de status
+    const [statusUpdateError, setStatusUpdateError] = useState<string | null>(null);
 
     // --- Busca Inicial de Dados ---
     useEffect(() => {
-        fetchDemandas(); // Chama a função de busca ao montar
-    }, []); // Array vazio garante que rode apenas uma vez ao montar
+        fetchDemandas();
+    }, []);
 
     // --- Função para Buscar/Recarregar Demandas ---
     const fetchDemandas = async () => {
         console.log("[PAGE] Iniciando busca de demandas...");
         setIsLoading(true);
         setError(null);
-        setDeleteError(null); // Limpa erro de deleção também
+        setDeleteError(null);
+        setStatusUpdateError(null); // Limpa erro de status também
         try {
-            const response = await fetch('/api/demandas'); // Chama o endpoint GET
+            const response = await fetch('/api/demandas'); //
             console.log("[PAGE] Resposta fetch GET:", response.status);
             if (!response.ok) {
                 const errorData = await response.json().catch(() => ({ message: `Erro ${response.status} ao buscar demandas.` }));
@@ -57,11 +65,9 @@ export default function DemandasPage() {
             const data: DemandaType[] = await response.json();
             console.log("[PAGE] Dados recebidos:", data);
 
-            // Converte strings de data para objetos Date
             const demandasComDatas = data.map(d => ({
                 ...d,
                 prazo: d.prazo ? new Date(d.prazo) : null,
-                // created_at: d.created_at ? new Date(d.created_at) : undefined, // Se necessário
             }));
 
             console.log("[PAGE] Demandas após conversão de data:", demandasComDatas);
@@ -77,20 +83,20 @@ export default function DemandasPage() {
     };
 
 
-    // --- Filtragem (baseada no estado 'demandas') ---
+    // --- Filtragem ---
     const demandasFiltradas = useMemo(() => {
         const filtroLowerCase = filtro.toLowerCase();
         if (!filtroLowerCase) {
             return demandas;
         }
         return demandas.filter(demanda =>
-            (demanda.logradouro && demanda.logradouro.toLowerCase().includes(filtroLowerCase)) || // Filtra por logradouro
-            (demanda.bairro && demanda.bairro.toLowerCase().includes(filtroLowerCase)) || // Filtra por bairro
-            (demanda.cidade && demanda.cidade.toLowerCase().includes(filtroLowerCase)) || // Filtra por cidade
-            (demanda.cep && demanda.cep.includes(filtroLowerCase)) || // Filtra por cep
+            (demanda.logradouro && demanda.logradouro.toLowerCase().includes(filtroLowerCase)) ||
+            (demanda.bairro && demanda.bairro.toLowerCase().includes(filtroLowerCase)) ||
+            (demanda.cidade && demanda.cidade.toLowerCase().includes(filtroLowerCase)) ||
+            (demanda.cep && demanda.cep.includes(filtroLowerCase)) ||
             (demanda.nome_solicitante && demanda.nome_solicitante.toLowerCase().includes(filtroLowerCase)) ||
             demanda.descricao.toLowerCase().includes(filtroLowerCase) ||
-            (demanda.protocolo && demanda.protocolo.toLowerCase().includes(filtroLowerCase)) // Filtra por protocolo
+            (demanda.protocolo && demanda.protocolo.toLowerCase().includes(filtroLowerCase))
         );
     }, [filtro, demandas]);
 
@@ -122,52 +128,97 @@ export default function DemandasPage() {
     // --- Handlers de Deleção ---
     const iniciarDelecao = (id: number) => {
         console.log(`[PAGE] Iniciando deleção para ID: ${id}`);
-        setDeleteError(null); // Limpa erro anterior ao abrir modal
+        setDeleteError(null);
         setDemandaParaDeletar(id);
     };
 
     const confirmarDelecao = async () => {
         if (demandaParaDeletar === null) return;
-
         setIsDeleting(true);
         setDeleteError(null);
         const idToDelete = demandaParaDeletar;
-
         try {
             console.log(`[PAGE] Enviando DELETE para /api/demandas/${idToDelete}`);
-            const response = await fetch(`/api/demandas/${idToDelete}`, { // Chama API de deleção
-                method: 'DELETE',
-            });
+            const response = await fetch(`/api/demandas/${idToDelete}`, { method: 'DELETE' }); ///route.ts]
             console.log(`[PAGE] Resposta DELETE recebida. Status: ${response.status}`);
-
-            const result = await response.json().catch(() => ({})); // Tenta pegar JSON, mesmo em erro 204
-
-            if (!response.ok) {
-                throw new Error(result.message || `Erro ${response.status} ao deletar demanda.`);
-            }
-
+            const result = await response.json().catch(() => ({}));
+            if (!response.ok) { throw new Error(result.message || `Erro ${response.status} ao deletar demanda.`); }
             console.log(`[PAGE] Demanda ${idToDelete} deletada com sucesso.`);
-            // Remove a demanda do estado local
             setDemandas(prevDemandas => prevDemandas.filter(d => d.id !== idToDelete));
             setSelectedDemandas(prev => prev.filter(selId => selId !== idToDelete));
-            setDemandaParaDeletar(null); // Fecha o modal de confirmação
-
+            setDemandaParaDeletar(null);
         } catch (err) {
             console.error("[PAGE] Falha ao deletar demanda:", err);
             setDeleteError(err instanceof Error ? err.message : 'Ocorreu um erro desconhecido ao deletar.');
-            // O erro será mostrado dentro do modal de confirmação
         } finally {
             setIsDeleting(false);
-            // Não fecha o modal aqui em caso de erro, para o user ver a msg
-            // setDemandaParaDeletar(null);
         }
     };
 
     const cancelarDelecao = () => {
         setDemandaParaDeletar(null);
-        setDeleteError(null); // Limpa erro ao cancelar
+        setDeleteError(null);
     };
 
+    // --- Handlers de Edição ---
+    const iniciarEdicao = (demanda: DemandaType) => {
+        console.log("[PAGE] Iniciando edição para:", demanda);
+        setDemandaParaEditar(demanda);
+        setEditModalOpen(true);
+    };
+
+    const handleCloseEditModal = () => {
+        setEditModalOpen(false);
+        setTimeout(() => setDemandaParaEditar(null), 300); // Atraso para limpeza
+    };
+
+    const handleDemandaEditada = () => {
+        console.log("[PAGE] Edição concluída com sucesso. Recarregando lista.");
+        handleCloseEditModal();
+        fetchDemandas();
+    };
+
+    // --- Handler para Mudança de Status ---
+    const handleStatusChange = async (demandaId: number, newStatus: Status): Promise<void> => {
+        console.log(`[PAGE] Tentando atualizar status da demanda ${demandaId} para ${newStatus}`);
+        setStatusUpdateError(null);
+
+        const originalDemandas = [...demandas];
+        // Atualização Otimista
+        setDemandas(prevDemandas =>
+            prevDemandas.map(d =>
+                d.id === demandaId ? { ...d, status: newStatus } : d
+            )
+        );
+
+        try {
+            // Chama a nova API específica para status
+            const response = await fetch(`/api/demandas/${demandaId}/status`, {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ status: newStatus }),
+            });
+
+            const result = await response.json().catch(() => ({}));
+
+            if (!response.ok) {
+                throw new Error(result.message || result.error || `Erro ${response.status} ao atualizar status.`);
+            }
+
+            console.log(`[PAGE] Status da demanda ${demandaId} atualizado com sucesso no backend.`);
+            // Se a API retornar dados, pode usá-los para refinar o estado local, mas a atualização otimista já foi feita.
+            // Ex: const updatedDemandaData = result.demanda; ... (lógica para atualizar com dados da API)
+
+        } catch (err) {
+            console.error("[PAGE] Falha ao atualizar status:", err);
+            setStatusUpdateError(err instanceof Error ? err.message : 'Erro ao atualizar status.');
+            // Reverte a mudança otimista
+            setDemandas(originalDemandas);
+            // Re-lança o erro para o componente StatusDemanda lidar
+            throw err;
+        }
+    };
+    // ------------------------------------
 
     return (
         <div>
@@ -176,30 +227,55 @@ export default function DemandasPage() {
             {/* Barra de Ações */}
             <Box sx={{ p: 2, display: 'flex', flexWrap: 'wrap', gap: 1, alignItems: 'center', borderBottom: '1px solid #ddd' }}>
                  <Button variant="contained" sx={{ backgroundColor: '#257e1a', '&:hover': { backgroundColor: '#1a5912' } }} onClick={() => setAddModalOpen(true)}> Adicionar Demanda </Button>
-                 <Button variant="contained" sx={{ backgroundColor: '#257e1a', '&:hover': { backgroundColor: '#1a5912' } }}>Importar em Massa</Button>
-                 <Button variant="contained" sx={{ backgroundColor: '#257e1a', '&:hover': { backgroundColor: '#1a5912' } }}>Importar PDF</Button>
-                 <TextField label="Filtrar por endereço, solicitante, protocolo..." variant="outlined" size="small" value={filtro} onChange={(e) => setFiltro(e.target.value)} sx={{ marginLeft: 'auto', minWidth: 300, '& label.Mui-focused': { color: '#81C784' }, '& .MuiOutlinedInput-root': { '&.Mui-focused fieldset': { borderColor: '#81C784' }, }, }} />
-                 <IconButton onClick={() => setViewMode('card')} sx={{ color: viewMode === 'card' ? '#257e1a' : 'default' }} aria-label="Visualizar em cards"> <ViewModuleIcon /> </IconButton>
-                 <IconButton onClick={() => setViewMode('list')} sx={{ color: viewMode === 'list' ? '#257e1a' : 'default' }} aria-label="Visualizar em lista"> <ViewListIcon /> </IconButton>
+                 {/* ... outros botões ... */}
+                 <TextField label="Filtrar..." variant="outlined" size="small" value={filtro} onChange={(e) => setFiltro(e.target.value)} sx={{ marginLeft: 'auto', minWidth: 300, /* ... estilos ... */ }} />
+                 <IconButton onClick={() => setViewMode('card')} sx={{ color: viewMode === 'card' ? '#257e1a' : 'default' }}> <ViewModuleIcon /> </IconButton>
+                 <IconButton onClick={() => setViewMode('list')} sx={{ color: viewMode === 'list' ? '#257e1a' : 'default' }}> <ViewListIcon /> </IconButton>
                  <Button variant="contained" disabled={selectedDemandas.length === 0} onClick={() => setCriarRotaModalOpen(true)} sx={{ backgroundColor: '#1976d2', '&:hover': { backgroundColor: '#115293' } }}> Criar Rota ({selectedDemandas.length}) </Button>
             </Box>
+
+            {/* Mostra erro de atualização de status */}
+            {statusUpdateError && (
+                 <Box sx={{ p: 2 }}>
+                    <Alert severity="error" onClose={() => setStatusUpdateError(null)}>
+                        Erro ao atualizar status: {statusUpdateError}
+                    </Alert>
+                 </Box>
+             )}
 
            {/* Renderização Condicional */}
            {isLoading ? (
                 <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '50vh' }}>
                     <CircularProgress /> <Typography sx={{ ml: 2 }}>Carregando demandas...</Typography>
                 </Box>
-           ) : error ? ( // Mostra erro principal (de busca)
+           ) : error ? ( // Erro geral de carregamento
                 <Box sx={{ p: 2 }}>
                     <Alert severity="error"> Erro ao carregar demandas: {error} <Button color="inherit" size="small" onClick={fetchDemandas} sx={{ ml: 2}}> Tentar Novamente </Button> </Alert>
                  </Box>
-           ) : demandasFiltradas.length > 0 ? ( // Mostra lista/cards se houver dados
+           ) : demandasFiltradas.length > 0 ? ( // Listas
                 viewMode === 'card' ? (
-                    <ListaCardDemanda demandas={demandasFiltradas} selectedDemandas={selectedDemandas} onSelectDemanda={handleSelectDemanda} onDelete={iniciarDelecao} />
+                    <ListaCardDemanda
+                        demandas={demandasFiltradas}
+                        selectedDemandas={selectedDemandas}
+                        onSelectDemanda={handleSelectDemanda}
+                        onDelete={iniciarDelecao}
+                        onEdit={iniciarEdicao}
+                        onStatusChange={handleStatusChange} // <-- Passa handler
+                    />
                 ) : (
-                    <ListaListDemanda demandas={demandasFiltradas} selectedDemandas={selectedDemandas} onSelectDemanda={handleSelectDemanda} onSelectAll={handleSelectAll} numSelected={selectedDemandas.length} rowCount={demandasFiltradas.length} onDelete={iniciarDelecao} />
+                    <ListaListDemanda
+                        demandas={demandasFiltradas}
+                        selectedDemandas={selectedDemandas}
+                        onSelectDemanda={handleSelectDemanda}
+                        onSelectAll={handleSelectAll}
+                        numSelected={selectedDemandas.length}
+                        rowCount={demandasFiltradas.length}
+                        onDelete={iniciarDelecao}
+                        onEdit={iniciarEdicao}
+                        onStatusChange={handleStatusChange} // <-- Passa handler
+                    />
                 )
-            ) : ( // Mensagem se não houver dados
+            ) : ( // Nenhuma demanda encontrada
                 <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '50vh', color: 'grey.600', mt: 4 }}>
                     <InfoOutlinedIcon sx={{ fontSize: 60, mb: 2 }} />
                     <Typography variant="h6"> {filtro ? 'Nenhuma demanda encontrada para o filtro atual.' : 'Nenhuma demanda cadastrada.'} </Typography>
@@ -208,27 +284,43 @@ export default function DemandasPage() {
             )}
 
             {/* Modais */}
-            <AddDemandaModal open={addModalOpen} onClose={() => { setAddModalOpen(false); fetchDemandas(); /* Recarrega ao fechar */ }} />
-            <CriarRotaModal open={criarRotaModalOpen} onClose={() => setCriarRotaModalOpen(false)} demandasSelecionadas={demandasParaRota} onRotaCriada={handleRotaCriada} />
-            <Dialog open={confirmacaoRotaOpen} onClose={() => setConfirmacaoRotaOpen(false)}> {/* Corrigido nome do estado */}
+            {/* Modal Adicionar */}
+            <AddDemandaModal
+                open={addModalOpen}
+                onClose={() => { setAddModalOpen(false); fetchDemandas(); }} // Recarrega ao fechar após criar
+            />
+
+            {/* Modal Editar */}
+            {demandaParaEditar && (
+                <AddDemandaModal
+                    key={demandaParaEditar.id} // Chave importante!
+                    open={editModalOpen}
+                    onClose={handleCloseEditModal}
+                    demandaInicial={demandaParaEditar}
+                    onSuccess={handleDemandaEditada}  // Callback para recarregar
+                />
+            )}
+
+            {/* Modal Criar Rota */}
+            <CriarRotaModal
+                open={criarRotaModalOpen}
+                onClose={() => setCriarRotaModalOpen(false)}
+                demandasSelecionadas={demandasParaRota}
+                onRotaCriada={handleRotaCriada}
+            />
+
+            {/* Modal Confirmação Rota */}
+            <Dialog open={confirmacaoRotaOpen} onClose={() => setConfirmacaoRotaOpen(false)}>
                  <DialogTitle>Sucesso!</DialogTitle>
                  <DialogContent><DialogContentText>A rota &quot;{nomeNovaRota}&quot; foi criada com sucesso!</DialogContentText></DialogContent>
                  <DialogActions><Button onClick={() => setConfirmacaoRotaOpen(false)} autoFocus>Fechar</Button></DialogActions>
             </Dialog>
 
-            {/* Modal de Confirmação de Deleção */}
-            <Dialog
-                open={demandaParaDeletar !== null}
-                onClose={cancelarDelecao} // Permite fechar clicando fora ou ESC
-                aria-labelledby="confirm-delete-dialog-title"
-                aria-describedby="confirm-delete-dialog-description"
-            >
-                <DialogTitle id="confirm-delete-dialog-title">Confirmar Exclusão</DialogTitle>
+            {/* Modal Confirmação Deleção */}
+            <Dialog open={demandaParaDeletar !== null} onClose={cancelarDelecao}>
+                <DialogTitle>Confirmar Exclusão</DialogTitle>
                 <DialogContent>
-                    <DialogContentText id="confirm-delete-dialog-description">
-                        Tem a certeza que deseja excluir a demanda ID {demandaParaDeletar}? Esta ação não pode ser desfeita.
-                    </DialogContentText>
-                     {/* Mostra erro específico da deleção aqui, se houver */}
+                    <DialogContentText> Tem certeza que deseja excluir a demanda ID {demandaParaDeletar}? Esta ação não pode ser desfeita. </DialogContentText>
                      {deleteError && <Alert severity="error" sx={{ mt: 2 }}>Erro ao excluir: {deleteError}</Alert>}
                 </DialogContent>
                 <DialogActions>
