@@ -4,6 +4,7 @@ import "./globals.css";
 import Header from "@/components/ui/layout/Header";
 import Sidebar from "@/components/ui/layout/Sidebar";
 import ThemeRegistry from "@/components/ThemeRegistry"; // 1. Importe o ThemeRegistry
+import 'leaflet/dist/leaflet.css';
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
