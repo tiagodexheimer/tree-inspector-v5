@@ -2,10 +2,10 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+// Importações do Material UI - REMOVA 'Grid' daqui
 import {
     Dialog, DialogTitle, DialogContent, DialogActions, Button, TextField, Box, Typography,
-    Select, MenuItem, InputLabel, FormControl, CircularProgress, Alert, SelectChangeEvent,
-    Grid // Adicionado Grid para layout
+    Select, MenuItem, InputLabel, FormControl, CircularProgress, Alert, SelectChangeEvent
 } from "@mui/material";
 import CloudUploadIcon from '@mui/icons-material/CloudUpload';
 import CheckCircleOutlineIcon from '@mui/icons-material/CheckCircleOutline';
@@ -281,10 +281,13 @@ export default function AddDemandaModal({ open, onClose }: AddDemandaModalProps)
                 <TextField label="Telefone" name="telefone_solicitante" variant="outlined" fullWidth value={formData.telefone_solicitante} onChange={handleChange} />
                 <TextField label="Email" name="email_solicitante" type="email" variant="outlined" fullWidth value={formData.email_solicitante} onChange={handleChange} />
 
-                {/* Endereço Estruturado */}
+                {/* Endereço Estruturado com Flexbox (Tailwind) */}
                 <Typography variant="h6" sx={{ mt: 2 }}>Endereço</Typography>
-                <Grid container spacing={2}> {/* Usa Grid para layout */}
-                    <Grid item xs={12} sm={4}> {/* CEP ocupa 1/3 em telas pequenas/médias */}
+                {/* Container Flex com margem negativa para compensar padding */}
+                <div className="flex flex-wrap -mx-2">
+
+                    {/* Item Flex com padding e margem inferior */}
+                    <div className="w-full sm:w-1/3 px-2 mb-4">
                         <TextField
                             label="CEP" name="cep" variant="outlined" fullWidth required
                             value={formData.cep}
@@ -295,57 +298,67 @@ export default function AddDemandaModal({ open, onClose }: AddDemandaModalProps)
                                 endAdornment: cepLoading ? <CircularProgress size={20} /> : null, // Mostra loading
                             }}
                             error={!!cepError} // Destaca campo se houver erro no CEP
-                            // helperText={cepError} // Mostra erro abaixo do campo (opcional)
                         />
-                    </Grid>
-                    <Grid item xs={12} sm={8}> {/* Logradouro ocupa 2/3 */}
-                         <TextField
+                    </div>
+
+                    {/* Logradouro */}
+                    <div className="w-full sm:w-2/3 px-2 mb-4">
+                        <TextField
                             label="Logradouro" name="logradouro" variant="outlined" fullWidth
                             value={formData.logradouro} onChange={handleChange}
                             disabled={addressFieldsDisabled} // Desabilitado inicialmente
-                            InputLabelProps={{ shrink: true }} // Garante que label não sobreponha
+                            InputLabelProps={{ shrink: formData.logradouro ? true : undefined }}
                         />
-                    </Grid>
-                     <Grid item xs={6} sm={4}> {/* Número */}
-                         <TextField
+                    </div>
+
+                     {/* Número */}
+                    <div className="w-1/2 sm:w-1/3 px-2 mb-4">
+                        <TextField
                             label="Número" name="numero" variant="outlined" fullWidth required
                             value={formData.numero} onChange={handleChange}
-                            // Número é sempre habilitado para digitação
                         />
-                    </Grid>
-                     <Grid item xs={6} sm={8}> {/* Complemento */}
-                         <TextField
+                    </div>
+
+                     {/* Complemento */}
+                    <div className="w-1/2 sm:w-2/3 px-2 mb-4">
+                        <TextField
                             label="Complemento" name="complemento" variant="outlined" fullWidth
                             value={formData.complemento} onChange={handleChange}
-                            // Complemento é sempre habilitado
                         />
-                    </Grid>
-                     <Grid item xs={12} sm={6}> {/* Bairro */}
-                         <TextField
+                    </div>
+
+                     {/* Bairro */}
+                    <div className="w-full sm:w-1/2 px-2 mb-4">
+                        <TextField
                             label="Bairro" name="bairro" variant="outlined" fullWidth
                             value={formData.bairro} onChange={handleChange}
                             disabled={addressFieldsDisabled}
-                            InputLabelProps={{ shrink: true }}
+                            InputLabelProps={{ shrink: formData.bairro ? true : undefined }}
                         />
-                    </Grid>
-                     <Grid item xs={8} sm={4}> {/* Cidade */}
-                         <TextField
+                    </div>
+
+                     {/* Cidade */}
+                    <div className="w-2/3 sm:w-1/3 px-2 mb-4">
+                        <TextField
                             label="Cidade" name="cidade" variant="outlined" fullWidth
                             value={formData.cidade} onChange={handleChange}
                             disabled={addressFieldsDisabled}
-                            InputLabelProps={{ shrink: true }}
+                            InputLabelProps={{ shrink: formData.cidade ? true : undefined }}
                         />
-                    </Grid>
-                     <Grid item xs={4} sm={2}> {/* UF */}
-                         <TextField
+                    </div>
+
+                     {/* UF */}
+                    <div className="w-1/3 sm:w-1/6 px-2 mb-4">
+                        <TextField
                             label="UF" name="uf" variant="outlined" fullWidth
                             value={formData.uf} onChange={handleChange}
                             disabled={addressFieldsDisabled}
-                            InputLabelProps={{ shrink: true }}
+                            InputLabelProps={{ shrink: formData.uf ? true : undefined }}
                              inputProps={{ maxLength: 2 }} // Limita a 2 caracteres
                         />
-                    </Grid>
-                </Grid>
+                    </div>
+                </div> {/* Fim do container Flex */}
+
 
                 {/* Detalhes da Demanda */}
                 <Typography variant="h6" sx={{ mt: 2 }}>Detalhes da Demanda</Typography>
@@ -357,6 +370,7 @@ export default function AddDemandaModal({ open, onClose }: AddDemandaModalProps)
                         <MenuItem value="remocao">Remoção de Árvore</MenuItem>
                         <MenuItem value="avaliacao">Avaliação de Risco</MenuItem>
                         <MenuItem value="plantio">Plantio de Muda</MenuItem>
+                        {/* Adicione outros tipos conforme necessário */}
                     </Select>
                 </FormControl>
                 <TextField label="Descrição" name="descricao" variant="outlined" fullWidth multiline rows={4} required value={formData.descricao} onChange={handleChange} />

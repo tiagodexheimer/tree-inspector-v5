@@ -31,7 +31,7 @@ export default function DetalhesDemandaModal({ open, onClose, demanda }: Detalhe
      const formatPrazo = (date: Date | null | undefined): string => {
         if (date instanceof Date && !isNaN(date.getTime())) {
              try { return date.toLocaleDateString('pt-BR'); }
-             catch (e) { return 'Data inválida'; }
+             catch { return 'Data inválida'; }
         }
         return 'Não definido';
     };

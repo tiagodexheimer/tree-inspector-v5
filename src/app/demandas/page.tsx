@@ -9,16 +9,10 @@ import {
 import ViewListIcon from '@mui/icons-material/ViewList';
 import ViewModuleIcon from '@mui/icons-material/ViewModule';
 import { useMemo, useState, useEffect } from "react";
-import InfoOutlinedIcon from '@mui/icons-material/InfoOutlined';
-import DeleteIcon from '@mui/icons-material/Delete'; // Ícone para o botão de deleção
+import InfoOutlinedIcon from '@mui/icons-material/InfoOutlined';// Ícone para o botão de deleção
 import { DemandaType } from "@/types/demanda"; //
 import AddDemandaModal from "@/components/ui/demandas/AddDemandaModal"; //
 import CriarRotaModal from "@/components/ui/demandas/CriarRotaModal"; //
-
-// Remover ou Comentar a constante de demandas de exemplo
-/*
-const demandasExemplo: DemandaType[] = [ ... ];
-*/
 
 export default function DemandasPage() {
     // Estados de UI e Modais
@@ -45,7 +39,6 @@ export default function DemandasPage() {
     // --- Busca Inicial de Dados ---
     useEffect(() => {
         fetchDemandas(); // Chama a função de busca ao montar
-        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []); // Array vazio garante que rode apenas uma vez ao montar
 
     // --- Função para Buscar/Recarregar Demandas ---

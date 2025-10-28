@@ -4,7 +4,7 @@
 import { useState, useEffect } from 'react';
 import {
     Dialog, DialogTitle, DialogContent, DialogActions, Button, TextField, Box, Typography,
-    List, ListItem, ListItemText, Paper, IconButton, FormControl, InputLabel, Select, MenuItem, SelectChangeEvent // Adicionado SelectChangeEvent
+    List, ListItem, ListItemText, Paper, IconButton, FormControl, InputLabel, Select, MenuItem, SelectChangeEvent
 } from "@mui/material";
 import {
     DndContext,
@@ -13,7 +13,7 @@ import {
     PointerSensor,
     useSensor,
     useSensors,
-    DragEndEvent 
+    DragEndEvent
 } from '@dnd-kit/core';
 import {
     arrayMove,
@@ -37,6 +37,18 @@ interface CriarRotaModalProps {
 // Lista de exemplo para os responsáveis
 const responsaveisExemplo = ['João Silva', 'Pedro Martins', 'Ana Costa', 'Mariana Dias'];
 
+// Função auxiliar para formatar endereço curto (ADICIONADA AQUI ou importada)
+const formatEnderecoCurto = (demanda: DemandaType): string => {
+    const parts = [
+        demanda.logradouro,
+        demanda.numero ? `, ${demanda.numero}` : '',
+        demanda.bairro ? ` - ${demanda.bairro}` : '',
+        // Poderia adicionar cidade/UF se quisesse
+    ];
+    return parts.filter(Boolean).join('').trim() || 'Endereço não informado';
+};
+
+
 // Componente para item arrastável na lista
 function SortableItem({ demanda }: { demanda: DemandaType }) {
     // Correção: Adiciona '!' para garantir que demanda.id não é undefined
@@ -48,8 +60,9 @@ function SortableItem({ demanda }: { demanda: DemandaType }) {
             <IconButton {...listeners} sx={{ cursor: 'grab' }} aria-label="arrastar ordem"> {/* Adicionado aria-label */}
                 <DragIndicatorIcon />
             </IconButton>
-            {/* Exibe o id numérico */}
-            <ListItemText primary={`ID: ${demanda.id}`} secondary={demanda.endereco} />
+            {/* ***** CORREÇÃO AQUI ***** */}
+            {/* Exibe o id numérico e usa a função para formatar o endereço */}
+            <ListItemText primary={`ID: ${demanda.id}`} secondary={formatEnderecoCurto(demanda)} />
         </ListItem>
     );
 }
@@ -91,11 +104,11 @@ export default function CriarRotaModal({ open, onClose, demandasSelecionadas, on
         }
     }
 
-    // Função para otimizar rota (ordem alfabética de endereço)
+    // Função para otimizar rota (ordem alfabética de endereço - agora usa logradouro)
     const handleOtimizarRota = () => {
         // Cria uma cópia ordenada
         const sorted = [...orderedDemandas].sort((a, b) =>
-            a.endereco.localeCompare(b.endereco) // Comparação de strings
+            (a.logradouro || '').localeCompare(b.logradouro || '') // Comparação de strings (logradouro)
         );
         setOrderedDemandas(sorted);
     };
@@ -170,7 +183,7 @@ export default function CriarRotaModal({ open, onClose, demandasSelecionadas, on
                             sx={{ mt: 1 }}
                             disabled={orderedDemandas.length < 2} // Desabilita se não houver pelo menos 2 itens para ordenar
                         >
-                            Otimizar Rota (Ordem Alfabética de Endereço)
+                            Otimizar Rota (Ordem Alfabética de Logradouro) {/* Atualizado texto do botão */}
                         </Button>
                     </Box>
 

@@ -1,7 +1,7 @@
 // src/components/ui/demandas/ListaListDemanda.tsx
 'use client';
 import { DemandaType } from "@/types/demanda";
-import { TableContainer, Table, TableHead, TableRow, TableCell, TableBody, Paper, Typography, IconButton } from "@mui/material"; // Adicionado IconButton
+import { TableContainer, Table, TableHead, TableRow, TableCell, TableBody, Paper, IconButton } from "@mui/material"; // Adicionado IconButton
 import StatusDemanda from "./StatusDemanda";
 import DeleteIcon from '@mui/icons-material/Delete'; // Importa o ícone
 
@@ -17,9 +17,30 @@ interface ListDemandaProps {
 }
 
 export default function ListaListDemanda({ demandas, selectedDemandas, onSelectDemanda, onDelete }: ListDemandaProps){
-    // ... (formatPrazo, formatEnderecoCompleto) ...
-    const formatPrazo = (date: Date | null | undefined): string => { /*...*/ };
-    const formatEnderecoCompleto = (demanda: DemandaType): string => { /*...*/ };
+    const formatPrazo = (date: Date | null | undefined): string => {
+        if (date instanceof Date && !isNaN(date.getTime())) {
+            try { return date.toLocaleDateString('pt-BR'); }
+            catch { return 'Data inválida'; }
+        }
+        return 'Não definido';
+    };
+
+    const formatEnderecoCompleto = (d: DemandaType): string => {
+        const parts = [
+            d.logradouro,
+            d.numero ? `, ${d.numero}` : '',
+            d.complemento ? ` - ${d.complemento}` : '',
+            d.bairro ? ` - ${d.bairro}` : '',
+            d.cidade && d.uf ? ` - ${d.cidade}/${d.uf}` : (d.cidade || d.uf || ''),
+            d.cep ? ` - CEP: ${d.cep}` : ''
+        ];
+        // Filtra partes vazias e junta, removendo vírgulas ou hífens extras no início
+        const formatted = parts.filter(Boolean).join('').trim();
+        // Remove qualquer separador redundante no início, se houver
+        return formatted.startsWith(', ') ? formatted.substring(2) :
+               formatted.startsWith(' - ') ? formatted.substring(3) :
+               formatted || 'Endereço não informado';
+    };
 
     return (
         <div /* ... */>

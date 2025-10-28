@@ -15,44 +15,7 @@ async function geocodeAddress(logradouro?: string | null, numero?: string | null
     return null;
 }
 
-export async function DELETE(
-    request: NextRequest,
-    { params }: { params: { id: string } } // O Next.js passa os parâmetros da rota aqui
-) {
-    const id = params.id; // Pega o ID da URL
-    console.log(`[API] Recebido DELETE em /api/demandas/${id}`);
 
-    // Valida se o ID é um número válido
-    const numericId = parseInt(id, 10);
-    if (isNaN(numericId)) {
-        console.error('[API] Erro 400: ID inválido.');
-        return NextResponse.json({ message: 'ID da demanda inválido.' }, { status: 400 });
-    }
-
-    try {
-        const queryText = 'DELETE FROM demandas WHERE id = $1 RETURNING id'; // Pede para retornar o ID se a deleção ocorrer
-        const queryParams = [numericId];
-
-        console.log('[API] Executando query:', queryText, queryParams);
-        const result = await pool.query(queryText, queryParams);
-
-        // Verifica se alguma linha foi afetada (e retornada)
-        if (result.rowCount === 0) {
-            console.warn(`[API] Demanda com ID ${numericId} não encontrada para deleção.`);
-            return NextResponse.json({ message: `Demanda com ID ${numericId} não encontrada.` }, { status: 404 });
-        }
-
-        console.log(`[API] Demanda com ID ${numericId} deletada com sucesso.`);
-        // Retorna sucesso, geralmente 204 No Content ou 200 OK com uma mensagem
-        // return new NextResponse(null, { status: 204 }); // 204 No Content
-        return NextResponse.json({ message: `Demanda ${numericId} deletada com sucesso.` }, { status: 200 }); // 200 OK com mensagem
-
-    } catch (error) {
-        console.error(`[API] Erro ao deletar demanda ${numericId}:`, error);
-        const errorMessage = error instanceof Error ? error.message : 'Erro desconhecido';
-        return NextResponse.json({ message: `Erro interno ao deletar demanda ${numericId}.`, error: errorMessage }, { status: 500 });
-    }
-}
 
 // --- Handler para GET (sem alterações) ---
 // eslint-disable-next-line @typescript-eslint/no-unused-vars

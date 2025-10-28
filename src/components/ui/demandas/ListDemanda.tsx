@@ -6,9 +6,27 @@ import StatusDemanda from "./StatusDemanda"; // Importa StatusDemanda para exibi
 // Usa DemandaType diretamente como tipo das props, já que este componente representa uma demanda
 type iDemandaProps = DemandaType;
 
+// Função auxiliar para formatar o endereço curto (pode ser movida para um utils se usada em mais lugares)
+const formatEnderecoCurto = (demanda: DemandaType): string => {
+    const parts = [
+        demanda.logradouro,
+        demanda.numero ? `, ${demanda.numero}` : '',
+        demanda.bairro ? ` - ${demanda.bairro}` : '',
+        // Poderia adicionar cidade/UF se quisesse
+    ];
+    return parts.filter(Boolean).join('').trim() || 'Endereço não informado';
+};
+
 export default function ListDemanda({
     id,
-    endereco,
+    // ***** CORREÇÃO AQUI: Remover 'endereco' e adicionar campos individuais *****
+    logradouro,
+    numero,
+    bairro,
+    // cidade, // Adicione se precisar
+    // uf, // Adicione se precisar
+    // cep, // Adicione se precisar
+    // ***** FIM DA CORREÇÃO *****
     descricao,
     prazo, // Agora é Date | null | undefined
     status, // Agora é Status | undefined
@@ -29,7 +47,7 @@ export default function ListDemanda({
         return 'N/A'; // Retorna N/A se não for uma data válida
     };
 
-    // Função auxiliar para formatar informações de contato
+    // Função auxiliar para formatar informações de contato (ajustada para remover endereco duplicado)
     const formatContato = (contatoData: DemandaType['contato']): string => {
         if (!contatoData) {
             return 'N/A';
@@ -38,10 +56,10 @@ export default function ListDemanda({
         const parts = [
             contatoData.nome,
             contatoData.telefone,
-            contatoData.email,
-            contatoData.endereco // Pode ser redundante se já houver a coluna endereço
+            contatoData.email
+            // contatoData.endereco // Removido pois já temos os campos de endereço principais
         ].filter(Boolean); // Filtra partes vazias ou nulas
-        return parts.join(' | ');
+        return parts.join(' | ') || 'N/A'; // Retorna N/A se nenhuma parte existir
     };
 
     // Este componente foi originalmente desenhado para renderizar uma TableRow.
@@ -49,7 +67,9 @@ export default function ListDemanda({
     return (
         <TableRow hover> {/* Adicionado hover para consistência */}
             <TableCell>{id ?? 'N/A'}</TableCell> {/* Mostra N/A se id for undefined */}
-            <TableCell>{endereco}</TableCell>
+            {/* ***** CORREÇÃO AQUI: Usar os campos de endereço formatados ***** */}
+            <TableCell>{formatEnderecoCurto({ logradouro, numero, bairro } as DemandaType)}</TableCell>
+            {/* ***** FIM DA CORREÇÃO ***** */}
             {/* Limita a descrição para evitar quebras */}
             <TableCell sx={{ maxWidth: 250, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                 {descricao}
@@ -64,21 +84,6 @@ export default function ListDemanda({
             <TableCell>
                 {/* Formata as informações de contato */}
                 {formatContato(contato)}
-                {/* O código original usava List/ListItem, que pode ser complexo numa célula.
-                    Simplificado para uma string formatada. Se precisar do formato original:
-                {contato ? (
-                    <List dense disablePadding>
-                        <ListItem disableGutters>
-                            <ListItemText
-                                primary={contato.nome}
-                                secondary={`${contato.telefone || ''} | ${contato.email || ''} | ${contato.endereco || ''}`}
-                            />
-                        </ListItem>
-                    </List>
-                ) : (
-                    'N/A'
-                )}
-                */}
             </TableCell>
         </TableRow>
     );
