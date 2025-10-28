@@ -1,251 +1,212 @@
+// src/app/demandas/page.tsx
 'use client';
 import ListaCardDemanda from "@/components/ui/demandas/ListaCardDemanda";
 import ListaListDemanda from "@/components/ui/demandas/ListaListDemanda";
-import { Box, Button, Dialog, DialogActions, DialogContent, DialogContentText, DialogTitle, IconButton, TextField, Typography } from "@mui/material";
+import { Box, Button, Dialog, DialogActions, DialogContent, DialogContentText, DialogTitle, IconButton, TextField, Typography, CircularProgress, Alert } from "@mui/material"; // Adicionado CircularProgress, Alert
 import ViewListIcon from '@mui/icons-material/ViewList';
 import ViewModuleIcon from '@mui/icons-material/ViewModule';
-import { useMemo, useState } from "react";
+import { useMemo, useState, useEffect } from "react"; // Adicionado useEffect
 import InfoOutlinedIcon from '@mui/icons-material/InfoOutlined';
 import { DemandaType } from "@/types/demanda";
 import AddDemandaModal from "@/components/ui/demandas/AddDemandaModal";
 import CriarRotaModal from "@/components/ui/demandas/CriarRotaModal";
 
-
-const demandas: DemandaType[] = [
-    {
-        ID: "1",
-        endereco: "Rua das Flores, 123, Centro",
-        descricao: "Poda de galho que ameaça a fiação. a demanda se extende por mais de duas linhas para testar o corte de texto na descrição do card. Por isto é importante que o texto seja cortado corretamente.",
-        prazo: new Date('2025-11-30'),
-        status: "Pendente",
-        responsavel: "João Silva",
-        contato: { nome: "Maria Souza", telefone: "(51) 9999-1111", email: "maria@email.com", endereco: "Rua das Flores, 123" }
-    },
-    {
-        ID: "2",
-        endereco: "Avenida Brasil, 456, Igara",
-        descricao: "Remoção de árvore caída após temporal.",
-        prazo: new Date('2025-10-30'),
-        status: "Em andamento",
-        responsavel: "Pedro Martins",
-        contato: { nome: "Carlos Pereira", telefone: "(51) 9999-2222", email: "carlos@email.com", endereco: "Avenida Brasil, 456" }
-    },
-    {
-        ID: "3",
-        endereco: "Rua dos Pinheiros, 789, Marechal Rondon",
-        descricao: "Análise de fitossanidade de ipê.",
-        prazo: new Date('2025-10-10'),
-        status: "Concluído",
-        responsavel: "Ana Costa",
-        contato: { nome: "Lucia Almeida", telefone: "(51) 9999-3333", email: "lucia@email.com", endereco: "Rua dos Pinheiros, 789" }
-    },
-    {
-        ID: "4", // ID único
-        endereco: "Travessa Estrela, 10, Niterói",
-        descricao: "Poda de contenção em sibipiruna.",
-        prazo: new Date('2025-10-30'),
-        status: "Pendente",
-        responsavel: "João Silva",
-        contato: { nome: "Roberto Lima", telefone: "(51) 9999-4444", email: "roberto@email.com", endereco: "Travessa Estrela, 10" }
-    },
-    {
-        ID: "5", // ID único
-        endereco: "Rua da República, 20, Centro",
-        descricao: "Avaliação de risco de queda de eucalipto.",
-        prazo: new Date('2025-10-22'),
-        status: "Pendente",
-        responsavel: "Mariana Dias",
-        contato: { nome: "Fernanda Rocha", telefone: "(51) 9999-5555", email: "fernanda@email.com", endereco: "Rua da República, 20" }
-    },
-    {
-        ID: "6", // ID único
-        endereco: "Avenida Getúlio Vargas, 300, Centro",
-        descricao: "Supressão de ligustro invasor.",
-        prazo: new Date('2025-10-30'),
-        status: "Em andamento",
-        responsavel: "Pedro Martins",
-        contato: { nome: "José Santos", telefone: "(51) 9999-6666", email: "jose@email.com", endereco: "Avenida Getúlio Vargas, 300" }
-    },
-    {
-        ID: "7", // ID único
-        endereco: "Rua Sete de Setembro, 40, Igara",
-        descricao: "Plantio de nova muda em calçada.",
-        prazo: new Date('2025-10-10'),
-        status: "Concluído",
-        responsavel: "Ana Costa",
-        contato: { nome: "Beatriz Mello", telefone: "(51) 9999-7777", email: "beatriz@email.com", endereco: "Rua Sete de Setembro, 40" }
-    }
+// REMOVER ou Comentar a constante de demandas de exemplo
+/*
+const demandasExemplo: DemandaType[] = [
+    { id: 1, ... },
+    { id: 2, ... },
+    // ...
 ];
-
+*/
 
 export default function DemandasPage() {
     const [viewMode, setViewMode] = useState('card');
     const [filtro, setFiltro] = useState('');
     const [addModalOpen, setAddModalOpen] = useState(false);
-
     const [criarRotaModalOpen, setCriarRotaModalOpen] = useState(false);
     const [confirmacaoOpen, setConfirmacaoOpen] = useState(false);
     const [nomeNovaRota, setNomeNovaRota] = useState('');
-    const [selectedDemandas, setSelectedDemandas] = useState<string[]>([]); // Array para guardar os IDs das demandas selecionadas
+    const [selectedDemandas, setSelectedDemandas] = useState<number[]>([]);
 
+    // --- Novos Estados ---
+    const [demandas, setDemandas] = useState<DemandaType[]>([]); // Estado para armazenar as demandas buscadas
+    const [isLoading, setIsLoading] = useState<boolean>(true); // Estado para indicar carregamento inicial
+    const [error, setError] = useState<string | null>(null); // Estado para mensagens de erro
 
+    // --- Busca de Dados ---
+    useEffect(() => {
+        // Função async para buscar as demandas da API
+        const fetchDemandas = async () => {
+            setIsLoading(true); // Inicia o carregamento
+            setError(null); // Limpa erros anteriores
+            try {
+                const response = await fetch('/api/demandas'); // Chama o endpoint GET
+                if (!response.ok) {
+                    throw new Error(`Erro ao buscar demandas: ${response.statusText}`);
+                }
+                const data: DemandaType[] = await response.json();
+
+                // IMPORTANTE: Converter strings de data (se vierem como string da API) para objetos Date
+                const demandasComDatas = data.map(d => ({
+                    ...d,
+                    // Garante que 'prazo' seja um objeto Date ou null
+                    prazo: d.prazo ? new Date(d.prazo) : null,
+                    // Se 'created_at' ou 'updated_at' forem usados, converta-os também
+                    // created_at: d.created_at ? new Date(d.created_at) : undefined,
+                    // updated_at: d.updated_at ? new Date(d.updated_at) : undefined,
+                }));
+
+                setDemandas(demandasComDatas); // Atualiza o estado com os dados
+
+            } catch (err) {
+                console.error("Falha ao buscar demandas:", err);
+                setError(err instanceof Error ? err.message : 'Ocorreu um erro desconhecido ao carregar as demandas.');
+            } finally {
+                setIsLoading(false); // Finaliza o carregamento
+            }
+        };
+
+        fetchDemandas(); // Chama a função de busca ao montar o componente
+        // O array vazio [] como segundo argumento garante que o useEffect rode apenas uma vez (ao montar)
+    }, []);
+
+    // --- Filtragem (agora usa o estado 'demandas') ---
     const demandasFiltradas = useMemo(() => {
         const filtroLowerCase = filtro.toLowerCase();
-
         if (!filtroLowerCase) {
-            return demandas; // Se o filtro estiver vazio, retorna a lista completa
+            return demandas; // Usa o estado 'demandas'
         }
-
-        return demandas.filter(demanda =>
+        return demandas.filter(demanda => // Usa o estado 'demandas'
             demanda.endereco.toLowerCase().includes(filtroLowerCase) ||
-            // Fix: Add optional chaining (?.) and check if contato/nome exists
-            (demanda.contato?.nome && demanda.contato.nome.toLowerCase().includes(filtroLowerCase)) ||
+            (demanda.contato?.nome && demanda.contato.nome.toLowerCase().includes(filtroLowerCase)) || // Supondo que 'contato' ainda possa existir no tipo
+             (demanda.nome_solicitante && demanda.nome_solicitante.toLowerCase().includes(filtroLowerCase)) || // Adiciona filtro por nome do solicitante
             demanda.descricao.toLowerCase().includes(filtroLowerCase)
         );
-    }, [filtro]); // A lista só será recalculada se 'filtro' ou 'demandas' mudar
+    }, [filtro, demandas]); // Recalcula quando o filtro OU as demandas mudarem
 
- // 3. Função para adicionar/remover um ID da lista de selecionados
-    const handleSelectDemanda = (id: string) => {
+    // --- Handlers (sem alterações na lógica principal, mas agora operam sobre o estado 'demandas') ---
+    const handleSelectDemanda = (id: number) => {
         setSelectedDemandas(prev =>
             prev.includes(id) ? prev.filter(demId => demId !== id) : [...prev, id]
         );
     };
 
-    // Função para selecionar todos (útil para a visão em lista)
     const handleSelectAll = () => {
-        if (selectedDemandas.length === demandasFiltradas.length) setSelectedDemandas([]);
-        else setSelectedDemandas(demandasFiltradas.map(d => d.ID));
+        if (selectedDemandas.length === demandasFiltradas.length) {
+            setSelectedDemandas([]);
+        } else {
+            setSelectedDemandas(demandasFiltradas.map(d => d.id!));
+        }
     };
-    
-    // Filtra a lista completa de demandas para pegar só os objetos selecionados
-    const demandasParaRota = demandas.filter(d => selectedDemandas.includes(d.ID));
 
-    // 4. Função chamada pelo modal quando a rota é criada com sucesso
-    const handleRotaCriada = (nomeRota: string) => {
-        setNomeNovaRota(nomeRota); // Guarda o nome para exibir na confirmação
-        setConfirmacaoOpen(true); // Abre o pop-up de sucesso
-        setSelectedDemandas([]); // Limpa a seleção
+    const demandasParaRota = demandas.filter(d => d.id !== undefined && selectedDemandas.includes(d.id));
+
+    const handleRotaCriada = (nomeRota: string, responsavel: string) => {
+        console.log(`Rota "${nomeRota}" criada com responsável ${responsavel}`);
+        setNomeNovaRota(nomeRota);
+        setConfirmacaoOpen(true);
+        setSelectedDemandas([]);
     };
+
+    // --- Função para recarregar demandas (útil após adicionar uma nova) ---
+     const recarregarDemandas = async () => {
+        // Reutiliza a lógica de busca do useEffect
+        setIsLoading(true);
+        setError(null);
+        try {
+            const response = await fetch('/api/demandas');
+            if (!response.ok) {
+                throw new Error(`Erro ao recarregar demandas: ${response.statusText}`);
+            }
+            const data: DemandaType[] = await response.json();
+            const demandasComDatas = data.map(d => ({
+                ...d,
+                prazo: d.prazo ? new Date(d.prazo) : null,
+            }));
+            setDemandas(demandasComDatas);
+        } catch (err) {
+            console.error("Falha ao recarregar demandas:", err);
+            setError(err instanceof Error ? err.message : 'Ocorreu um erro desconhecido ao recarregar.');
+        } finally {
+            setIsLoading(false);
+        }
+    };
+
+
     return (
         <div>
-            <h1 className="text-2xl font-bold mb-4" style={{ margin: "16px" }}>Demandas Page</h1>
+            <h1 className="text-2xl font-bold mb-4" style={{ margin: "16px" }}>Demandas</h1>
 
-            <div>
+            {/* Barra de Ações */}
+            <Box sx={{ p: 2, display: 'flex', flexWrap: 'wrap', gap: 1, alignItems: 'center', borderBottom: '1px solid #ddd' }}>
+                 {/* Botão Adicionar agora abre o modal */}
                 <Button
                     variant="contained"
-                    sx={{ backgroundColor: '#257e1a', '&:hover': { backgroundColor: '#60b34e' } }}
-                    // 3. Adicione o onClick para abrir o modal
+                    sx={{ backgroundColor: '#257e1a', '&:hover': { backgroundColor: '#1a5912' } }}
                     onClick={() => setAddModalOpen(true)}
                 >
-                    Adicionar
+                    Adicionar Demanda
                 </Button>
-                <Button
-                    variant="contained" // Define o botão com um fundo sólido
-                    sx={{
-                        backgroundColor: '#257e1a', // Sua cor verde
-                        '&:hover': {
-                            backgroundColor: '#60b34e' // Uma cor um pouco mais escura para o efeito hover
-                        }, mx: 1
-                    }}
-                >Importar em massa</Button>
-                <Button
-                    variant="contained"
-                    sx={{
-                        backgroundColor: '#257e1a',
-                        '&:hover': {
-                            backgroundColor: '#60b34e'
-                        }, mx: 1
-                    }}
-                >Importar PDF</Button>
-                <TextField
-                    label="Filtrar por end, desc ou solicitante"
-                    variant="outlined"
-                    size="small"
-                    value={filtro}
-                    onChange={(e) => setFiltro(e.target.value)}
-                    sx={{
-                        flexGrow: 1,
-                        maxWidth: 400,
-                        // 1. Estilo para o label quando o campo está focado
-                        '& label.Mui-focused': {
-                            color: '#81C784',
-                        },
-                        // 2. Estilo para a borda do campo quando está focado
-                        '& .MuiOutlinedInput-root': {
-                            '&.Mui-focused fieldset': {
-                                borderColor: '#81C784',
-                            },
-                        },
-                    }}
-                />
-                <IconButton
-                    onClick={() => setViewMode('card')}
-                    sx={{ color: viewMode === 'card' ? '#81C784' : 'default' }}
-                >
-                    <ViewModuleIcon />
-                </IconButton>
+                 {/* Outros Botões */}
+                <Button variant="contained" sx={{ backgroundColor: '#257e1a', '&:hover': { backgroundColor: '#1a5912' } }}>Importar em Massa</Button>
+                <Button variant="contained" sx={{ backgroundColor: '#257e1a', '&:hover': { backgroundColor: '#1a5912' } }}>Importar PDF</Button>
 
-                {/* Botão para visão de Lista */}
-                <IconButton
-                    onClick={() => setViewMode('list')}
-                    sx={{ color: viewMode === 'list' ? '#81C784' : 'default' }}
-                >
-                    <ViewListIcon />
-                </IconButton>
-                <Button
-                    variant="contained"
-                    // Fica desabilitado se nenhuma demanda estiver selecionada
-                    disabled={selectedDemandas.length === 0}
-                    onClick={() => setCriarRotaModalOpen(true)}
-                >
-                    Criar Rota ({selectedDemandas.length})
-                </Button>
-            </div>
-           {demandasFiltradas.length > 0 ? (
+                <TextField
+                    label="Filtrar..."
+                    variant="outlined" size="small" value={filtro} onChange={(e) => setFiltro(e.target.value)}
+                    sx={{ marginLeft: 'auto', minWidth: 300, '& label.Mui-focused': { color: '#81C784' }, '& .MuiOutlinedInput-root': { '&.Mui-focused fieldset': { borderColor: '#81C784' }, }, }}
+                />
+                <IconButton onClick={() => setViewMode('card')} sx={{ color: viewMode === 'card' ? '#257e1a' : 'default' }} aria-label="Visualizar em cards"> <ViewModuleIcon /> </IconButton>
+                <IconButton onClick={() => setViewMode('list')} sx={{ color: viewMode === 'list' ? '#257e1a' : 'default' }} aria-label="Visualizar em lista"> <ViewListIcon /> </IconButton>
+                <Button variant="contained" disabled={selectedDemandas.length === 0} onClick={() => setCriarRotaModalOpen(true)} sx={{ backgroundColor: '#1976d2', '&:hover': { backgroundColor: '#115293' } }}> Criar Rota ({selectedDemandas.length}) </Button>
+            </Box>
+
+           {/* Renderização Condicional Baseada no Carregamento e Erro */}
+           {isLoading ? (
+                // Indicador de Carregamento
+                <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '50vh' }}>
+                    <CircularProgress />
+                    <Typography sx={{ ml: 2 }}>Carregando demandas...</Typography>
+                </Box>
+           ) : error ? (
+                // Mensagem de Erro
+                 <Box sx={{ p: 2 }}>
+                    <Alert severity="error">
+                        Erro ao carregar demandas: {error}
+                         {/* Botão para tentar novamente */}
+                         <Button color="inherit" size="small" onClick={recarregarDemandas} sx={{ ml: 2}}>
+                           Tentar Novamente
+                         </Button>
+                    </Alert>
+                 </Box>
+           ) : demandasFiltradas.length > 0 ? (
+                // Renderiza Lista ou Cards se houver dados
                 viewMode === 'card' ? (
-                    <ListaCardDemanda
-                        demandas={demandasFiltradas}
-                        selectedDemandas={selectedDemandas}
-                        onSelectDemanda={handleSelectDemanda}
-                    />
+                    <ListaCardDemanda demandas={demandasFiltradas} selectedDemandas={selectedDemandas} onSelectDemanda={handleSelectDemanda} />
                 ) : (
-                    <ListaListDemanda
-                        demandas={demandasFiltradas}
-                        selectedDemandas={selectedDemandas}
-                        onSelectDemanda={handleSelectDemanda}
-                        onSelectAll={handleSelectAll}
-                        numSelected={selectedDemandas.length}
-                        rowCount={demandasFiltradas.length}
-                    />
+                    <ListaListDemanda demandas={demandasFiltradas} selectedDemandas={selectedDemandas} onSelectDemanda={handleSelectDemanda} onSelectAll={handleSelectAll} numSelected={selectedDemandas.length} rowCount={demandasFiltradas.length} />
                 )
             ) : (
-                <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '50vh', color: 'grey.600' }}>
+                // Mensagem de Nenhum Resultado
+                <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '50vh', color: 'grey.600', mt: 4 }}>
                     <InfoOutlinedIcon sx={{ fontSize: 60, mb: 2 }} />
-                    <Typography variant="h6">Nenhuma demanda encontrada</Typography>
+                    <Typography variant="h6">
+                        {filtro ? 'Nenhuma demanda encontrada para o filtro atual.' : 'Nenhuma demanda cadastrada.'}
+                    </Typography>
+                     {/* Botão para adicionar a primeira demanda se a lista estiver vazia */}
+                     {!filtro && <Button variant="contained" onClick={() => setAddModalOpen(true)} sx={{ mt: 2, backgroundColor: '#257e1a', '&:hover': { backgroundColor: '#1a5912' } }}>Adicionar Primeira Demanda</Button>}
                 </Box>
             )}
 
-            <AddDemandaModal open={addModalOpen} onClose={() => setAddModalOpen(false)} />
-            
-            {/* 7. Renderizamos o modal de criação de rota */}
-            <CriarRotaModal 
-                open={criarRotaModalOpen}
-                onClose={() => setCriarRotaModalOpen(false)}
-                demandasSelecionadas={demandasParaRota}
-                onRotaCriada={handleRotaCriada}
-            />
-
-            {/* 8. O modal simples de confirmação final */}
+            {/* Modais */}
+            {/* Passa a função recarregarDemandas para o AddDemandaModal, se ele precisar atualizar a lista após salvar */}
+            <AddDemandaModal open={addModalOpen} onClose={() => { setAddModalOpen(false); recarregarDemandas(); /* Recarrega ao fechar */ }} />
+            <CriarRotaModal open={criarRotaModalOpen} onClose={() => setCriarRotaModalOpen(false)} demandasSelecionadas={demandasParaRota} onRotaCriada={handleRotaCriada} />
             <Dialog open={confirmacaoOpen} onClose={() => setConfirmacaoOpen(false)}>
-                <DialogTitle>Sucesso!</DialogTitle>
-                <DialogContent>
-                    <DialogContentText>
-                        A rota &quot;{nomeNovaRota}&quot; foi criada com sucesso!
-                    </DialogContentText>
-                </DialogContent>
-                <DialogActions>
-                    <Button onClick={() => setConfirmacaoOpen(false)} autoFocus>Fechar</Button>
-                </DialogActions>
+                 <DialogTitle>Sucesso!</DialogTitle>
+                 <DialogContent><DialogContentText>A rota &quot;{nomeNovaRota}&quot; foi criada com sucesso!</DialogContentText></DialogContent>
+                 <DialogActions><Button onClick={() => setConfirmacaoOpen(false)} autoFocus>Fechar</Button></DialogActions>
             </Dialog>
         </div>
     );

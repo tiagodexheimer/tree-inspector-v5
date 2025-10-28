@@ -14,7 +14,7 @@ export default function DetalhesDemandaModal({ open, onClose, demanda }: Detalhe
 
   return (
     <Dialog open={open} onClose={onClose} fullWidth maxWidth="sm">
-      <DialogTitle>Detalhes da Demanda #{demanda.ID}</DialogTitle>
+      <DialogTitle>Detalhes da Demanda #{demanda.id}</DialogTitle>
       <DialogContent dividers>
         <Typography gutterBottom variant="h6">Descrição Completa</Typography>
         <Typography paragraph>{demanda.descricao}</Typography>
