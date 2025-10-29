@@ -18,6 +18,8 @@
     "@mui/material-nextjs": "^7.3.2",
     "@mui/x-data-grid": "^8.13.1",
     "@types/leaflet": "^1.9.21",
+    "google-auth-library": "^10.4.2",
+    "google-spreadsheet": "^5.0.2",
     "leaflet": "^1.9.4",
     "next": "15.5.2",
     "pg": "^8.16.3",

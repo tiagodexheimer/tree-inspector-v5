@@ -15,6 +15,11 @@ import InfoOutlinedIcon from '@mui/icons-material/InfoOutlined';
 import { DemandaType } from "@/types/demanda"; // Mantém para props de AddDemandaModal
 import AddDemandaModal from "@/components/ui/demandas/AddDemandaModal";
 import CriarRotaModal from "@/components/ui/demandas/CriarRotaModal";
+// --- NOVAS IMPORTAÇÕES ---
+import Link from 'next/link';
+import UploadFileIcon from '@mui/icons-material/UploadFile'; // Ícone para importação
+// --- FIM NOVAS IMPORTAÇÕES ---
+
 
 // Interface para o tipo Status vindo da API
 interface StatusOption {
@@ -340,11 +345,23 @@ export default function DemandasPage() {
             <h1 className="text-2xl font-bold mb-4" style={{ margin: "16px" }}>Demandas</h1>
 
             {/* Barra de Ações */}
-            <Box sx={{ p: 2, display: 'flex', flexWrap: 'wrap', gap: 2, alignItems: 'center', borderBottom: '1px solid #ddd' }}>
+            <Box sx={{ p: 2, display: 'flex', flexWrap: 'wrap', gap: 1.5, alignItems: 'center', borderBottom: '1px solid #ddd' }}> {/* Ajuste no gap */}
+                 {/* Botão Adicionar Demanda */}
                  <Button variant="contained" sx={{ backgroundColor: '#257e1a', '&:hover': { backgroundColor: '#1a5912' } }} onClick={() => setAddModalOpen(true)}> Adicionar Demanda </Button>
 
+                 {/* Botão Importar Planilha */}
+                 <Link href="/demandas/importar" passHref legacyBehavior>
+                    <Button
+                        variant="outlined"
+                        startIcon={<UploadFileIcon />}
+                        sx={{ color: '#555', borderColor: '#ccc', '&:hover': { borderColor: '#aaa', backgroundColor: 'rgba(0,0,0,0.04)' } }}
+                    >
+                        Importar Planilha
+                    </Button>
+                 </Link>
+
                  {/* Filtro Status */}
-                 <FormControl sx={{ m: 1, minWidth: 180 }} size="small">
+                 <FormControl sx={{ minWidth: 180 }} size="small">
                     <InputLabel id="filtro-status-label">Status</InputLabel>
                     <Select
                         labelId="filtro-status-label"
@@ -354,7 +371,7 @@ export default function DemandasPage() {
                         input={<OutlinedInput label="Status" />}
                         renderValue={(selectedIds) => selectedIds.length === 0 ? <em>Todos Status</em> : availableStatus.filter(s => selectedIds.includes(s.id)).map(s => s.nome).join(', ')}
                         MenuProps={MenuProps}
-                        disabled={availableStatus.length === 0} // Desabilita se status não carregaram
+                        disabled={availableStatus.length === 0}
                     >
                          <MenuItem value={-1} onClick={() => setFiltroStatusIds([])}><Checkbox checked={filtroStatusIds.length === 0} readOnly /><ListItemText primary="Todos Status" /></MenuItem>
                          {availableStatus.map((status) => (<MenuItem key={status.id} value={status.id}><Checkbox checked={filtroStatusIds.includes(status.id)} /><Box sx={{ width: 14, height: 14, borderRadius: '50%', backgroundColor: status.cor, mr: 1, border: '1px solid #ccc' }} /><ListItemText primary={status.nome} /></MenuItem>))}
@@ -363,7 +380,7 @@ export default function DemandasPage() {
                  </FormControl>
 
                  {/* Filtro Tipo */}
-                  <FormControl sx={{ m: 1, minWidth: 180 }} size="small">
+                  <FormControl sx={{ minWidth: 180 }} size="small">
                     <InputLabel id="filtro-tipo-label">Tipo</InputLabel>
                     <Select
                         labelId="filtro-tipo-label"
@@ -373,7 +390,7 @@ export default function DemandasPage() {
                         input={<OutlinedInput label="Tipo" />}
                         renderValue={(selectedNames) => selectedNames.length === 0 ? <em>Todos Tipos</em> : selectedNames.join(', ')}
                         MenuProps={MenuProps}
-                        disabled={availableTipos.length === 0} // Desabilita se tipos não carregaram
+                        disabled={availableTipos.length === 0}
                     >
                          <MenuItem value="" onClick={() => setFiltroTipoNomes([])}><Checkbox checked={filtroTipoNomes.length === 0} readOnly /><ListItemText primary="Todos Tipos" /></MenuItem>
                          {availableTipos.map((tipo) => (<MenuItem key={tipo.id} value={tipo.nome}><Checkbox checked={filtroTipoNomes.includes(tipo.nome)} /><ListItemText primary={tipo.nome} /></MenuItem>))}
@@ -381,7 +398,7 @@ export default function DemandasPage() {
                     </Select>
                  </FormControl>
 
-                 {/* Filtro Texto e Botões de Visualização/Rota */}
+                 {/* Filtro Texto e Botões de Visualização/Rota (no final) */}
                  <TextField label="Buscar..." variant="outlined" size="small" value={filtro} onChange={(e) => setFiltro(e.target.value)} sx={{ marginLeft: 'auto', minWidth: 250 }} />
                  <IconButton onClick={() => setViewMode('card')} title="Visualizar em Cards" sx={{ color: viewMode === 'card' ? '#257e1a' : 'default' }}> <ViewModuleIcon /> </IconButton>
                  <IconButton onClick={() => setViewMode('list')} title="Visualizar em Lista" sx={{ color: viewMode === 'list' ? '#257e1a' : 'default' }}> <ViewListIcon /> </IconButton>
@@ -402,28 +419,9 @@ export default function DemandasPage() {
                  </Box>
            ) : !error && demandasFiltradas.length > 0 ? ( // Só renderiza listas se não houver erro E houver demandas filtradas
                 viewMode === 'card' ? (
-                    <ListaCardDemanda
-                        demandas={demandasFiltradas}
-                        selectedDemandas={selectedDemandas}
-                        onSelectDemanda={handleSelectDemanda}
-                        onDelete={iniciarDelecao} // Passa a função que abre o modal de confirmação
-                        onEdit={iniciarEdicao}
-                        onStatusChange={handleStatusChange}
-                        availableStatus={availableStatus}
-                    />
+                    <ListaCardDemanda demandas={demandasFiltradas} selectedDemandas={selectedDemandas} onSelectDemanda={handleSelectDemanda} onDelete={iniciarDelecao} onEdit={iniciarEdicao} onStatusChange={handleStatusChange} availableStatus={availableStatus} />
                 ) : (
-                    <ListaListDemanda
-                        demandas={demandasFiltradas}
-                        selectedDemandas={selectedDemandas}
-                        onSelectDemanda={handleSelectDemanda}
-                        onSelectAll={handleSelectAll}
-                        numSelected={selectedDemandas.length}
-                        rowCount={demandasFiltradas.length}
-                        onDelete={iniciarDelecao} // Passa a função que abre o modal de confirmação
-                        onEdit={iniciarEdicao}
-                        onStatusChange={handleStatusChange}
-                        availableStatus={availableStatus}
-                    />
+                    <ListaListDemanda demandas={demandasFiltradas} selectedDemandas={selectedDemandas} onSelectDemanda={handleSelectDemanda} onSelectAll={handleSelectAll} numSelected={selectedDemandas.length} rowCount={demandasFiltradas.length} onDelete={iniciarDelecao} onEdit={iniciarEdicao} onStatusChange={handleStatusChange} availableStatus={availableStatus} />
                 )
             ) : !error ? ( // Nenhuma demanda encontrada (e sem erro geral)
                 <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '50vh', color: 'grey.600', mt: 4 }}>
@@ -443,46 +441,20 @@ export default function DemandasPage() {
             ) : null /* Não renderiza nada se houver erro geral (já mostrado acima) */ }
 
             {/* Modais */}
-            <AddDemandaModal
-                open={addModalOpen}
-                onClose={() => { setAddModalOpen(false); fetchDemandas(); }} // Recarrega ao fechar
-                availableTipos={availableTipos} // Passa tipos para o modal de adição
-            />
-            {demandaParaEditar && (
-                <AddDemandaModal
-                    key={demandaParaEditar.id} // Garante remount ao editar diferentes demandas
-                    open={editModalOpen}
-                    onClose={handleCloseEditModal}
-                    demandaInicial={demandaParaEditar}
-                    onSuccess={handleDemandaEditada} // Callback para recarregar
-                    availableTipos={availableTipos} // Passa tipos para o modal de edição
-                />
-            )}
-            <CriarRotaModal
-                open={criarRotaModalOpen}
-                onClose={() => setCriarRotaModalOpen(false)}
-                demandasSelecionadas={demandasParaRota}
-                onRotaCriada={handleRotaCriada}
-            />
-            <Dialog open={confirmacaoRotaOpen} onClose={() => setConfirmacaoRotaOpen(false)}>
-                 <DialogTitle>Sucesso!</DialogTitle>
-                 <DialogContent><DialogContentText>A rota &quot;{nomeNovaRota}&quot; foi criada com sucesso!</DialogContentText></DialogContent>
-                 <DialogActions><Button onClick={() => setConfirmacaoRotaOpen(false)} autoFocus>Fechar</Button></DialogActions>
-            </Dialog>
-            {/* Modal Confirmação Deleção (usando openDeleteConfirm) */}
+            <AddDemandaModal open={addModalOpen} onClose={() => { setAddModalOpen(false); fetchDemandas(); }} availableTipos={availableTipos} />
+            {demandaParaEditar && ( <AddDemandaModal key={demandaParaEditar.id} open={editModalOpen} onClose={handleCloseEditModal} demandaInicial={demandaParaEditar} onSuccess={handleDemandaEditada} availableTipos={availableTipos} /> )}
+            <CriarRotaModal open={criarRotaModalOpen} onClose={() => setCriarRotaModalOpen(false)} demandasSelecionadas={demandasParaRota} onRotaCriada={handleRotaCriada} />
+            <Dialog open={confirmacaoRotaOpen} onClose={() => setConfirmacaoRotaOpen(false)}><DialogTitle>Sucesso!</DialogTitle><DialogContent><DialogContentText>A rota &quot;{nomeNovaRota}&quot; foi criada!</DialogContentText></DialogContent><DialogActions><Button onClick={() => setConfirmacaoRotaOpen(false)} autoFocus>Fechar</Button></DialogActions></Dialog>
+            {/* Modal Confirmação Deleção */}
             <Dialog open={openDeleteConfirm} onClose={cancelarDelecao}>
                 <DialogTitle>Confirmar Exclusão</DialogTitle>
                 <DialogContent>
-                    <DialogContentText>
-                        Tem certeza que deseja excluir a demanda ID {demandaParaDeletar}? Esta ação não pode ser desfeita.
-                    </DialogContentText>
-                     {deleteError && <Alert severity="error" sx={{ mt: 2 }}>Erro ao excluir: {deleteError}</Alert>}
+                    <DialogContentText> Excluir demanda ID {demandaParaDeletar}? Esta ação não pode ser desfeita. </DialogContentText>
+                    {deleteError && <Alert severity="error" sx={{ mt: 2 }}>{deleteError}</Alert>}
                 </DialogContent>
                 <DialogActions>
                     <Button onClick={cancelarDelecao} disabled={isDeleting}>Cancelar</Button>
-                    <Button onClick={confirmarDelecao} color="error" variant="contained" autoFocus disabled={isDeleting}>
-                        {isDeleting ? <CircularProgress size={24} color="inherit" /> : 'Excluir'}
-                    </Button>
+                    <Button onClick={confirmarDelecao} color="error" variant="contained" disabled={isDeleting}>{isDeleting ? <CircularProgress size={24}/> : 'Excluir'}</Button>
                 </DialogActions>
             </Dialog>
         </div>
