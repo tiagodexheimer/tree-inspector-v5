@@ -106,7 +106,7 @@ export async function POST(request: NextRequest) {
         "SELECT id FROM demandas_status WHERE nome = $1 LIMIT 1",
         ["Pendente"]
       );
-      if (statusResult.rowCount > 0) {
+      if ((statusResult.rowCount ?? 0) > 0) {
         initialStatusId = statusResult.rows[0].id;
       } else {
         console.warn(
@@ -138,29 +138,29 @@ export async function POST(request: NextRequest) {
         ? prazoDate
         : null;
 
-const queryParams = [
-     protocolo, // $1
-     nome_solicitante, // $2
-     telefone_solicitante || null, // $3
-     email_solicitante || null, // $4
-     cep.replace(/\D/g,''), // $5
-     logradouro || null, // $6
-     numero, // $7
-     complemento || null, // $8
-     bairro || null, // $9
-     cidade || null, // $10
-     uf ? uf.toUpperCase() : null, // $11
-     tipo_demanda, // $12
-     descricao, // $13
-     initialStatusId, // $14
-     // *** INÍCIO DA CORREÇÃO ***
-     // ST_MakePoint(Longitude, Latitude)
-     // O modal armazena como [Latitude, Longitude]
-     coordinates ? coordinates[1] : null, // $15 (Longitude)
-     coordinates ? coordinates[0] : null, // $16 (Latitude)
-     // *** FIM DA CORREÇÃO ***
-     prazoValidoParaSQL // $17
- ];
+    const queryParams = [
+      protocolo, // $1
+      nome_solicitante, // $2
+      telefone_solicitante || null, // $3
+      email_solicitante || null, // $4
+      cep.replace(/\D/g, ""), // $5
+      logradouro || null, // $6
+      numero, // $7
+      complemento || null, // $8
+      bairro || null, // $9
+      cidade || null, // $10
+      uf ? uf.toUpperCase() : null, // $11
+      tipo_demanda, // $12
+      descricao, // $13
+      initialStatusId, // $14
+      // *** INÍCIO DA CORREÇÃO ***
+      // ST_MakePoint(Longitude, Latitude)
+      // O modal armazena como [Latitude, Longitude]
+      coordinates ? coordinates[1] : null, // $15 (Longitude)
+      coordinates ? coordinates[0] : null, // $16 (Latitude)
+      // *** FIM DA CORREÇÃO ***
+      prazoValidoParaSQL, // $17
+    ];
 
     const result = await pool.query(queryText, queryParams);
 
@@ -183,7 +183,7 @@ const queryParams = [
         "SELECT nome, cor FROM demandas_status WHERE id = $1",
         [createdDemanda.id_status]
       );
-      if (statusInfo.rowCount > 0) {
+      if ((statusInfo.rowCount ?? 0) > 0) {
         createdDemanda.status_nome = statusInfo.rows[0].nome;
         createdDemanda.status_cor = statusInfo.rows[0].cor;
       }

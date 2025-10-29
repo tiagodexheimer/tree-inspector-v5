@@ -66,7 +66,7 @@ async function getStatusId(nomeStatus: string): Promise<number | null> {
       "SELECT id FROM demandas_status WHERE nome ILIKE $1 LIMIT 1",
       [nomeStatus]
     ); // Usar ILIKE para case-insensitive
-    return result?.rowCount > 0 ? result.rows[0].id : null;
+    return (result.rowCount ?? 0) > 0 ? result.rows[0].id : null;
   } catch (err) {
     console.error(`Erro ao buscar ID do status "${nomeStatus}":`, err);
     return null;
@@ -79,7 +79,7 @@ async function checkTipoDemandaExists(nomeTipo: string): Promise<boolean> {
       "SELECT 1 FROM demandas_tipos WHERE nome ILIKE $1 LIMIT 1",
       [nomeTipo]
     ); // Usar ILIKE
-    return result?.rowCount > 0;
+    return (result.rowCount ?? 0) > 0;
   } catch (err) {
     console.error(`Erro ao verificar tipo de demanda "${nomeTipo}":`, err);
     return false;
@@ -316,7 +316,7 @@ export async function POST(request: NextRequest) {
         );
         const result = await pool.query(queryText, queryParams);
 
-        if (result.rowCount > 0) {
+        if ((result.rowCount ?? 0) > 0) {
           successCount++;
         } else {
           throw new Error(
