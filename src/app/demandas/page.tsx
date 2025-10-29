@@ -16,7 +16,7 @@ import { DemandaType } from "@/types/demanda"; // Mantém para props de AddDeman
 import AddDemandaModal from "@/components/ui/demandas/AddDemandaModal";
 import CriarRotaModal from "@/components/ui/demandas/CriarRotaModal";
 // --- NOVAS IMPORTAÇÕES ---
-import Link from 'next/link';
+import Link from 'next/link'; // Importa o Link do Next.js
 import UploadFileIcon from '@mui/icons-material/UploadFile'; // Ícone para importação
 // --- FIM NOVAS IMPORTAÇÕES ---
 
@@ -349,16 +349,16 @@ export default function DemandasPage() {
                  {/* Botão Adicionar Demanda */}
                  <Button variant="contained" sx={{ backgroundColor: '#257e1a', '&:hover': { backgroundColor: '#1a5912' } }} onClick={() => setAddModalOpen(true)}> Adicionar Demanda </Button>
 
-                 {/* Botão Importar Planilha */}
-                 <Link href="/demandas/importar" passHref legacyBehavior>
-                    <Button
-                        variant="outlined"
-                        startIcon={<UploadFileIcon />}
-                        sx={{ color: '#555', borderColor: '#ccc', '&:hover': { borderColor: '#aaa', backgroundColor: 'rgba(0,0,0,0.04)' } }}
-                    >
-                        Importar Planilha
-                    </Button>
-                 </Link>
+                 {/* Botão Importar Planilha - CORRIGIDO */}
+                 <Button
+                    variant="outlined"
+                    startIcon={<UploadFileIcon />}
+                    sx={{ color: '#555', borderColor: '#ccc', '&:hover': { borderColor: '#aaa', backgroundColor: 'rgba(0,0,0,0.04)' } }}
+                    component={Link} // Usa o componente Link do Next.js
+                    href="/demandas/importar" // Passa o href diretamente
+                >
+                    Importar Planilha
+                </Button>
 
                  {/* Filtro Status */}
                  <FormControl sx={{ minWidth: 180 }} size="small">

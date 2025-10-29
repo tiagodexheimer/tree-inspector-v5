@@ -121,7 +121,7 @@ import { DemandaType, GeoJsonPoint } from "@/types/demanda";
                      <CardContent sx={{ flexGrow: 1, minHeight: 150 }}>
                          {/* Renderização Condicional do Mapa */}
                          <Box sx={{
-                             position: 'relative', height: 200,
+                             position: 'relative', height: 180,
                              width: '100%', borderRadius: '4px', overflow: 'hidden',
                              backgroundColor: '#e0e0e0',
                              display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#757575'
@@ -140,7 +140,7 @@ import { DemandaType, GeoJsonPoint } from "@/types/demanda";
                  </Box>
                  <CardContent sx={{ pt: 1 }}>
                      {/* Descrição, Prazo, Botão Detalhes */}
-                     <Typography variant="body2" color="text.secondary" sx={{ mb: 1, display: '-webkit-box', WebkitLineClamp: 3, WebkitBoxOrient: 'vertical', overflow: 'hidden', textOverflow: 'ellipsis', minHeight: '3.6em' }}>
+                     <Typography variant="body2" color="text.secondary" sx={{ mb: 1, display: '-webkit-box', WebkitLineClamp: 3, WebkitBoxOrient: 'vertical', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                          {descricao}
                      </Typography>
                      <Typography variant="body2" sx={{mt:1}}>Prazo: {formatPrazo(prazo)}</Typography>
