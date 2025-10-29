@@ -1,41 +1,59 @@
 // src/components/ui/demandas/ListaListDemanda.tsx
 'use client';
-// Importa Status junto com DemandaType
-import { DemandaType, Status } from "@/types/demanda";
+// --- INÍCIO DA CORREÇÃO ---
+// 1. Remove a importação do enum 'Status' e ajusta DemandaType (ou define a interface estendida)
+import { DemandaType } from "@/types/demanda"; 
 import { TableContainer, Table, TableHead, TableRow, TableCell, TableBody, Paper, IconButton } from "@mui/material";
-// Importa StatusDemanda
+// 2. Importa o StatusDemanda (já estava correto)
 import StatusDemanda from "./StatusDemanda";
 import DeleteIcon from '@mui/icons-material/Delete';
-import EditIcon from '@mui/icons-material/Edit'; // Presumindo que EditIcon já foi importado
+import EditIcon from '@mui/icons-material/Edit';
 
+// 3. Define as interfaces locais necessárias (copiadas de ListaCardDemanda/StatusDemanda)
+// Interface para o tipo Status vindo da API
+interface StatusOption {
+    id: number;
+    nome: string;
+    cor: string;
+}
+
+// Interface atualizada para DemandaType para incluir id_status
+interface DemandaComIdStatus extends DemandaType {
+    id_status?: number | null;
+    status_nome?: string; // Campos opcionais que podem vir do JOIN
+    status_cor?: string;
+}
+
+// 4. Atualiza a interface de Props
 interface ListDemandaProps {
-    demandas: DemandaType[];
+    demandas: DemandaComIdStatus[]; // <-- Usa a interface estendida
     selectedDemandas: number[];
     onSelectDemanda: (id: number) => void;
-    // Props opcionais que podem ou não estar sendo usadas, mantidas por segurança
     onSelectAll?: () => void;
     numSelected?: number;
     rowCount?: number;
-    // Funções de ação
     onDelete: (id: number) => void;
-    onEdit: (demanda: DemandaType) => void;
-    // Nova prop para mudança de status
-    onStatusChange: (demandaId: number, newStatus: Status) => Promise<void>;
+    onEdit: (demanda: DemandaComIdStatus) => void; // <-- Usa a interface estendida
+    
+    // 5. Atualiza as props de Status
+    onStatusChange: (demandaId: number, newStatusId: number) => Promise<void>; // <-- Espera ID
+    availableStatus: StatusOption[]; // <-- Adiciona prop
 }
 
-// Recebe a nova prop onStatusChange
+// 6. Recebe a nova prop 'availableStatus'
 export default function ListaListDemanda({
     demandas,
     selectedDemandas,
     onSelectDemanda,
     onDelete,
     onEdit,
-    onStatusChange, // Recebe a função aqui
-    // Inclui props opcionais se estiverem definidas na interface
-    onSelectAll,
-    numSelected,
-    rowCount
+    onStatusChange,
+    availableStatus, // <-- Recebe a prop aqui
+    //onSelectAll,
+    //numSelected,
+    //rowCount
 }: ListDemandaProps){
+// --- FIM DA CORREÇÃO ---
 
     // Função para formatar prazo (mantida como estava)
     const formatPrazo = (date: Date | null | undefined): string => {
@@ -82,9 +100,12 @@ export default function ListaListDemanda({
                         {demandas.map((demanda) => {
                             // Verifica se a linha está selecionada
                             const isSelected = demanda.id !== undefined && selectedDemandas.includes(demanda.id);
-                            // Garante que temos o ID e o Status para passar ao StatusDemanda
+                            
+                            // --- INÍCIO DA CORREÇÃO ---
+                            // 7. Pega o ID da demanda e o ID do status atual
                             const demandaId = demanda.id;
-                            const currentStatus = demanda.status;
+                            const currentStatusId = demanda.id_status; // <-- Usa id_status
+                            // --- FIM DA CORREÇÃO ---
 
                             return (
                                 <TableRow
@@ -102,18 +123,22 @@ export default function ListaListDemanda({
                                     <TableCell onClick={() => demandaId !== undefined && onSelectDemanda(demandaId)} sx={{ cursor: 'pointer' }}>{demanda.tipo_demanda}</TableCell>
                                     <TableCell onClick={() => demandaId !== undefined && onSelectDemanda(demandaId)} sx={{ cursor: 'pointer' }}>{formatPrazo(demanda.prazo)}</TableCell>
 
-                                    {/* Célula do Status - Renderiza o componente StatusDemanda */}
-                                    <TableCell> {/* onClick foi removido desta célula */}
-                                        {currentStatus && demandaId !== undefined ? (
+                                    {/* --- INÍCIO DA CORREÇÃO --- */}
+                                    {/* 8. Célula do Status - Passa as props corretas para StatusDemanda */}
+                                    <TableCell> 
+                                        {demandaId !== undefined ? (
                                             <StatusDemanda
                                                 demandaId={demandaId}
-                                                currentStatus={currentStatus}
-                                                onStatusChange={onStatusChange} // Passa a função recebida
+                                                currentStatusId={currentStatusId} // <-- Passa o ID do status
+                                                availableStatus={availableStatus} // <-- Passa a lista de status
+                                                onStatusChange={onStatusChange}    // <-- Passa a função (agora compatível)
                                             />
                                         ) : (
                                             'N/A' // Caso não haja status ou ID
                                         )}
                                     </TableCell>
+                                    {/* --- FIM DA CORREÇÃO --- */}
+
 
                                     {/* Célula de Ações (Editar e Deletar) */}
                                     <TableCell align="right">

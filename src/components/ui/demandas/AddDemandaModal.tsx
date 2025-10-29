@@ -34,11 +34,11 @@ interface TipoDemandaOption {
 
 // *** ATUALIZAÇÃO: Props do Modal ***
 interface AddDemandaModalProps {
-  open: boolean;
-  onClose: () => void;
-  demandaInicial?: DemandaType | null; // <-- Prop para dados iniciais (edição)
-  onSuccess?: () => void;             // <-- Callback para sucesso (edição)
-  availableTipos: TipoDemandaOption[]; // <-- Nova prop para tipos disponíveis
+    open: boolean;
+    onClose: () => void;
+    demandaInicial?: DemandaType | null; // <-- Prop para dados iniciais (edição)
+    onSuccess?: () => void;             // <-- Callback para sucesso (edição)
+    availableTipos: TipoDemandaOption[]; // <-- Nova prop para tipos disponíveis
 }
 
 interface FormData {
@@ -91,14 +91,16 @@ export default function AddDemandaModal({ open, onClose, demandaInicial = null, 
     const [apiError, setApiError] = useState<string | null>(null); // Erro do submit (criação/edição)
     const [protocolo, setProtocolo] = useState(''); // Apenas para criação
     const [formData, setFormData] = useState<FormData>({
-         nome_solicitante: '', telefone_solicitante: '', email_solicitante: '',
-         cep: '', logradouro: '', numero: '', complemento: '', bairro: '', cidade: '', uf: '',
-         tipo_demanda: '', descricao: '', prazo: '',
+        nome_solicitante: '', telefone_solicitante: '', email_solicitante: '',
+        cep: '', logradouro: '', numero: '', complemento: '', bairro: '', cidade: '', uf: '',
+        tipo_demanda: '', descricao: '', prazo: '',
     });
     const [addressFieldsDisabled, setAddressFieldsDisabled] = useState(true);
     const [coordinates, setCoordinates] = useState<[number, number] | null>(null); // [latitude, longitude]
     const [geocodingLoading, setGeocodingLoading] = useState<boolean>(false);
     const [geocodingError, setGeocodingError] = useState<string | null>(null);
+
+    const { logradouro, numero, cidade, uf, cep } = formData;
 
     // --- useEffect para Preencher/Limpar Formulário ---
     useEffect(() => {
@@ -128,7 +130,7 @@ export default function AddDemandaModal({ open, onClose, demandaInicial = null, 
                         prazoFormatado = dataLocal.toISOString().split('T')[0]; // Formato YYYY-MM-DD mais seguro
                         console.log(`[MODAL EDIT] Data original: ${demandaInicial.prazo}, Data formatada: ${prazoFormatado}`);
                     } catch (e) {
-                         console.error("[MODAL EDIT] Erro ao formatar data do prazo para edição:", demandaInicial.prazo, e);
+                        console.error("[MODAL EDIT] Erro ao formatar data do prazo para edição:", demandaInicial.prazo, e);
                     }
                 }
 
@@ -149,18 +151,18 @@ export default function AddDemandaModal({ open, onClose, demandaInicial = null, 
                 });
 
                 // Se tinha coordenadas, busca novamente (ou poderia armazenar no estado da página e passar via prop)
-                 if (demandaInicial.geom?.coordinates) {
-                     // Inicia geocodificação baseada nos dados preenchidos
-                     // O useEffect de geocodificação será acionado pelos campos preenchidos
-                 } else {
-                     setCoordinates(null);
-                 }
+                if (demandaInicial.geom?.coordinates) {
+                    // Inicia geocodificação baseada nos dados preenchidos
+                    // O useEffect de geocodificação será acionado pelos campos preenchidos
+                } else {
+                    setCoordinates(null);
+                }
 
                 // Habilita campos se endereço veio preenchido (exceto se só CEP)
                 setAddressFieldsDisabled(!(demandaInicial.logradouro || demandaInicial.bairro || demandaInicial.cidade || demandaInicial.uf));
 
             } else {
-                 // Modo Adição ou reabertura sem demandaInicial: Limpa o formulário
+                // Modo Adição ou reabertura sem demandaInicial: Limpa o formulário
                 setFormData({
                     nome_solicitante: '', telefone_solicitante: '', email_solicitante: '',
                     cep: '', logradouro: '', numero: '', complemento: '', bairro: '', cidade: '', uf: '',
@@ -188,10 +190,10 @@ export default function AddDemandaModal({ open, onClose, demandaInicial = null, 
         }
         // Limpa erro de geocodificação se campos de endereço relevantes forem alterados manualmente
         if (['logradouro', 'numero', 'cidade', 'uf'].includes(name)) {
-             setGeocodingError(null);
+            setGeocodingError(null);
         }
-         // Limpa erro geral da API ao modificar qualquer campo
-         if (apiError) setApiError(null);
+        // Limpa erro geral da API ao modificar qualquer campo
+        if (apiError) setApiError(null);
     };
 
     // handleCepBlur (sem alterações)
@@ -230,60 +232,59 @@ export default function AddDemandaModal({ open, onClose, demandaInicial = null, 
             setAddressFieldsDisabled(true); // Desabilita se CEP inválido
             setFormData(prev => ({ ...prev, logradouro: '', bairro: '', cidade: '', uf: '' })); // Limpa campos
         } else {
-             setCepError(null); // Limpa erro se campo CEP estiver vazio
-             setAddressFieldsDisabled(true);
-             setFormData(prev => ({ ...prev, logradouro: '', bairro: '', cidade: '', uf: '' }));
+            setCepError(null); // Limpa erro se campo CEP estiver vazio
+            setAddressFieldsDisabled(true);
+            setFormData(prev => ({ ...prev, logradouro: '', bairro: '', cidade: '', uf: '' }));
         }
     };
 
     // useEffect para Geocodificação (sem alterações)
-     useEffect(() => {
-         const attemptGeocode = async () => {
-             const { logradouro, numero, cidade, uf, cep } = formData;
-             const cepNumerico = cep.replace(/\D/g, '');
+    useEffect(() => {
+        const attemptGeocode = async () => {
+            const cepNumerico = cep.replace(/\D/g, '');
 
-             // Só tenta geocodificar se tiver endereço completo e CEP válido (sem erro)
-             if (cepNumerico.length === 8 && logradouro && numero && cidade && uf && !cepError) {
-                 setGeocodingLoading(true);
-                 setGeocodingError(null);
-                 setCoordinates(null); // Limpa coordenadas anteriores
-                 try {
-                     const result = await geocodeAddressViaBackend(logradouro, numero, cidade, uf);
-                     if (result) {
-                         setCoordinates(result); // Guarda [latitude, longitude]
-                     } else {
-                         // Se a função retornar null explicitamente
-                          setGeocodingError('Não foi possível obter coordenadas (dados insuficientes).');
-                          setCoordinates(null);
-                     }
-                 } catch (error) {
-                     setGeocodingError(error instanceof Error ? error.message : 'Erro ao obter coordenadas.');
-                     setCoordinates(null);
-                 } finally {
-                     setGeocodingLoading(false);
-                 }
-             } else {
-                 // Se os dados não estão completos ou há erro no CEP, limpa coordenadas e erro (se não for erro de CEP)
-                 setCoordinates(null);
-                 // Não limpa o erro de geocodificação se a causa for dados incompletos (exceto erro de CEP)
-                 if (!cepError && !(cepNumerico.length === 8 && (!logradouro || !numero || !cidade || !uf))) {
-                     setGeocodingError(null);
-                 }
-                 setGeocodingLoading(false); // Garante que loading termine
-             }
-         };
+            // Só tenta geocodificar se tiver endereço completo e CEP válido (sem erro)
+            if (cepNumerico.length === 8 && logradouro && numero && cidade && uf && !cepError) {
+                setGeocodingLoading(true);
+                setGeocodingError(null);
+                setCoordinates(null); // Limpa coordenadas anteriores
+                try {
+                    const result = await geocodeAddressViaBackend(logradouro, numero, cidade, uf);
+                    if (result) {
+                        setCoordinates(result); // Guarda [latitude, longitude]
+                    } else {
+                        // Se a função retornar null explicitamente
+                        setGeocodingError('Não foi possível obter coordenadas (dados insuficientes).');
+                        setCoordinates(null);
+                    }
+                } catch (error) {
+                    setGeocodingError(error instanceof Error ? error.message : 'Erro ao obter coordenadas.');
+                    setCoordinates(null);
+                } finally {
+                    setGeocodingLoading(false);
+                }
+            } else {
+                // Se os dados não estão completos ou há erro no CEP, limpa coordenadas e erro (se não for erro de CEP)
+                setCoordinates(null);
+                // Não limpa o erro de geocodificação se a causa for dados incompletos (exceto erro de CEP)
+                if (!cepError && !(cepNumerico.length === 8 && (!logradouro || !numero || !cidade || !uf))) {
+                    setGeocodingError(null);
+                }
+                setGeocodingLoading(false); // Garante que loading termine
+            }
+        };
 
-         // Debounce para evitar chamadas excessivas enquanto digita
-         const handler = setTimeout(() => {
-             // Só chama se o modal estiver aberto (evita chamadas desnecessárias no fechamento)
-             if(open) {
+        // Debounce para evitar chamadas excessivas enquanto digita
+        const handler = setTimeout(() => {
+            // Só chama se o modal estiver aberto (evita chamadas desnecessárias no fechamento)
+            if (open) {
                 attemptGeocode();
-             }
-         }, 800); // Atraso de 800ms após parar de digitar
+            }
+        }, 800); // Atraso de 800ms após parar de digitar
 
-         return () => { clearTimeout(handler); }; // Limpa o timeout se o componente desmontar ou deps mudarem
+        return () => { clearTimeout(handler); }; // Limpa o timeout se o componente desmontar ou deps mudarem
 
-     }, [formData.cep, formData.numero, formData.logradouro, formData.cidade, formData.uf, cepError, open]); // Adiciona 'open' às dependências
+    }, [cep, numero, logradouro, cidade, uf, cepError, open]); // Adiciona 'open' às dependências
 
     // *** ATUALIZAÇÃO: Função de Submit (handleSubmit) ***
     const handleSubmit = async () => {
@@ -300,20 +301,30 @@ export default function AddDemandaModal({ open, onClose, demandaInicial = null, 
         // Adicione outras validações se necessário (ex: email, telefone)
 
         try {
+            // ... (dentro do try)
             const apiUrl = isEditing ? `/api/demandas/${demandaInicial?.id}` : '/api/demandas';
             const method = isEditing ? 'PUT' : 'POST';
 
-            console.log(`[FRONTEND MODAL] Enviando ${method} para ${apiUrl} com dados:`, formData);
+            // *** INÍCIO DA CORREÇÃO ***
+            // Combina o formData com as coordenadas do estado
+            const bodyPayload = {
+                ...formData,
+                coordinates: coordinates // Anexa as coordenadas [lat, lon]
+            };
+            // *** FIM DA CORREÇÃO ***
+
+            console.log(`[FRONTEND MODAL] Enviando ${method} para ${apiUrl} com dados:`, bodyPayload); // Log o novo payload
 
             const response = await fetch(apiUrl, {
                 method: method,
                 headers: { 'Content-Type': 'application/json' },
-                // Envia os dados do formulário, incluindo tipo_demanda como string (nome)
-                body: JSON.stringify(formData)
+                // Envia o payload combinado
+                body: JSON.stringify(bodyPayload) // *** CORRIGIDO ***
             });
+            // ...
 
             const result = await response.json().catch(() => ({})); // Tenta parsear JSON mesmo em erro
-             console.log(`[FRONTEND MODAL] Resposta da API (${method}):`, response.status, result);
+            console.log(`[FRONTEND MODAL] Resposta da API (${method}):`, response.status, result);
 
             if (!response.ok) {
                 // Se a API retornou erro, usa a mensagem dela
@@ -325,7 +336,7 @@ export default function AddDemandaModal({ open, onClose, demandaInicial = null, 
                 console.log("[FRONTEND MODAL] Edição salva com sucesso.");
                 if (onSuccess) onSuccess(); // Chama o callback da página (que fecha o modal e recarrega)
             } else {
-                 console.log("[FRONTEND MODAL] Nova demanda registrada com sucesso.");
+                console.log("[FRONTEND MODAL] Nova demanda registrada com sucesso.");
                 setProtocolo(result.protocolo || 'N/A'); // Guarda o protocolo para exibir
                 setIsSubmitted(true); // Mostra a tela de sucesso
             }
@@ -401,9 +412,9 @@ export default function AddDemandaModal({ open, onClose, demandaInicial = null, 
                                 <MyLocationIcon fontSize="small" color={coordinates ? "primary" : (geocodingError ? "error" : "disabled")} />
                                 <Typography variant="body2" color={geocodingError ? "error" : "text.secondary"} sx={{ flexGrow: 1 }}>
                                     {geocodingLoading ? 'Obtendo coordenadas...' :
-                                     coordinates ? `Lat: ${coordinates[0].toFixed(6)}, Lon: ${coordinates[1].toFixed(6)}` :
-                                     geocodingError ? `${geocodingError}` : // Mostra erro diretamente
-                                     'Coordenadas geográficas (automático)'}
+                                        coordinates ? `Lat: ${coordinates[0].toFixed(6)}, Lon: ${coordinates[1].toFixed(6)}` :
+                                            geocodingError ? `${geocodingError}` : // Mostra erro diretamente
+                                                'Coordenadas geográficas (automático)'}
                                 </Typography>
                                 {geocodingLoading && <CircularProgress size={18} sx={{ mr: 1 }} />}
                             </Box>
@@ -427,9 +438,9 @@ export default function AddDemandaModal({ open, onClose, demandaInicial = null, 
                                             {tipo.nome}
                                         </MenuItem>
                                     ))}
-                                     {/* Fallback se a lista estiver vazia ou não contiver 'Outro' */}
-                                    { (!availableTipos || availableTipos.length === 0) && <MenuItem value="Outro">Outro (Carregando...)</MenuItem> }
-                                    { (availableTipos && !availableTipos.some(t => t.nome === 'Outro')) && <MenuItem value="Outro">Outro</MenuItem> }
+                                    {/* Fallback se a lista estiver vazia ou não contiver 'Outro' */}
+                                    {(!availableTipos || availableTipos.length === 0) && <MenuItem value="Outro">Outro (Carregando...)</MenuItem>}
+                                    {(availableTipos && !availableTipos.some(t => t.nome === 'Outro')) && <MenuItem value="Outro">Outro</MenuItem>}
                                 </Select>
                             </FormControl>
                             <TextField
@@ -456,4 +467,4 @@ export default function AddDemandaModal({ open, onClose, demandaInicial = null, 
             )}
         </Dialog>
     );
- }
+}

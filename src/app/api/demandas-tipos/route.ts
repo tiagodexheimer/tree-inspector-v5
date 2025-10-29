@@ -7,7 +7,7 @@ interface TipoBody {
 }
 
 // --- Handler para GET (Listar todos os Tipos) ---
-export async function GET(_request: NextRequest) {
+export async function GET() {
     console.log('[API /demandas-tipos] Recebido GET.');
     try {
         const result = await pool.query('SELECT id, nome FROM demandas_tipos ORDER BY nome'); // Ordena por nome

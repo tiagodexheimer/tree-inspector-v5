@@ -3,7 +3,7 @@
 
 // Remove Status import if using StatusOption everywhere
 // import { DemandaType, GeoJsonPoint, Status } from "@/types/demanda";
-import { DemandaType, GeoJsonPoint } from "@/types/demanda";
+import { DemandaType } from "@/types/demanda";
  import { Card, CardHeader, CardContent, Box, Typography, Button, IconButton } from "@mui/material";
  import StatusDemanda from "./StatusDemanda";
  import { useState } from "react";
@@ -45,7 +45,7 @@ import { DemandaType, GeoJsonPoint } from "@/types/demanda";
  export default function CardDemanda(props: CardDemandaProps) {
      // Destructure all props, including the new ones
      const { id, logradouro, numero, bairro, cidade, uf, tipo_demanda,
-             descricao, prazo, status, // 'status' (string) might be unused now
+             descricao, prazo, // 'status' (string) might be unused now
              isSelected, onSelect, onDelete, onEdit, onStatusChange, geom,
              id_status, // <-- Destructure id_status
              availableStatus // <-- Destructure availableStatus

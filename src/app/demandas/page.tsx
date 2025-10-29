@@ -200,7 +200,7 @@ export default function DemandasPage() {
                 (demanda.tipo_demanda && demanda.tipo_demanda.toLowerCase().includes(filtroLowerCase)) // Busca no tipo
             );
         });
-    }, [filtro, demandas, availableStatus, filtroStatusIds, availableTipos, filtroTipoNomes]); // Inclui todas as dependências
+    }, [filtro, demandas, availableStatus, filtroStatusIds, filtroTipoNomes]); // Inclui todas as dependências
 
 
     // --- Handlers ---

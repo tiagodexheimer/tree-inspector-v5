@@ -8,7 +8,7 @@ interface StatusBody {
 }
 
 // --- Handler para GET (Listar todos os Status) ---
-export async function GET(_request: NextRequest) {
+export async function GET() {
     console.log('[API /demandas-status] Recebido GET.');
     try {
         const result = await pool.query('SELECT id, nome, cor FROM demandas_status ORDER BY id');

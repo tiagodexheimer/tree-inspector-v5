@@ -4,7 +4,7 @@
 import React, { useState, ChangeEvent } from 'react'; // Adicionar ChangeEvent
 import {
     Box, Button, Typography, CircularProgress, Alert,
-    List, ListItem, ListItemText, Paper, Input // Input para upload
+    List, ListItem, ListItemText, Paper
 } from '@mui/material';
 import CloudUploadIcon from '@mui/icons-material/CloudUpload';
 // Remover LinkIcon se não for mais usado
@@ -13,7 +13,7 @@ import CloudUploadIcon from '@mui/icons-material/CloudUpload';
 // Interface para o resultado da importação (mantida)
 interface ImportResult {
     successCount: number;
-    errors: { row: number; message: string; data: any }[];
+    errors: { row: number; message: string; data: unknown }[];
 }
 
 export default function ImportarDemandasPage() {
