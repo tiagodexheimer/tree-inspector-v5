@@ -7,7 +7,7 @@ import * as XLSX from "xlsx"; // Importa a biblioteca para ler planilhas
 
 // **IMPORTANTE**: Substitua esta simulação pela sua lógica real de geocodificação
 async function geocodeAddress(
-  req: NextRequest,
+  req: NextRequest, // <-- O nome do parâmetro é 'req'
   logradouro?: string | null,
   numero?: string | null,
   cidade?: string | null,
@@ -24,7 +24,7 @@ async function geocodeAddress(
       // Construir a URL absoluta pode ser mais seguro. Verifique a documentação do Next.js para a melhor abordagem.
       // Para simplicidade, vamos assumir que está no mesmo host/porta por enquanto.
       // Em produção, considere usar uma URL absoluta ou variável de ambiente.
-      const apiBaseUrl = new URL(request.url).origin; // Tenta obter a base da URL da requisição
+      const apiBaseUrl = new URL(req.url).origin; // Tenta obter a base da URL da requisição
       const geocodeUrl = `${apiBaseUrl}/api/geocode`;
 
       console.log(
@@ -66,7 +66,7 @@ async function getStatusId(nomeStatus: string): Promise<number | null> {
       "SELECT id FROM demandas_status WHERE nome ILIKE $1 LIMIT 1",
       [nomeStatus]
     ); // Usar ILIKE para case-insensitive
-    return result.rowCount > 0 ? result.rows[0].id : null;
+    return result?.rowCount > 0 ? result.rows[0].id : null;
   } catch (err) {
     console.error(`Erro ao buscar ID do status "${nomeStatus}":`, err);
     return null;
@@ -79,7 +79,7 @@ async function checkTipoDemandaExists(nomeTipo: string): Promise<boolean> {
       "SELECT 1 FROM demandas_tipos WHERE nome ILIKE $1 LIMIT 1",
       [nomeTipo]
     ); // Usar ILIKE
-    return result.rowCount > 0;
+    return result?.rowCount > 0;
   } catch (err) {
     console.error(`Erro ao verificar tipo de demanda "${nomeTipo}":`, err);
     return false;
@@ -266,6 +266,7 @@ export async function POST(request: NextRequest) {
 
         // Geocodificação (sem alterações na chamada, mas a função foi ajustada acima)
         const coordinates = await geocodeAddress(
+          request,
           logradouro,
           numero,
           cidade,
