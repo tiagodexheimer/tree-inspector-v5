@@ -25,12 +25,20 @@ interface GeocodeApiResponse {
     error?: string;
 }
 
+// Interface para as opções de Tipo de Demanda vindas da API
+interface TipoDemandaOption {
+    id: number;
+    nome: string;
+}
+
+
 // *** ATUALIZAÇÃO: Props do Modal ***
 interface AddDemandaModalProps {
   open: boolean;
   onClose: () => void;
   demandaInicial?: DemandaType | null; // <-- Prop para dados iniciais (edição)
   onSuccess?: () => void;             // <-- Callback para sucesso (edição)
+  availableTipos: TipoDemandaOption[]; // <-- Nova prop para tipos disponíveis
 }
 
 interface FormData {
@@ -72,7 +80,7 @@ async function geocodeAddressViaBackend(logradouro?: string | null, numero?: str
 }
 
 // *** ATUALIZAÇÃO: Componente Principal ***
-export default function AddDemandaModal({ open, onClose, demandaInicial = null, onSuccess }: AddDemandaModalProps) {
+export default function AddDemandaModal({ open, onClose, demandaInicial = null, onSuccess, availableTipos }: AddDemandaModalProps) {
     const isEditing = !!demandaInicial; // Flag para modo de edição
 
     // --- Estados ---
@@ -117,10 +125,7 @@ export default function AddDemandaModal({ open, onClose, demandaInicial = null, 
                         // Garante que a data seja interpretada corretamente independente do fuso horário original
                         // Ajusta para o fuso horário local antes de formatar para YYYY-MM-DD
                         const dataLocal = new Date(data.getTime() + data.getTimezoneOffset() * 60000);
-                        const ano = dataLocal.getFullYear();
-                        const mes = (dataLocal.getMonth() + 1).toString().padStart(2, '0');
-                        const dia = dataLocal.getDate().toString().padStart(2, '0');
-                        prazoFormatado = `${ano}-${mes}-${dia}`;
+                        prazoFormatado = dataLocal.toISOString().split('T')[0]; // Formato YYYY-MM-DD mais seguro
                         console.log(`[MODAL EDIT] Data original: ${demandaInicial.prazo}, Data formatada: ${prazoFormatado}`);
                     } catch (e) {
                          console.error("[MODAL EDIT] Erro ao formatar data do prazo para edição:", demandaInicial.prazo, e);
@@ -138,7 +143,7 @@ export default function AddDemandaModal({ open, onClose, demandaInicial = null, 
                     bairro: demandaInicial.bairro || '',
                     cidade: demandaInicial.cidade || '',
                     uf: demandaInicial.uf || '',
-                    tipo_demanda: demandaInicial.tipo_demanda || '',
+                    tipo_demanda: demandaInicial.tipo_demanda || '', // Mantém o nome (string) que veio
                     descricao: demandaInicial.descricao || '',
                     prazo: prazoFormatado,
                 });
@@ -185,6 +190,8 @@ export default function AddDemandaModal({ open, onClose, demandaInicial = null, 
         if (['logradouro', 'numero', 'cidade', 'uf'].includes(name)) {
              setGeocodingError(null);
         }
+         // Limpa erro geral da API ao modificar qualquer campo
+         if (apiError) setApiError(null);
     };
 
     // handleCepBlur (sem alterações)
@@ -244,8 +251,11 @@ export default function AddDemandaModal({ open, onClose, demandaInicial = null, 
                      const result = await geocodeAddressViaBackend(logradouro, numero, cidade, uf);
                      if (result) {
                          setCoordinates(result); // Guarda [latitude, longitude]
+                     } else {
+                         // Se a função retornar null explicitamente
+                          setGeocodingError('Não foi possível obter coordenadas (dados insuficientes).');
+                          setCoordinates(null);
                      }
-                     // Erro de "não encontrado" será tratado no catch
                  } catch (error) {
                      setGeocodingError(error instanceof Error ? error.message : 'Erro ao obter coordenadas.');
                      setCoordinates(null);
@@ -255,7 +265,10 @@ export default function AddDemandaModal({ open, onClose, demandaInicial = null, 
              } else {
                  // Se os dados não estão completos ou há erro no CEP, limpa coordenadas e erro (se não for erro de CEP)
                  setCoordinates(null);
-                 if (!cepError) setGeocodingError(null); // Não sobrescreve o erro do CEP
+                 // Não limpa o erro de geocodificação se a causa for dados incompletos (exceto erro de CEP)
+                 if (!cepError && !(cepNumerico.length === 8 && (!logradouro || !numero || !cidade || !uf))) {
+                     setGeocodingError(null);
+                 }
                  setGeocodingLoading(false); // Garante que loading termine
              }
          };
@@ -272,17 +285,17 @@ export default function AddDemandaModal({ open, onClose, demandaInicial = null, 
 
      }, [formData.cep, formData.numero, formData.logradouro, formData.cidade, formData.uf, cepError, open]); // Adiciona 'open' às dependências
 
-    // *** ATUALIZAÇÃO: Função de Submit (handleRegister -> handleSubmit) ***
+    // *** ATUALIZAÇÃO: Função de Submit (handleSubmit) ***
     const handleSubmit = async () => {
         console.log(`[FRONTEND MODAL] Tentando ${isEditing ? 'salvar edição' : 'registrar nova demanda'}...`);
         setIsLoading(true);
         setApiError(null); // Limpa erro anterior
 
-        // Validações básicas (manter)
+        // Validações básicas (inclui validação de tipo_demanda selecionado)
         if (!formData.nome_solicitante || formData.nome_solicitante.trim() === '') { setApiError('O campo Nome Completo é obrigatório.'); setIsLoading(false); return; }
         if (!formData.cep || !/^\d{5}-?\d{3}$/.test(formData.cep)) { setApiError('O campo CEP é obrigatório e deve estar no formato 00000-000.'); setIsLoading(false); return; }
         if (!formData.numero || formData.numero.trim() === '') { setApiError('O campo Número é obrigatório.'); setIsLoading(false); return; }
-        if (!formData.tipo_demanda) { setApiError('O campo Tipo de Demanda é obrigatório.'); setIsLoading(false); return; }
+        if (!formData.tipo_demanda) { setApiError('O campo Tipo de Demanda é obrigatório.'); setIsLoading(false); return; } // Verifica se algo foi selecionado
         if (!formData.descricao || formData.descricao.trim() === '') { setApiError('O campo Descrição é obrigatório.'); setIsLoading(false); return; }
         // Adicione outras validações se necessário (ex: email, telefone)
 
@@ -295,10 +308,11 @@ export default function AddDemandaModal({ open, onClose, demandaInicial = null, 
             const response = await fetch(apiUrl, {
                 method: method,
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(formData) // Envia todos os dados do formulário
+                // Envia os dados do formulário, incluindo tipo_demanda como string (nome)
+                body: JSON.stringify(formData)
             });
 
-            const result = await response.json(); // Tenta parsear JSON mesmo em erro
+            const result = await response.json().catch(() => ({})); // Tenta parsear JSON mesmo em erro
              console.log(`[FRONTEND MODAL] Resposta da API (${method}):`, response.status, result);
 
             if (!response.ok) {
@@ -312,7 +326,7 @@ export default function AddDemandaModal({ open, onClose, demandaInicial = null, 
                 if (onSuccess) onSuccess(); // Chama o callback da página (que fecha o modal e recarrega)
             } else {
                  console.log("[FRONTEND MODAL] Nova demanda registrada com sucesso.");
-                setProtocolo(result.protocolo); // Guarda o protocolo para exibir
+                setProtocolo(result.protocolo || 'N/A'); // Guarda o protocolo para exibir
                 setIsSubmitted(true); // Mostra a tela de sucesso
             }
 
@@ -327,7 +341,7 @@ export default function AddDemandaModal({ open, onClose, demandaInicial = null, 
 
     // --- Renderização JSX ---
     return (
-        <Dialog open={open} onClose={onClose} fullWidth maxWidth="sm" TransitionProps={{ onExited: () => { /* Pode limpar estados aqui se necessário após fechar */ } }}>
+        <Dialog open={open} onClose={onClose} fullWidth maxWidth="sm">
             {/* --- Tela de Sucesso (Apenas para Criação) --- */}
             {isSubmitted && !isEditing ? (
                 <>
@@ -345,7 +359,6 @@ export default function AddDemandaModal({ open, onClose, demandaInicial = null, 
             ) : (
                 /* --- Formulário (Criação ou Edição) --- */
                 <>
-                    {/* *** ATUALIZAÇÃO: Título dinâmico *** */}
                     <DialogTitle>{isEditing ? `Editar Demanda #${demandaInicial?.id}` : 'Registrar Nova Demanda'}</DialogTitle>
                     <DialogContent>
                         {/* Mostra erros (API, CEP, Geocoding) */}
@@ -358,7 +371,7 @@ export default function AddDemandaModal({ open, onClose, demandaInicial = null, 
                         <Box component="form" sx={{ display: 'flex', flexDirection: 'column', gap: 2, mt: 2 }}>
                             {/* --- Dados do Solicitante --- */}
                             <Typography variant="subtitle1" gutterBottom sx={{ fontWeight: 'bold' }}>Dados do Solicitante</Typography>
-                            <TextField label="Nome Completo *" name="nome_solicitante" variant="outlined" fullWidth required value={formData.nome_solicitante} onChange={handleChange} />
+                            <TextField label="Nome Completo *" name="nome_solicitante" variant="outlined" fullWidth required value={formData.nome_solicitante} onChange={handleChange} error={!formData.nome_solicitante && !!apiError} />
                             <TextField label="Telefone" name="telefone_solicitante" variant="outlined" fullWidth value={formData.telefone_solicitante} onChange={handleChange} />
                             <TextField label="Email" name="email_solicitante" type="email" variant="outlined" fullWidth value={formData.email_solicitante} onChange={handleChange} />
 
@@ -366,80 +379,21 @@ export default function AddDemandaModal({ open, onClose, demandaInicial = null, 
                             <Typography variant="subtitle1" gutterBottom sx={{ fontWeight: 'bold', mt: 2 }}>Endereço</Typography>
                             <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 2 }}>
                                 <TextField
-                                    label="CEP *"
-                                    name="cep"
-                                    variant="outlined"
-                                    required
-                                    value={formData.cep}
-                                    onChange={handleChange}
-                                    onBlur={handleCepBlur}
-                                    inputProps={{ maxLength: 9 }}
-                                    InputProps={{ endAdornment: cepLoading ? <CircularProgress size={20} /> : null }}
-                                    error={!!cepError}
-                                    sx={{ width: { xs: '100%', sm: 'calc(40% - 8px)' } }} // Ajusta largura responsiva
+                                    label="CEP *" name="cep" variant="outlined" required value={formData.cep} onChange={handleChange} onBlur={handleCepBlur}
+                                    inputProps={{ maxLength: 9 }} InputProps={{ endAdornment: cepLoading ? <CircularProgress size={20} /> : null }}
+                                    error={!!cepError || (!formData.cep && !!apiError)} // Erro se CEP inválido OU se API falhou e CEP vazio
+                                    sx={{ width: { xs: '100%', sm: 'calc(40% - 8px)' } }}
                                 />
+                                <TextField label="Logradouro" name="logradouro" variant="outlined" fullWidth value={formData.logradouro} onChange={handleChange} disabled={addressFieldsDisabled} InputLabelProps={{ shrink: !!formData.logradouro }} sx={{ width: { xs: '100%', sm: 'calc(60% - 8px)' } }} />
                                 <TextField
-                                    label="Logradouro"
-                                    name="logradouro"
-                                    variant="outlined"
-                                    fullWidth
-                                    value={formData.logradouro}
-                                    onChange={handleChange}
-                                    disabled={addressFieldsDisabled}
-                                    InputLabelProps={{ shrink: !!formData.logradouro }} // Shrink se tiver valor
-                                    sx={{ width: { xs: '100%', sm: 'calc(60% - 8px)' } }} // Ajusta largura responsiva
+                                    label="Número *" name="numero" variant="outlined" required value={formData.numero} onChange={handleChange}
+                                    error={!formData.numero && !!apiError} // Erro se API falhou e Número vazio
+                                    sx={{ width: { xs: 'calc(40% - 8px)', sm: 'calc(30% - 8px)' } }}
                                 />
-                                <TextField
-                                    label="Número *"
-                                    name="numero"
-                                    variant="outlined"
-                                    required
-                                    value={formData.numero}
-                                    onChange={handleChange}
-                                    sx={{ width: { xs: 'calc(40% - 8px)', sm: 'calc(30% - 8px)' } }} // Ajusta largura
-                                />
-                                <TextField
-                                    label="Complemento"
-                                    name="complemento"
-                                    variant="outlined"
-                                    value={formData.complemento}
-                                    onChange={handleChange}
-                                    sx={{ width: { xs: 'calc(60% - 8px)', sm: 'calc(70% - 8px)' } }} // Ajusta largura
-                                />
-                                <TextField
-                                    label="Bairro"
-                                    name="bairro"
-                                    variant="outlined"
-                                    fullWidth
-                                    value={formData.bairro}
-                                    onChange={handleChange}
-                                    disabled={addressFieldsDisabled}
-                                    InputLabelProps={{ shrink: !!formData.bairro }}
-                                    sx={{ width: { xs: '100%', sm: 'calc(50% - 8px)' } }}
-                                />
-                                <TextField
-                                    label="Cidade"
-                                    name="cidade"
-                                    variant="outlined"
-                                    fullWidth
-                                    value={formData.cidade}
-                                    onChange={handleChange}
-                                    disabled={addressFieldsDisabled}
-                                    InputLabelProps={{ shrink: !!formData.cidade }}
-                                    sx={{ width: { xs: 'calc(65% - 8px)', sm: 'calc(35% - 8px)' } }}
-                                />
-                                <TextField
-                                    label="UF"
-                                    name="uf"
-                                    variant="outlined"
-                                    fullWidth
-                                    value={formData.uf}
-                                    onChange={handleChange}
-                                    disabled={addressFieldsDisabled}
-                                    InputLabelProps={{ shrink: !!formData.uf }}
-                                    inputProps={{ maxLength: 2, style: { textTransform: 'uppercase' } }} // Caixa alta
-                                    sx={{ width: { xs: 'calc(35% - 8px)', sm: 'calc(15% - 8px)' } }}
-                                />
+                                <TextField label="Complemento" name="complemento" variant="outlined" value={formData.complemento} onChange={handleChange} sx={{ width: { xs: 'calc(60% - 8px)', sm: 'calc(70% - 8px)' } }} />
+                                <TextField label="Bairro" name="bairro" variant="outlined" fullWidth value={formData.bairro} onChange={handleChange} disabled={addressFieldsDisabled} InputLabelProps={{ shrink: !!formData.bairro }} sx={{ width: { xs: '100%', sm: 'calc(50% - 8px)' } }} />
+                                <TextField label="Cidade" name="cidade" variant="outlined" fullWidth value={formData.cidade} onChange={handleChange} disabled={addressFieldsDisabled} InputLabelProps={{ shrink: !!formData.cidade }} sx={{ width: { xs: 'calc(65% - 8px)', sm: 'calc(35% - 8px)' } }} />
+                                <TextField label="UF" name="uf" variant="outlined" fullWidth value={formData.uf} onChange={handleChange} disabled={addressFieldsDisabled} InputLabelProps={{ shrink: !!formData.uf }} inputProps={{ maxLength: 2, style: { textTransform: 'uppercase' } }} sx={{ width: { xs: 'calc(35% - 8px)', sm: 'calc(15% - 8px)' } }} />
                             </Box>
 
                             {/* Exibição das Coordenadas */}
@@ -456,46 +410,33 @@ export default function AddDemandaModal({ open, onClose, demandaInicial = null, 
 
                             {/* --- Detalhes da Demanda --- */}
                             <Typography variant="subtitle1" gutterBottom sx={{ fontWeight: 'bold', mt: 2 }}>Detalhes da Demanda</Typography>
-                            <FormControl fullWidth required>
+                            {/* ++ Select Tipo de Demanda ATUALIZADO para usar availableTipos ++ */}
+                            <FormControl fullWidth required error={!formData.tipo_demanda && !!apiError}> {/* Indica erro se API falhou e campo está vazio */}
                                 <InputLabel id="tipo-demanda-select-label">Tipo de Demanda *</InputLabel>
                                 <Select
                                     labelId="tipo-demanda-select-label"
                                     label="Tipo de Demanda *"
                                     name="tipo_demanda"
-                                    value={formData.tipo_demanda}
+                                    value={formData.tipo_demanda} // O valor no estado ainda é o NOME (string)
                                     onChange={handleChange}
                                 >
                                     <MenuItem value="" disabled>Selecione...</MenuItem>
-                                    {/* Adicione mais tipos conforme necessário */}
-                                    <MenuItem value="Poda">Poda</MenuItem>
-                                    <MenuItem value="Remoção de Árvore">Remoção de Árvore</MenuItem>
-                                    <MenuItem value="Avaliação de Risco">Avaliação de Risco</MenuItem>
-                                    <MenuItem value="Plantio de Muda">Plantio de Muda</MenuItem>
-                                    <MenuItem value="Fiscalização">Fiscalização</MenuItem>
-                                    <MenuItem value="Outro">Outro</MenuItem>
+                                    {/* Mapeia os tipos disponíveis vindos da prop */}
+                                    {availableTipos?.map((tipo) => ( // Adiciona verificação '?' para segurança
+                                        <MenuItem key={tipo.id} value={tipo.nome}> {/* Valor do MenuItem é o NOME */}
+                                            {tipo.nome}
+                                        </MenuItem>
+                                    ))}
+                                     {/* Fallback se a lista estiver vazia ou não contiver 'Outro' */}
+                                    { (!availableTipos || availableTipos.length === 0) && <MenuItem value="Outro">Outro (Carregando...)</MenuItem> }
+                                    { (availableTipos && !availableTipos.some(t => t.nome === 'Outro')) && <MenuItem value="Outro">Outro</MenuItem> }
                                 </Select>
                             </FormControl>
                             <TextField
-                                label="Descrição *"
-                                name="descricao"
-                                variant="outlined"
-                                fullWidth
-                                multiline
-                                rows={4}
-                                required
-                                value={formData.descricao}
-                                onChange={handleChange}
+                                label="Descrição *" name="descricao" variant="outlined" fullWidth multiline rows={4} required value={formData.descricao} onChange={handleChange}
+                                error={!formData.descricao && !!apiError} // Erro se API falhou e Descrição vazia
                             />
-                            <TextField
-                                label="Prazo (Opcional)"
-                                name="prazo"
-                                type="date" // Input tipo data
-                                variant="outlined"
-                                fullWidth
-                                value={formData.prazo} // Deve ser string YYYY-MM-DD
-                                onChange={handleChange}
-                                InputLabelProps={{ shrink: true }} // Garante que o label não sobreponha
-                            />
+                            <TextField label="Prazo (Opcional)" name="prazo" type="date" variant="outlined" fullWidth value={formData.prazo} onChange={handleChange} InputLabelProps={{ shrink: true }} />
 
                             {/* Anexos (ainda desabilitado) */}
                             <Typography variant="subtitle1" gutterBottom sx={{ fontWeight: 'bold', mt: 2 }}>Anexos (Opcional)</Typography>
@@ -507,7 +448,6 @@ export default function AddDemandaModal({ open, onClose, demandaInicial = null, 
                     </DialogContent>
                     <DialogActions>
                         <Button onClick={onClose} disabled={isLoading}>Cancelar</Button>
-                         {/* *** ATUALIZAÇÃO: Botão dinâmico *** */}
                         <Button onClick={handleSubmit} variant="contained" disabled={isLoading || cepLoading || geocodingLoading}>
                             {isLoading ? <CircularProgress size={24} color="inherit" /> : (isEditing ? 'Salvar Alterações' : 'Registrar Demanda')}
                         </Button>

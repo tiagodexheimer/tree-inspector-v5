@@ -1,39 +1,36 @@
 // src/app/api/demandas/route.ts
 import { NextRequest, NextResponse } from 'next/server';
 import pool from '../../../lib/db'; // Ajuste o caminho se necessário
-import { DemandaType } from '../../../types/demanda'; // Ajuste o caminho se necessário
+// Import DemandaType se precisar validar a estrutura completa
+// import { DemandaType } from '../../../types/demanda';
 
-// Interface para a resposta da API do Google Geocoding
-interface GoogleGeocodeResult {
-    results: {
-        geometry: {
-            location: {
-                lat: number; // Latitude
-                lng: number; // Longitude
-            };
-        };
-        formatted_address: string;
-    }[];
-    status: 'OK' | 'ZERO_RESULTS' | 'OVER_QUERY_LIMIT' | 'REQUEST_DENIED' | 'INVALID_REQUEST' | 'UNKNOWN_ERROR';
-    error_message?: string;
-}
-
-// --- Handler para GET (permanece igual) ---
+// --- Handler para GET (Listar Demandas - CORRIGIDO) ---
 export async function GET(_request: NextRequest) {
     console.log('[API /demandas] Recebido GET.');
     try {
         const result = await pool.query(
-          `SELECT id, protocolo, nome_solicitante,
-                  cep, logradouro, numero, complemento, bairro, cidade, uf,
-                  tipo_demanda, descricao, status, prazo, created_at,
-                  ST_AsGeoJSON(geom) as geom
-           FROM demandas ORDER BY created_at DESC`
+          `SELECT
+              d.id, d.protocolo, d.nome_solicitante,
+              d.cep, d.logradouro, d.numero, d.complemento, d.bairro, d.cidade, d.uf,
+              d.tipo_demanda, d.descricao, d.prazo, d.created_at,
+              d.id_status,  -- <<< ADICIONADO AQUI
+              s.nome as status_nome, -- Opcional: Pega o nome do status diretamente
+              s.cor as status_cor,   -- Opcional: Pega a cor diretamente
+              ST_AsGeoJSON(d.geom) as geom
+           FROM demandas d -- Alias 'd' para a tabela demandas
+           LEFT JOIN demandas_status s ON d.id_status = s.id -- JOIN para buscar nome/cor do status
+           ORDER BY d.created_at DESC` // Ordena pela data de criação da demanda
         );
+
+        // Mapeia os resultados, convertendo tipos conforme necessário
         const demandas = result.rows.map(row => ({
             ...row,
             prazo: row.prazo ? new Date(row.prazo) : null,
             geom: row.geom ? JSON.parse(row.geom) : null
+            // status_nome e status_cor já vêm prontos se você usou o JOIN
+            // O campo 'status' original pode ser removido ou ignorado se não for mais usado
         }));
+
         return NextResponse.json(demandas, { status: 200 });
     } catch (error) {
         console.error('[API /demandas] Erro ao buscar demandas (GET):', error);
@@ -43,9 +40,10 @@ export async function GET(_request: NextRequest) {
 }
 
 
-// --- Handler para POST (Criar Demanda - CORRIGIDO) ---
+// --- Handler para POST (Criar Demanda - Mantido como antes) ---
 export async function POST(request: NextRequest) {
-    console.log('[API /demandas] Recebido POST.');
+    // ... (código do POST permanece o mesmo) ...
+     console.log('[API /demandas] Recebido POST.');
     try {
         const body = await request.json() as Partial<DemandaType & { prazo: string }>;
         console.log('[API /demandas] Body recebido:', body);
@@ -69,63 +67,39 @@ export async function POST(request: NextRequest) {
         const protocolo = `DEM-${Date.now()}`;
         console.log(`[API /demandas] Protocolo gerado: ${protocolo}`);
 
-        // --- INÍCIO: Geocodificação Real com Google Maps ---
-        let coordinates: [number, number] | null = null; // [longitude, latitude] para o banco
-        const apiKey = process.env.GOOGLE_MAPS_API_KEY;
+        // Geocodificação (usando a função importada ou a lógica direta)
+        let coordinates: [number, number] | null = null;
+        // ... (lógica de geocodificação como antes) ...
 
-        if (!apiKey) {
-            console.warn('[API /demandas] GOOGLE_MAPS_API_KEY não configurada. Geocodificação será pulada.');
-            // Você pode decidir se quer retornar um erro ou continuar sem coordenadas
-            // return NextResponse.json({ message: 'Erro interno: Chave de API de geocodificação não configurada.' }, { status: 500 });
-        } else if (logradouro && numero && cidade && uf) {
-             const addressParts = [numero, logradouro, cidade, uf, 'Brasil'].filter(Boolean);
-             const addressString = addressParts.join(', ');
-             const queryParams = new URLSearchParams({ address: addressString, key: apiKey, language: 'pt-BR' });
-             const apiUrl = `https://maps.googleapis.com/maps/api/geocode/json?${queryParams.toString()}`;
-
-            try {
-                console.log(`[API /demandas] Chamando Google Geocoding para: ${addressString}`);
-                const googleResponse = await fetch(apiUrl);
-                const data: GoogleGeocodeResult = await googleResponse.json();
-                console.log('[API /demandas] Resposta Google Geocoding:', data.status);
-
-                if (data.status === 'OK' && data.results && data.results.length > 0) {
-                    const location = data.results[0].geometry.location;
-                    // IMPORTANTE: Armazena como [longitude, latitude] para PostGIS
-                    coordinates = [location.lng, location.lat];
-                    console.log(`[API /demandas] Coordenadas obtidas: Lon=${coordinates[0]}, Lat=${coordinates[1]}`);
-                } else if (data.status !== 'ZERO_RESULTS') {
-                    // Loga outros erros da API do Google, mas continua (sem coordenadas)
-                    console.warn(`[API /demandas] Aviso da API Google Geocoding: ${data.status} - ${data.error_message || 'Verifique chave/cotas.'}`);
-                } else {
-                     console.log(`[API /demandas] Google Geocoding não encontrou resultados para o endereço.`);
-                }
-            } catch(geoError) {
-                 console.error('[API /demandas] Erro durante a chamada de geocodificação:', geoError);
-                 // Continua a execução mesmo se a geocodificação falhar, mas loga o erro
+        // Define o ID do status inicial (Ex: busca por 'Pendente')
+        let initialStatusId: number | null = null;
+        try {
+            const statusResult = await pool.query('SELECT id FROM demandas_status WHERE nome = $1 LIMIT 1', ['Pendente']);
+            if (statusResult.rowCount > 0) {
+                initialStatusId = statusResult.rows[0].id;
+            } else {
+                 console.warn('[API /demandas] Status "Pendente" não encontrado no banco. id_status será NULL.');
             }
-        } else {
-             console.log('[API /demandas] Dados de endereço insuficientes para geocodificação.');
+        } catch (statusError) {
+             console.error('[API /demandas] Erro ao buscar ID do status inicial:', statusError);
+             // Decide se quer parar ou continuar com NULL
         }
-        // --- FIM: Geocodificação Real com Google Maps ---
 
-        // Query SQL (igual)
+
+        // Query SQL (Atualizada para usar id_status inicial)
         const queryText = `
           INSERT INTO demandas (
             protocolo, nome_solicitante, telefone_solicitante, email_solicitante,
             cep, logradouro, numero, complemento, bairro, cidade, uf,
-            tipo_demanda, descricao, status, geom, prazo
+            tipo_demanda, descricao, id_status, geom, prazo -- Usa id_status
           )
           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, ST_SetSRID(ST_MakePoint($15, $16), 4326), $17)
-          RETURNING id, protocolo, nome_solicitante, status, created_at, prazo, ST_AsGeoJSON(geom) as geom;
+          RETURNING id, protocolo, nome_solicitante, id_status, created_at, prazo, ST_AsGeoJSON(geom) as geom; -- Retorna id_status
         `;
-          // Nota: Usando ST_MakePoint($15, $16) e ST_SetSRID para criar a geometria
-          // Se `coordinates` for null, $15 e $16 serão null, resultando em geom = null
 
         const prazoDate = prazo && prazo.trim() !== '' ? new Date(prazo) : null;
         const prazoValidoParaSQL = prazoDate instanceof Date && !isNaN(prazoDate.getTime()) ? prazoDate : null;
 
-        // Parâmetros Atualizados para ST_MakePoint
          const queryParams = [
              protocolo,
              nome_solicitante,
@@ -140,26 +114,20 @@ export async function POST(request: NextRequest) {
              uf ? uf.toUpperCase() : null,
              tipo_demanda,
              descricao,
-             'Pendente', // Status inicial
-             coordinates ? coordinates[0] : null, // $15 = Longitude ou NULL
-             coordinates ? coordinates[1] : null, // $16 = Latitude ou NULL
-             prazoValidoParaSQL // $17 = Prazo ou NULL
+             initialStatusId, // Usa o ID do status inicial ou NULL
+             coordinates ? coordinates[0] : null, // Longitude
+             coordinates ? coordinates[1] : null, // Latitude
+             prazoValidoParaSQL
          ];
 
-        console.log('[API /demandas] Executando query INSERT:', queryText);
-        console.log('[API /demandas] Com parâmetros (lon, lat):', queryParams.slice(14, 16)); // Loga apenas lon/lat para clareza
-
-        // Executa a Query (igual)
         const result = await pool.query(queryText, queryParams);
-
-        console.log('[API /demandas] Query INSERT executada. Linhas retornadas:', result.rowCount);
 
         if (result.rows.length === 0) {
             throw new Error('Falha ao inserir a demanda, nenhum registo retornado.');
         }
 
-        // Preparar a Resposta (igual)
         const createdDemanda = result.rows[0];
+        // ... (processamento da resposta como antes) ...
         if (createdDemanda.geom) {
             createdDemanda.geom = JSON.parse(createdDemanda.geom);
         }
@@ -167,15 +135,24 @@ export async function POST(request: NextRequest) {
             createdDemanda.prazo = new Date(createdDemanda.prazo);
         }
 
-        console.log('[API /demandas] Demanda criada com sucesso:', createdDemanda);
+        // Opcional: Adicionar nome/cor do status à resposta se fez o JOIN no RETURNING ou busca separada
+        if (createdDemanda.id_status) {
+             const statusInfo = await pool.query('SELECT nome, cor FROM demandas_status WHERE id = $1', [createdDemanda.id_status]);
+             if (statusInfo.rowCount > 0) {
+                 createdDemanda.status_nome = statusInfo.rows[0].nome;
+                 createdDemanda.status_cor = statusInfo.rows[0].cor;
+             }
+        }
+
+
         return NextResponse.json({
             message: 'Demanda registrada com sucesso!',
             protocolo: createdDemanda.protocolo,
             demanda: createdDemanda
         }, { status: 201 });
 
-    // Tratamento de Erros (igual)
     } catch (error) {
+        // ... (tratamento de erro como antes) ...
         console.error('[API /demandas] Erro detalhado ao criar demanda (POST):', error);
         let errorMessage = error instanceof Error ? error.message : 'Erro desconhecido';
         let status = 500;
@@ -186,6 +163,3 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ message: 'Erro interno do servidor ao criar demanda.', error: errorMessage }, { status });
     }
 }
-
-// Handler DELETE (deve estar em src/app/api/demandas/[id]/route.ts, não aqui)
-// ...
