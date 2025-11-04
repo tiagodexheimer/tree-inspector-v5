@@ -80,37 +80,47 @@ import { DemandaType } from "@/types/demanda";
                  <Box>
                      <CardHeader
                         action={
-                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, mt: -1 }}>
-                                {/* Renderiza StatusDemanda passando as props necessárias */}
-                                {demandaId !== undefined ? ( // Check if demandaId is valid
-                                    <StatusDemanda
-                                        demandaId={demandaId}
-                                        currentStatusId={currentStatusId} // <-- Pass id_status
-                                        availableStatus={availableStatus} // <-- Pass availableStatus list
-                                        onStatusChange={onStatusChange}
-                                    />
-                                ) : null}
-                                {/* Botão Editar */}
-                                <IconButton
-                                    aria-label={`Editar demanda ${id}`}
-                                    color="primary"
-                                    size="small"
-                                    onClick={(e) => { e.stopPropagation(); onEdit(props); }} // Passa props inteiras
-                                    title="Editar Demanda"
-                                >
-                                    <EditIcon fontSize="small" />
-                                </IconButton>
-                                {/* Botão Deletar */}
-                                <IconButton
-                                    aria-label={`Excluir demanda ${id}`}
-                                    color="error"
-                                    size="small"
-                                    onClick={(e) => { e.stopPropagation(); if (demandaId !== undefined) onDelete(demandaId); }}
-                                    title="Excluir Demanda"
-                                >
-                                    <DeleteIcon fontSize="small" />
-                                </IconButton>
+                            // --- INÍCIO DA MODIFICAÇÃO ---
+                            // 1. Container principal da action: vertical e alinhado à direita
+                            <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', mt: -1 }}>
+                                
+                                {/* Linha 1: Ícones (horizontal) */}
+                                <Box sx={{ display: 'flex', gap: 0.5 }}>
+                                    {/* Botão Editar */}
+                                    <IconButton
+                                        aria-label={`Editar demanda ${id}`}
+                                        color="primary"
+                                        size="small"
+                                        onClick={(e) => { e.stopPropagation(); onEdit(props); }} // Passa props inteiras
+                                        title="Editar Demanda"
+                                    >
+                                        <EditIcon fontSize="small" />
+                                    </IconButton>
+                                    {/* Botão Deletar */}
+                                    <IconButton
+                                        aria-label={`Excluir demanda ${id}`}
+                                        color="error"
+                                        size="small"
+                                        onClick={(e) => { e.stopPropagation(); if (demandaId !== undefined) onDelete(demandaId); }}
+                                        title="Excluir Demanda"
+                                    >
+                                        <DeleteIcon fontSize="small" />
+                                    </IconButton>
+                                </Box>
+
+                                {/* Linha 2: Status (abaixo dos ícones) */}
+                                <Box sx={{ mt: 0.5 }}> {/* Adiciona espaçamento superior */}
+                                    {demandaId !== undefined ? ( // Check if demandaId is valid
+                                        <StatusDemanda
+                                            demandaId={demandaId}
+                                            currentStatusId={currentStatusId} // <-- Pass id_status
+                                            availableStatus={availableStatus} // <-- Pass availableStatus list
+                                            onStatusChange={onStatusChange}
+                                        />
+                                    ) : null}
+                                </Box>
                             </Box>
+                            // --- FIM DA MODIFICAÇÃO ---
                          }
                          title={tipo_demanda || `Demanda ${id}`}
                          subheader={formatEnderecoCurto()}
@@ -121,7 +131,7 @@ import { DemandaType } from "@/types/demanda";
                      <CardContent sx={{ flexGrow: 1, minHeight: 150 }}>
                          {/* Renderização Condicional do Mapa */}
                          <Box sx={{
-                             position: 'relative', height: 180,
+                             position: 'relative', height: 200,
                              width: '100%', borderRadius: '4px', overflow: 'hidden',
                              backgroundColor: '#e0e0e0',
                              display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#757575'
