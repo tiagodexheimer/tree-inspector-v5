@@ -73,17 +73,20 @@ export async function POST(request: NextRequest) {
       DemandaType & { prazo: string; coordinates?: [number, number] | null }
     >; // <-- TIPO ATUALIZADO
 
-    // Validação Mínima (igual)
-    if (!nome_solicitante || !cep || !numero || !tipo_demanda || !descricao) {
+    // ***** INÍCIO DA CORREÇÃO *****
+    // Validação Mínima (nome_solicitante não é mais obrigatório)
+    if (!cep || !numero || !tipo_demanda || !descricao) {
       console.log("[API /demandas] Erro 400: Campos obrigatórios ausentes.");
       return NextResponse.json(
         {
           message:
-            "Campos obrigatórios ausentes: Nome, CEP, Número, Tipo e Descrição.",
+            "Campos obrigatórios ausentes: CEP, Número, Tipo e Descrição.",
         },
         { status: 400 }
       );
     }
+    // ***** FIM DA CORREÇÃO *****
+
     if (!/^\d{5}-?\d{3}$/.test(cep)) {
       console.log("[API /demandas] Erro 400: Formato de CEP inválido.");
       return NextResponse.json(
@@ -94,8 +97,6 @@ export async function POST(request: NextRequest) {
 
     const protocolo = `DEM-${Date.now()}`;
     console.log(`[API /demandas] Protocolo gerado: ${protocolo}`);
-
-    // Geocodificação (usando a função importada ou a lógica direta)
 
     // ... (lógica de geocodificação como antes) ...
 
@@ -140,7 +141,7 @@ export async function POST(request: NextRequest) {
 
     const queryParams = [
       protocolo, // $1
-      nome_solicitante, // $2
+      nome_solicitante || "", // $2 (Envia "" se for null/undefined)
       telefone_solicitante || null, // $3
       email_solicitante || null, // $4
       cep.replace(/\D/g, ""), // $5
@@ -153,12 +154,9 @@ export async function POST(request: NextRequest) {
       tipo_demanda, // $12
       descricao, // $13
       initialStatusId, // $14
-      // *** INÍCIO DA CORREÇÃO ***
       // ST_MakePoint(Longitude, Latitude)
-      // O modal armazena como [Latitude, Longitude]
       coordinates ? coordinates[1] : null, // $15 (Longitude)
       coordinates ? coordinates[0] : null, // $16 (Latitude)
-      // *** FIM DA CORREÇÃO ***
       prazoValidoParaSQL, // $17
     ];
 
