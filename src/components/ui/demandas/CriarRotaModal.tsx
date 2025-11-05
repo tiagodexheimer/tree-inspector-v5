@@ -25,9 +25,11 @@ import {
 import { CSS } from '@dnd-kit/utilities';
 import DragIndicatorIcon from '@mui/icons-material/DragIndicator';
 import { DemandaType } from "@/types/demanda"; 
-import dynamic from 'next/dynamic'; // Importar dynamic
+import dynamic from 'next/dynamic';
+// ***** INÍCIO DA CORREÇÃO 1: Importar LatLngExpression *****
+import { LatLngExpression } from 'leaflet';
 
-// *** IMPORTAR O NOVO MAPA ***
+// Importar o novo mapa
 const RouteMap = dynamic(() => import('./RouteMap'), {
     ssr: false,
     loading: () => <Box sx={{ height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', backgroundColor: '#eee', color: '#777' }}>Carregando mapa da rota...</Box>
@@ -44,12 +46,16 @@ interface OptimizedRouteData {
 interface CriarRotaModalProps {
     open: boolean;
     onClose: () => void;
-    routeData: OptimizedRouteData | null; // <-- Recebe os dados otimizados
+    routeData: OptimizedRouteData | null; 
     onRotaCriada: (nomeRota: string, responsavel: string) => void;
 }
 
 // Lista de exemplo para os responsáveis (mantida)
 const responsaveisExemplo = ['João Silva', 'Pedro Martins', 'Ana Costa', 'Mariana Dias'];
+
+// ***** INÍCIO DA CORREÇÃO 2: Definir ponto de partida *****
+// Duplicamos a constante aqui para usá-la no cálculo do novo path
+const START_END_POINT: LatLngExpression = [-29.8608, -51.1789]; // [lat, lng]
 
 // Função auxiliar para formatar endereço curto (mantida)
 const formatEnderecoCurto = (demanda: DemandaType): string => {
@@ -81,47 +87,65 @@ function SortableItem({ demanda }: { demanda: DemandaType }) {
 export default function CriarRotaModal({ open, onClose, routeData, onRotaCriada }: CriarRotaModalProps) {
     const [nomeRota, setNomeRota] = useState('');
     const [responsavel, setResponsavel] = useState('');
-    // Estado inicializa com as demandas já otimizadas
     const [orderedDemandas, setOrderedDemandas] = useState<DemandaType[]>([]);
+    
+    // ***** INÍCIO DA CORREÇÃO 3: Criar estado para o caminho do mapa *****
+    const [currentRoutePath, setCurrentRoutePath] = useState<[number, number][]>([]);
 
     const sensors = useSensors(
         useSensor(PointerSensor),
         useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
     );
 
-    // Atualiza a lista ordenada quando os dados da rota mudam (ao abrir o modal)
+    // Atualiza a lista e o caminho quando os dados da rota mudam
     useEffect(() => {
         if (open && routeData) {
-            
-            // ***** CORREÇÃO AQUI *****
-            // Garante que 'orderedDemandas' seja sempre um array,
-            // mesmo se 'routeData.optimizedDemands' for null ou undefined.
-            setOrderedDemandas(routeData.optimizedDemands || []); 
-            // ***** FIM DA CORREÇÃO *****
-
+            setOrderedDemandas(routeData.optimizedDemands || []);
+            // Define o caminho inicial otimizado
+            setCurrentRoutePath(routeData.routePath || []); 
             // Reseta os campos
             setNomeRota('');
             setResponsavel('');
         } else if (!open) {
-             // Limpa ao fechar para não manter dados antigos
+             // Limpa ao fechar
              setOrderedDemandas([]);
+             setCurrentRoutePath([]);
         }
     }, [routeData, open]);
 
-    // Função para lidar com o fim do arraste (reordenar manualmente)
+    // ***** INÍCIO DA CORREÇÃO 4: Atualizar o caminho ao arrastar *****
     function handleDragEnd(event: DragEndEvent) {
         const { active, over } = event;
         if (over && active.id !== over.id) {
+            
+            // Usamos a forma de callback do setState para garantir os dados mais recentes
             setOrderedDemandas((items) => {
                 const oldIndex = items.findIndex((item) => item.id === active.id);
                 const newIndex = items.findIndex((item) => item.id === over.id);
                  if (oldIndex === -1 || newIndex === -1) return items;
-                return arrayMove(items, oldIndex, newIndex);
+
+                // 1. Gera a nova lista ordenada de demandas
+                const newOrderedItems = arrayMove(items, oldIndex, newIndex);
+
+                // 2. Recalcula o caminho do mapa (em linha reta)
+                const newPath: [number, number][] = [
+                    START_END_POINT as [number, number], // Ponto de partida
+                    // Mapeia as demandas reordenadas para suas coordenadas [lat, lng]
+                    ...newOrderedItems.map(d => 
+                        [d.geom!.coordinates[1], d.geom!.coordinates[0]] as [number, number]
+                    ),
+                    START_END_POINT as [number, number] // Ponto final
+                ];
+                
+                // 3. Atualiza o estado do caminho do mapa
+                setCurrentRoutePath(newPath);
+
+                // 4. Retorna a nova lista de demandas
+                return newOrderedItems;
             });
         }
     }
-
-    // --- Botão de Otimizar Rota foi REMOVIDO ---
+    // ***** FIM DA CORREÇÃO 4 *****
 
     // Função para criar a rota (mantida)
     const handleCreateRoute = () => {
@@ -129,13 +153,11 @@ export default function CriarRotaModal({ open, onClose, routeData, onRotaCriada 
             alert('Por favor, preencha o nome da rota e selecione um responsável.');
             return;
         }
-        // A API de salvar a rota (a ser criada) receberia 'nomeRota', 'responsavel' e 'orderedDemandas'
         onRotaCriada(nomeRota, responsavel /*, orderedDemandas */); 
         onClose(); // Fecha o modal
     };
 
-    // Prepara os IDs para o SortableContext (garantindo que não sejam undefined)
-    const sortableItemsIds = orderedDemandas.map(d => d.id!); // Esta linha agora é segura
+    const sortableItemsIds = orderedDemandas.map(d => d.id!);
 
     return (
         <Dialog open={open} onClose={onClose} fullWidth maxWidth="md">
@@ -179,7 +201,6 @@ export default function CriarRotaModal({ open, onClose, routeData, onRotaCriada 
                             <SortableContext items={sortableItemsIds} strategy={verticalListSortingStrategy}>
                                 <List component={Paper} sx={{ maxHeight: 300, overflow: 'auto', border: '1px solid #ddd' }}>
                                     {orderedDemandas.map((demanda, index) => (
-                                        // Adiciona um prefixo visual de ordem
                                         <Box key={demanda.id} sx={{ display: 'flex', alignItems: 'center', borderBottom: '1px solid #eee' }}>
                                             <Typography sx={{ p: 1, minWidth: '35px', textAlign: 'center', fontWeight: 'bold', color: 'primary.main' }}>
                                                 {index + 1}.
@@ -198,17 +219,18 @@ export default function CriarRotaModal({ open, onClose, routeData, onRotaCriada 
                             </SortableContext>
                         </DndContext>
                         
-                        {/* Botão de Otimizar REMOVIDO */}
                     </Box>
 
                      {/* Coluna Direita: Mapa da Rota */}
                     <Box sx={{ flex: 1, minHeight: 400, border: '1px solid #ccc', borderRadius: 1, overflow: 'hidden' }}>
                         {/* Garante que o mapa só renderize se tiver dados */}
                         {routeData && (
+                            // ***** INÍCIO DA CORREÇÃO 5: Passar o estado do caminho *****
                             <RouteMap
-                                demands={orderedDemandas} // Passa as demandas reordenáveis
-                                path={routeData.routePath || []}
+                                demands={orderedDemandas}
+                                path={currentRoutePath} // <-- Passa o caminho que é atualizado ao arrastar
                             />
+                            // ***** FIM DA CORREÇÃO 5 *****
                         )}
                     </Box>
                 </Box>
