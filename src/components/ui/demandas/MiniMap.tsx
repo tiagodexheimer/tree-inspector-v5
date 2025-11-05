@@ -28,7 +28,6 @@ interface MiniMapProps {
 // 2. Crie um componente interno para os filhos do mapa
 const MapContent: React.FC<MiniMapProps> = ({ latitude, longitude, popupText }) => {
     // 3. useMap() garante que o 'map' existe antes de renderizar os filhos
-    const map = useMap(); 
     const position: [number, number] = [latitude, longitude];
 
     return (

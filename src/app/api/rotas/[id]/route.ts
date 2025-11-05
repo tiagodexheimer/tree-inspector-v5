@@ -1,12 +1,20 @@
 // src/app/api/rotas/[id]/route.ts
 import { NextRequest, NextResponse } from 'next/server';
 import pool from '../../../../lib/db';
-import { DemandaType } from '@/types/demanda';
+// A importação 'DemandaType' não é usada neste arquivo
+// import { DemandaType } from '@/types/demanda';
 
-// Interface para os parâmetros da URL
-interface Params {
-    id: string;
-}
+// Interface para os parâmetros da URL (Não é mais necessária com o 'context')
+// interface Params {
+//     id: string;
+// }
+
+// ***** INÍCIO DA CORREÇÃO 1: Definir o tipo para o Contexto *****
+type ExpectedContext = {
+    params: Promise<{ id: string }>;
+};
+// ***** FIM DA CORREÇÃO 1 *****
+
 
 // Interface para o corpo da requisição (do PUT)
 interface ReorderRequestBody {
@@ -14,9 +22,13 @@ interface ReorderRequestBody {
 }
 
 
-// --- Handler GET (Buscar Detalhes) - Sem Alteração ---
-export async function GET(request: NextRequest, { params }: { params: Params }) {
+// --- Handler GET (Buscar Detalhes) - CORRIGIDO ---
+export async function GET(request: NextRequest, context: ExpectedContext) {
+    // ***** INÍCIO DA CORREÇÃO 2: Obter 'params' do 'context' *****
+    const params = await context.params;
     const { id } = params;
+    // ***** FIM DA CORREÇÃO 2 *****
+
     console.log(`[API /rotas/${id}] Recebido GET para buscar rota.`);
 
     if (isNaN(Number(id))) {
@@ -77,9 +89,13 @@ export async function GET(request: NextRequest, { params }: { params: Params }) 
     }
 }
 
-// --- Handler PUT (Reordenar) - Sem Alteração ---
-export async function PUT(request: NextRequest, { params }: { params: Params }) {
+// --- Handler PUT (Reordenar) - CORRIGIDO ---
+export async function PUT(request: NextRequest, context: ExpectedContext) {
+    // ***** INÍCIO DA CORREÇÃO 3: Obter 'params' do 'context' *****
+    const params = await context.params;
     const { id } = params;
+    // ***** FIM DA CORREÇÃO 3 *****
+    
     const rotaId = Number(id);
     console.log(`[API /rotas/${id}/reorder] Recebido PUT para ATUALIZAR rota.`);
 
@@ -100,8 +116,9 @@ export async function PUT(request: NextRequest, { params }: { params: Params }) 
 
         // 2. Inserir a nova lista
         if (demandas && demandas.length > 0) {
-            const demandaValues: any[] = [];
-            const queryParams: any[] = [rotaId]; 
+            // (Corrigindo o 'any' implícito que causaria erro no futuro)
+            const demandaValues: string[] = [];
+            const queryParams: number[] = [rotaId]; 
             
             demandas.forEach((demanda, index) => {
                 const ordem = index;
@@ -141,9 +158,13 @@ export async function PUT(request: NextRequest, { params }: { params: Params }) 
 }
 
 
-// +++ INÍCIO DA NOVA FUNÇÃO DELETE +++
-export async function DELETE(request: NextRequest, { params }: { params: Params }) {
+// --- Handler DELETE (Apagar) - CORRIGIDO ---
+export async function DELETE(request: NextRequest, context: ExpectedContext) {
+    // ***** INÍCIO DA CORREÇÃO 4: Obter 'params' do 'context' *****
+    const params = await context.params;
     const { id } = params;
+    // ***** FIM DA CORREÇÃO 4 *****
+    
     const rotaId = Number(id);
     console.log(`[API /rotas/${id}] Recebido DELETE para apagar rota.`);
 
@@ -191,4 +212,3 @@ export async function DELETE(request: NextRequest, { params }: { params: Params 
         client.release();
     }
 }
-// +++ FIM DA NOVA FUNÇÃO DELETE +++

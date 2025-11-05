@@ -1,11 +1,13 @@
 // src/app/rotas/[id]/page.tsx
 'use client';
 
-import React, { useState, useEffect, useMemo } from 'react';
+// useCallback foi mantido para corrigir o aviso do useEffect
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { useParams } from 'next/navigation'; 
 import {
     Box, Typography, CircularProgress, Alert, Button, Paper,
-    Grid, Chip, Snackbar
+    Chip, Snackbar 
+    // Grid foi removido das importações
 } from '@mui/material';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import SaveIcon from '@mui/icons-material/Save'; 
@@ -17,8 +19,8 @@ import { DemandaType } from '@/types/demanda';
 import DetalheRotaLista from '@/components/ui/rotas/DetalheRotaLista';
 import { format } from 'date-fns';
 import {
-    DndContext,
-    closestCenter,
+    // DndContext, // Não são usados diretamente aqui
+    // closestCenter, // Não são usados diretamente aqui
     KeyboardSensor,
     PointerSensor,
     useSensor,
@@ -74,8 +76,8 @@ export default function PaginaDetalheRota() {
     }, [demandas, originalDemandas]);
 
 
-    // Função de busca (sem alteração)
-    const fetchRotaDetalhes = async () => {
+    // Função de busca (com useCallback para corrigir o warning do useEffect)
+    const fetchRotaDetalhes = useCallback(async () => {
         if (!id) return;
         setIsLoading(true);
         setError(null);
@@ -95,13 +97,13 @@ export default function PaginaDetalheRota() {
         } finally {
             setIsLoading(false);
         }
-    };
+    }, [id]);
 
     useEffect(() => {
         if (id) {
             fetchRotaDetalhes();
         }
-    }, [id]);
+    }, [id, fetchRotaDetalhes]); // Adicionado fetchRotaDetalhes
 
     // Recalcula o caminho do mapa (sem alteração)
     const routePath = useMemo(() => {
@@ -119,7 +121,7 @@ export default function PaginaDetalheRota() {
     }, [demandas]); 
 
     
-    // --- INÍCIO DAS FUNÇÕES QUE FORAM OMITIDAS ---
+    // --- (Funções Dnd, Save, Cancel, Export - permanecem iguais) ---
 
     // Lógica DndKit
     const sensors = useSensors(
@@ -230,7 +232,7 @@ export default function PaginaDetalheRota() {
             setIsExporting(false);
         }
     };
-    // --- FIM DAS FUNÇÕES QUE FORAM OMITIDAS ---
+    // --- FIM DAS FUNÇÕES ---
 
 
     // --- Renderização (Loading, Error) ---
@@ -289,7 +291,7 @@ export default function PaginaDetalheRota() {
                     variant="outlined"
                     color="primary"
                     startIcon={isExporting ? <CircularProgress size={20} /> : <DownloadIcon />}
-                    onClick={handleExport} // <-- Esta função agora existe
+                    onClick={handleExport}
                     disabled={isSaving || isExporting || hasChanges}
                 >
                     {isExporting ? 'Exportando...' : 'Exportar XLS'}
@@ -299,7 +301,7 @@ export default function PaginaDetalheRota() {
                     variant="outlined"
                     color="secondary"
                     startIcon={<ReplayIcon />}
-                    onClick={handleCancelChanges} // <-- Esta função agora existe
+                    onClick={handleCancelChanges} 
                     disabled={!hasChanges || isSaving || isExporting}
                     sx={{ 
                         visibility: hasChanges ? 'visible' : 'hidden',
@@ -315,7 +317,7 @@ export default function PaginaDetalheRota() {
                     variant="contained"
                     color="primary"
                     startIcon={isSaving ? <CircularProgress size={20} color="inherit" /> : <SaveIcon />}
-                    onClick={handleSaveOrder} // <-- Esta função agora existe
+                    onClick={handleSaveOrder} 
                     disabled={isSaving || isExporting}
                     sx={{ 
                         visibility: hasChanges ? 'visible' : 'hidden',
@@ -331,29 +333,34 @@ export default function PaginaDetalheRota() {
             {/* Alerta de Erro de Salvamento (sem alteração) */}
             {saveError && <Alert severity="error" sx={{ mb: 2 }}>{saveError}</Alert>}
 
-            {/* Informações da Rota (sem alteração) */}
+            {/* ***** INÍCIO DA SUBSTITUIÇÃO DO GRID ***** */}
+            {/* Informações da Rota (Substituído Grid por Flexbox) */}
             <Paper elevation={0} sx={{ p: 2, mb: 3, backgroundColor: '#f9f9f9', borderRadius: 2 }}>
-                 <Grid container spacing={2}>
-                    <Grid item xs={12} sm={4}>
+                 <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 2 }}>
+                    {/* Item 1: Responsável */}
+                    <Box sx={{ flexGrow: 1, flexBasis: { xs: '100%', sm: '30%' }, minWidth: '200px' }}>
                         <Typography variant="body2" color="text.secondary">Responsável</Typography>
                         <Typography variant="body1" sx={{ fontWeight: 500 }}>{rota.responsavel || 'N/A'}</Typography>
-                    </Grid>
-                    <Grid item xs={6} sm={4}>
+                    </Box>
+                    {/* Item 2: Status */}
+                    <Box sx={{ flexGrow: 1, flexBasis: { xs: '45%', sm: '30%' }, minWidth: '150px' }}>
                         <Typography variant="body2" color="text.secondary">Status</Typography>
                         <Chip label={rota.status} color={statusColor} size="small" sx={{ fontWeight: 'bold' }} />
-                    </Grid>
-                    <Grid item xs={6} sm={4}>
+                    </Box>
+                    {/* Item 3: Criada em */}
+                    <Box sx={{ flexGrow: 1, flexBasis: { xs: '45%', sm: '30%' }, minWidth: '200px' }}>
                         <Typography variant="body2" color="text.secondary">Criada em</Typography>
                         <Typography variant="body1" sx={{ fontWeight: 500 }}>
                             {format(new Date(rota.created_at), 'dd/MM/yyyy HH:mm')}
                         </Typography>
-                    </Grid>
-                </Grid>
+                    </Box>
+                </Box>
             </Paper>
 
-            {/* Layout Dividido (sem alteração) */}
-            <Grid container spacing={3}>
-                <Grid item xs={12} md={5}>
+            {/* Layout Dividido (Substituído Grid por Flexbox) */}
+            <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 3 }}>
+                {/* Coluna da Esquerda (Lista) */}
+                <Box sx={{ flexGrow: 1, flexBasis: { xs: '100%', md: '40%' }, minWidth: '300px' }}>
                     <Typography variant="h6" gutterBottom>
                         {demandas.length} Paradas na Rota (Arraste para reordenar)
                     </Typography>
@@ -364,19 +371,22 @@ export default function PaginaDetalheRota() {
                         disabled={isSaving || isExporting}
                         onRemove={handleRemoveDemanda}
                     />
-                </Grid>
-                <Grid item xs={12} md={7}>
+                </Box>
+                {/* Coluna da Direita (Mapa) */}
+                <Box sx={{ flexGrow: 1, flexBasis: { xs: '100%', md: '55%' }, minWidth: '400px' }}>
                     <Typography variant="h6" gutterBottom>
                         Visualização no Mapa
                     </Typography>
-                    <Box sx={{ height: '70vh', minHeight: 400, minWidth: 800, border: '1px solid #ccc', borderRadius: 1, overflow: 'hidden' }}>
+                    <Box sx={{ height: '70vh', minHeight: 400, border: '1px solid #ccc', borderRadius: 1, overflow: 'hidden' }}>
                         <RouteMap
                             demands={demandas} 
                             path={routePath}    
                         />
                     </Box>
-                </Grid>
-            </Grid>
+                </Box>
+            </Box>
+            {/* ***** FIM DA SUBSTITUIÇÃO DO GRID ***** */}
+
 
             {/* Snackbar de Sucesso (sem alteração) */}
             <Snackbar

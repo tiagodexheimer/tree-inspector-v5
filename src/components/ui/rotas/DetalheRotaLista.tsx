@@ -3,7 +3,7 @@
 
 import React from 'react';
 import {
-    List, ListItem, ListItemText, Box, Typography, Chip, Paper,
+    List, ListItem, ListItemText, Chip, Paper,
     ListItemIcon, IconButton
 } from '@mui/material';
 import { DemandaComOrdem } from '@/app/rotas/[id]/page'; 
@@ -56,7 +56,7 @@ function SortableItem({ demanda, index, onRemove, disabled }: SortableItemProps)
                 <IconButton 
                     edge="end" 
                     aria-label="remover" 
-                    onClick={() => onRemove(demanda.id)}
+                    onClick={() => demanda.id !== undefined && onRemove(demanda.id)}
                     disabled={disabled}
                 >
                     <DeleteIcon />

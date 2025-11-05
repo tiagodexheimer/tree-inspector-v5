@@ -1,7 +1,6 @@
 // src/app/api/demandas/import-row/route.ts
 import { NextRequest, NextResponse } from "next/server";
-import pool from "../../../../lib/db"; // Ajuste o caminho
-import { DemandaType } from "@/types/demanda";
+import pool from "../../../../lib/db";
 
 // --- (As funções auxiliares podem ser movidas para um arquivo 'lib' ou duplicadas) ---
 

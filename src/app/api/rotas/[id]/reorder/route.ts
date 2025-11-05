@@ -3,18 +3,30 @@ import { NextRequest, NextResponse } from 'next/server';
 import pool from '../../../../../lib/db';
 import { DemandaType } from '@/types/demanda';
 
-// Interface para os parâmetros da URL
-interface Params {
-    id: string;
-}
+// Interface para os parâmetros da URL (Removida - não é mais necessária)
+// interface Params {
+//     id: string;
+// }
+
+// ***** INÍCIO DA CORREÇÃO 1: Definir o tipo para o Contexto *****
+type ExpectedContext = {
+    params: Promise<{ id: string }>;
+};
+// ***** FIM DA CORREÇÃO 1 *****
+
 
 // Interface para o corpo da requisição (só precisamos dos IDs na ordem)
 interface ReorderRequestBody {
     demandas: { id: number }[]; 
 }
 
-export async function PUT(request: NextRequest, { params }: { params: Params }) {
+// ***** INÍCIO DA CORREÇÃO 2: Atualizar a assinatura da função PUT *****
+export async function PUT(request: NextRequest, context: ExpectedContext) {
+    // Obter os parâmetros usando 'await'
+    const params = await context.params;
     const { id } = params;
+// ***** FIM DA CORREÇÃO 2 *****
+
     const rotaId = Number(id);
     console.log(`[API /rotas/${id}/reorder] Recebido PUT para ATUALIZAR rota.`);
 
@@ -40,8 +52,8 @@ export async function PUT(request: NextRequest, { params }: { params: Params }) 
         if (demandas && demandas.length > 0) {
             
             // Preparar a query de inserção múltipla
-            const demandaValues: any[] = [];
-            const queryParams: any[] = [rotaId]; // $1 é sempre o rotaId
+            const demandaValues: string[] = []; // Corrigido de 'any[]'
+            const queryParams: number[] = [rotaId]; // Corrigido de 'any[]'. $1 é sempre o rotaId
             
             demandas.forEach((demanda, index) => {
                 const ordem = index; // A nova ordem é o índice do array

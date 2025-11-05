@@ -4,18 +4,26 @@ import pool from '../../../../../lib/db';
 import * as XLSX from 'xlsx'; // Importa a biblioteca para gerar o Excel
 import { format } from 'date-fns'; // Para formatar datas
 
-// Interface para os parâmetros da URL
-interface Params {
-    id: string;
-}
+// ***** INÍCIO DA CORREÇÃO 1: Definir o tipo para o Contexto *****
+// Define o tipo esperado para o segundo argumento (context)
+type ExpectedContext = {
+    params: Promise<{ id: string }>;
+};
+// ***** FIM DA CORREÇÃO 1 *****
+
 
 // Função para "limpar" o nome do arquivo
 function sanitizeFilename(name: string): string {
     return name.replace(/[^a-z0-9_\- ]/gi, '').trim().replace(/ /g, '_');
 }
 
-export async function GET(request: NextRequest, { params }: { params: Params }) {
+// ***** INÍCIO DA CORREÇÃO 2: Atualizar a assinatura da função GET *****
+export async function GET(request: NextRequest, context: ExpectedContext) {
+    // Agora usamos 'await' para obter os parâmetros
+    const params = await context.params;
     const { id } = params;
+// ***** FIM DA CORREÇÃO 2 *****
+
     const rotaId = Number(id);
     console.log(`[API /rotas/${id}/export] Recebido GET para exportar rota.`);
 
