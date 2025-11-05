@@ -2,28 +2,43 @@
 'use client';
 
 import React, { useState, useEffect, useMemo } from 'react';
-import { useParams } from 'next/navigation'; // Hook para ler o [id] da URL
+import { useParams } from 'next/navigation'; 
 import {
     Box, Typography, CircularProgress, Alert, Button, Paper,
-    Grid, Chip
+    Grid, Chip, Snackbar
 } from '@mui/material';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
+import SaveIcon from '@mui/icons-material/Save'; 
+import ReplayIcon from '@mui/icons-material/Replay'; 
+import DownloadIcon from '@mui/icons-material/Download';
 import Link from 'next/link';
 import dynamic from 'next/dynamic';
 import { DemandaType } from '@/types/demanda';
-import DetalheRotaLista from '@/components/ui/rotas/DetalheRotaLista'; // Importa a lista
+import DetalheRotaLista from '@/components/ui/rotas/DetalheRotaLista';
 import { format } from 'date-fns';
+import {
+    DndContext,
+    closestCenter,
+    KeyboardSensor,
+    PointerSensor,
+    useSensor,
+    useSensors,
+    DragEndEvent
+} from '@dnd-kit/core';
+import {
+    arrayMove,
+    sortableKeyboardCoordinates,
+} from '@dnd-kit/sortable';
 
-// Importa o mapa dinamicamente
+
 const RouteMap = dynamic(() => import('@/components/ui/demandas/RouteMap'), {
     ssr: false,
     loading: () => <Box sx={{ height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', backgroundColor: '#eee', color: '#777' }}>Carregando mapa...</Box>
 });
 
-// Ponto de partida (para desenhar o mapa)
-const START_END_POINT: [number, number] = [-29.8608, -51.1789]; // [lat, lng]
+const START_END_POINT: [number, number] = [-29.8608, -51.1789]; 
 
-// Interface para a Rota
+// Interfaces (sem alteração)
 interface Rota {
     id: number;
     nome: string;
@@ -31,7 +46,6 @@ interface Rota {
     status: string;
     created_at: string;
 }
-// Interface para a Demanda (com os campos extras da API)
 export interface DemandaComOrdem extends DemandaType {
     ordem: number;
     status_nome: string;
@@ -39,15 +53,28 @@ export interface DemandaComOrdem extends DemandaType {
 }
 
 export default function PaginaDetalheRota() {
-    const params = useParams(); // Pega os parâmetros da URL
+    const params = useParams(); 
     const id = params.id as string;
 
     const [rota, setRota] = useState<Rota | null>(null);
     const [demandas, setDemandas] = useState<DemandaComOrdem[]>([]);
     const [isLoading, setIsLoading] = useState<boolean>(true);
     const [error, setError] = useState<string | null>(null);
+    
+    const [originalDemandas, setOriginalDemandas] = useState<DemandaComOrdem[]>([]);
+    const [isSaving, setIsSaving] = useState(false);
+    const [saveSuccess, setSaveSuccess] = useState(false);
+    const [saveError, setSaveError] = useState<string | null>(null);
+    
+    const [isExporting, setIsExporting] = useState(false);
 
-    // Função para buscar os dados da API
+    const hasChanges = useMemo(() => {
+        if (demandas.length !== originalDemandas.length) return true;
+        return demandas.some((demanda, index) => demanda.id !== originalDemandas[index]?.id);
+    }, [demandas, originalDemandas]);
+
+
+    // Função de busca (sem alteração)
     const fetchRotaDetalhes = async () => {
         if (!id) return;
         setIsLoading(true);
@@ -61,6 +88,7 @@ export default function PaginaDetalheRota() {
             const data: { rota: Rota; demandas: DemandaComOrdem[] } = await response.json();
             setRota(data.rota);
             setDemandas(data.demandas);
+            setOriginalDemandas(data.demandas); 
         } catch (err) {
             console.error(`[PAGE /rotas/${id}] Falha ao buscar detalhes:`, err);
             setError(err instanceof Error ? err.message : 'Erro desconhecido.');
@@ -69,26 +97,143 @@ export default function PaginaDetalheRota() {
         }
     };
 
-    // Busca os dados ao carregar a página
     useEffect(() => {
-        fetchRotaDetalhes();
+        if (id) {
+            fetchRotaDetalhes();
+        }
     }, [id]);
 
-    // Recalcula o caminho do mapa (em linha reta) com base nas demandas ordenadas
+    // Recalcula o caminho do mapa (sem alteração)
     const routePath = useMemo(() => {
         if (demandas.length === 0) return [];
-        
         const path: [number, number][] = [
             START_END_POINT,
-            ...demandas.map(d => 
-                [d.geom!.coordinates[1], d.geom!.coordinates[0]] as [number, number]
+            ...demandas
+                .filter(d => d.geom?.coordinates) 
+                .map(d => 
+                    [d.geom!.coordinates[1], d.geom!.coordinates[0]] as [number, number]
             ),
             START_END_POINT
         ];
         return path;
-    }, [demandas]);
+    }, [demandas]); 
 
-    // --- Renderização ---
+    
+    // --- INÍCIO DAS FUNÇÕES QUE FORAM OMITIDAS ---
+
+    // Lógica DndKit
+    const sensors = useSensors(
+        useSensor(PointerSensor),
+        useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
+    );
+
+    function handleDragEnd(event: DragEndEvent) {
+        const { active, over } = event;
+        if (over && active.id !== over.id) {
+            setDemandas((items) => {
+                const oldIndex = items.findIndex((item) => item.id === active.id);
+                const newIndex = items.findIndex((item) => item.id === over.id);
+                 if (oldIndex === -1 || newIndex === -1) return items;
+                return arrayMove(items, oldIndex, newIndex);
+            });
+            setSaveError(null);
+            setSaveSuccess(false);
+        }
+    }
+
+    // Função para Remover Demanda (localmente)
+    const handleRemoveDemanda = (demandaIdToRemove: number) => {
+        console.log("Removendo demanda ID:", demandaIdToRemove);
+        setDemandas(prev => prev.filter(d => d.id !== demandaIdToRemove));
+        setSaveError(null);
+        setSaveSuccess(false);
+    };
+
+    // Função para Cancelar Alterações
+    const handleCancelChanges = () => {
+        setDemandas(originalDemandas); // Reseta para a ordem original
+        setSaveError(null);
+        setSaveSuccess(false);
+    };
+
+
+    // Função para Salvar a Ordem (API de reorder)
+    const handleSaveOrder = async () => {
+        setIsSaving(true);
+        setSaveError(null);
+        setSaveSuccess(false);
+
+        try {
+            const response = await fetch(`/api/rotas/${id}/reorder`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ 
+                    demandas: demandas.map(d => ({ id: d.id })) 
+                })
+            });
+
+            const result = await response.json();
+            if (!response.ok) {
+                throw new Error(result.message || `Erro ${response.status} ao salvar.`);
+            }
+
+            setOriginalDemandas([...demandas]); 
+            setSaveSuccess(true); 
+
+        } catch (err) {
+             console.error(`[PAGE /rotas/${id}] Falha ao salvar ordem:`, err);
+             setSaveError(err instanceof Error ? err.message : 'Erro desconhecido.');
+        } finally {
+            setIsSaving(false);
+        }
+    };
+
+    // Função para Exportar
+    const handleExport = async () => {
+        if (!rota) return;
+        setIsExporting(true);
+        setSaveError(null); // Limpa outros erros
+
+        try {
+            const response = await fetch(`/api/rotas/${id}/export`);
+
+            if (!response.ok) {
+                const err = await response.json().catch(() => ({}));
+                throw new Error(err.message || `Erro ${response.status} ao gerar arquivo.`);
+            }
+
+            const disposition = response.headers.get('content-disposition');
+            let filename = `Rota_${id}.xlsx`;
+            if (disposition && disposition.indexOf('attachment') !== -1) {
+                const filenameRegex = /filename[^;=\n]*=((['"]).*?\2|[^;\n]*)/;
+                const matches = filenameRegex.exec(disposition);
+                if (matches != null && matches[1]) {
+                    filename = matches[1].replace(/['"]/g, '');
+                }
+            }
+
+            const blob = await response.blob();
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = filename; 
+            document.body.appendChild(a);
+            a.click(); 
+            
+            a.remove();
+            window.URL.revokeObjectURL(url);
+
+        } catch (err) {
+            console.error(`[PAGE /rotas/${id}] Falha ao exportar:`, err);
+            setSaveError(err instanceof Error ? err.message : 'Erro desconhecido ao exportar.');
+        } finally {
+            setIsExporting(false);
+        }
+    };
+    // --- FIM DAS FUNÇÕES QUE FORAM OMITIDAS ---
+
+
+    // --- Renderização (Loading, Error) ---
     if (isLoading) {
         return (
             <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '80vh' }}>
@@ -96,7 +241,7 @@ export default function PaginaDetalheRota() {
             </Box>
         );
     }
-
+    
     if (error) {
         return (
             <Box sx={{ p: 2 }}>
@@ -107,10 +252,15 @@ export default function PaginaDetalheRota() {
             </Box>
         );
     }
-
+    
     if (!rota) {
-        return <Alert severity="warning">Rota não encontrada.</Alert>;
+        return (
+            <Box sx={{p: 2}}>
+                <Alert severity="warning">Rota não encontrada.</Alert>
+            </Box>
+        );
     }
+    
 
     // Define a cor do chip de status
     let statusColor: "default" | "warning" | "info" | "success" = "default";
@@ -120,25 +270,70 @@ export default function PaginaDetalheRota() {
 
     return (
         <Box sx={{ p: { xs: 1, md: 3 } }}>
-            {/* Cabeçalho da Página */}
-            <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
+            {/* Cabeçalho da Página (sem alteração) */}
+            <Box sx={{ display: 'flex', alignItems: 'center', mb: 2, flexWrap: 'wrap', gap: 1 }}>
                 <Button
                     component={Link}
                     href="/rotas"
                     startIcon={<ArrowBackIcon />}
                     sx={{ mr: 2 }}
+                    disabled={isSaving || isExporting}
                 >
                     Voltar
                 </Button>
                 <Typography variant="h4" component="h1" sx={{ flexGrow: 1 }}>
                     {rota.nome}
                 </Typography>
-                {/* TODO: Adicionar botão de "Editar" ou "Iniciar Rota" aqui */}
+                
+                <Button
+                    variant="outlined"
+                    color="primary"
+                    startIcon={isExporting ? <CircularProgress size={20} /> : <DownloadIcon />}
+                    onClick={handleExport} // <-- Esta função agora existe
+                    disabled={isSaving || isExporting || hasChanges}
+                >
+                    {isExporting ? 'Exportando...' : 'Exportar XLS'}
+                </Button>
+
+                <Button
+                    variant="outlined"
+                    color="secondary"
+                    startIcon={<ReplayIcon />}
+                    onClick={handleCancelChanges} // <-- Esta função agora existe
+                    disabled={!hasChanges || isSaving || isExporting}
+                    sx={{ 
+                        visibility: hasChanges ? 'visible' : 'hidden',
+                        opacity: hasChanges ? 1 : 0,
+                        transition: 'visibility 0s, opacity 0.2s linear',
+                        mr: 1
+                    }}
+                >
+                    Cancelar
+                </Button>
+
+                <Button
+                    variant="contained"
+                    color="primary"
+                    startIcon={isSaving ? <CircularProgress size={20} color="inherit" /> : <SaveIcon />}
+                    onClick={handleSaveOrder} // <-- Esta função agora existe
+                    disabled={isSaving || isExporting}
+                    sx={{ 
+                        visibility: hasChanges ? 'visible' : 'hidden',
+                        opacity: hasChanges ? 1 : 0,
+                        transition: 'visibility 0s, opacity 0.2s linear',
+                        minWidth: 150
+                    }}
+                >
+                    {isSaving ? 'Salvando...' : 'Salvar Ordem'}
+                </Button>
             </Box>
 
-            {/* Informações da Rota */}
+            {/* Alerta de Erro de Salvamento (sem alteração) */}
+            {saveError && <Alert severity="error" sx={{ mb: 2 }}>{saveError}</Alert>}
+
+            {/* Informações da Rota (sem alteração) */}
             <Paper elevation={0} sx={{ p: 2, mb: 3, backgroundColor: '#f9f9f9', borderRadius: 2 }}>
-                <Grid container spacing={2}>
+                 <Grid container spacing={2}>
                     <Grid item xs={12} sm={4}>
                         <Typography variant="body2" color="text.secondary">Responsável</Typography>
                         <Typography variant="body1" sx={{ fontWeight: 500 }}>{rota.responsavel || 'N/A'}</Typography>
@@ -156,29 +351,40 @@ export default function PaginaDetalheRota() {
                 </Grid>
             </Paper>
 
-            {/* Layout Dividido: Lista (Esquerda) e Mapa (Direita) */}
+            {/* Layout Dividido (sem alteração) */}
             <Grid container spacing={3}>
-                {/* Coluna da Lista */}
                 <Grid item xs={12} md={5}>
                     <Typography variant="h6" gutterBottom>
-                        {demandas.length} Paradas na Rota (Ordem de Vistoria)
+                        {demandas.length} Paradas na Rota (Arraste para reordenar)
                     </Typography>
-                    <DetalheRotaLista demandas={demandas} />
+                    <DetalheRotaLista 
+                        demandas={demandas} 
+                        sensors={sensors}
+                        onDragEnd={handleDragEnd}
+                        disabled={isSaving || isExporting}
+                        onRemove={handleRemoveDemanda}
+                    />
                 </Grid>
-
-                {/* Coluna do Mapa */}
                 <Grid item xs={12} md={7}>
                     <Typography variant="h6" gutterBottom>
                         Visualização no Mapa
                     </Typography>
                     <Box sx={{ height: '70vh', minHeight: 400, minWidth: 800, border: '1px solid #ccc', borderRadius: 1, overflow: 'hidden' }}>
                         <RouteMap
-                            demands={demandas} // Passa as demandas para os marcadores numerados
-                            path={routePath}    // Passa o caminho (linha azul)
+                            demands={demandas} 
+                            path={routePath}    
                         />
                     </Box>
                 </Grid>
             </Grid>
+
+            {/* Snackbar de Sucesso (sem alteração) */}
+            <Snackbar
+                open={saveSuccess}
+                autoHideDuration={4000}
+                onClose={() => setSaveSuccess(false)}
+                message="Nova ordem salva com sucesso!"
+            />
         </Box>
     );
 }

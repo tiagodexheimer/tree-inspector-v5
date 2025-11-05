@@ -1,12 +1,20 @@
 // src/app/api/rotas/[id]/route.ts
 import { NextRequest, NextResponse } from 'next/server';
 import pool from '../../../../lib/db';
+import { DemandaType } from '@/types/demanda';
 
-// Interface para os parâmetros da URL (ex: /api/rotas/1)
+// Interface para os parâmetros da URL
 interface Params {
     id: string;
 }
 
+// Interface para o corpo da requisição (do PUT)
+interface ReorderRequestBody {
+    demandas: { id: number }[];
+}
+
+
+// --- Handler GET (Buscar Detalhes) - Sem Alteração ---
 export async function GET(request: NextRequest, { params }: { params: Params }) {
     const { id } = params;
     console.log(`[API /rotas/${id}] Recebido GET para buscar rota.`);
@@ -49,7 +57,6 @@ export async function GET(request: NextRequest, { params }: { params: Params }) 
         `;
         const demandasResult = await client.query(demandasQuery, [id]);
 
-        // Parsear o GeoJSON
         const demandas = demandasResult.rows.map(row => ({
             ...row,
             geom: row.geom ? JSON.parse(row.geom) : null
@@ -69,3 +76,119 @@ export async function GET(request: NextRequest, { params }: { params: Params }) 
         client.release();
     }
 }
+
+// --- Handler PUT (Reordenar) - Sem Alteração ---
+export async function PUT(request: NextRequest, { params }: { params: Params }) {
+    const { id } = params;
+    const rotaId = Number(id);
+    console.log(`[API /rotas/${id}/reorder] Recebido PUT para ATUALIZAR rota.`);
+
+    if (isNaN(rotaId)) {
+        return NextResponse.json({ message: 'ID da rota inválido.' }, { status: 400 });
+    }
+
+    const client = await pool.connect();
+    
+    try {
+        const body: ReorderRequestBody = await request.json();
+        const { demandas } = body; 
+
+        await client.query('BEGIN');
+
+        // 1. Apagar TODAS as associações antigas
+        await client.query('DELETE FROM rotas_demandas WHERE rota_id = $1', [rotaId]);
+
+        // 2. Inserir a nova lista
+        if (demandas && demandas.length > 0) {
+            const demandaValues: any[] = [];
+            const queryParams: any[] = [rotaId]; 
+            
+            demandas.forEach((demanda, index) => {
+                const ordem = index;
+                const demandaId = demanda.id;
+                
+                if (demandaId === undefined) {
+                    throw new Error('Uma das demandas na lista está sem ID.');
+                }
+                const placeholderIndex = queryParams.length; 
+                demandaValues.push(`($1, $${placeholderIndex + 1}, $${placeholderIndex + 2})`);
+                queryParams.push(demandaId, ordem);
+            });
+
+            const demandaInsertQuery = `
+                INSERT INTO rotas_demandas (rota_id, demanda_id, ordem)
+                VALUES ${demandaValues.join(', ')};
+            `;
+            await client.query(demandaInsertQuery, queryParams);
+        }
+
+        await client.query('COMMIT');
+        
+        console.log(`[API /rotas/${id}/reorder] Rota atualizada com sucesso.`);
+        
+        return NextResponse.json({
+            message: 'Ordem da rota atualizada com sucesso!'
+        }, { status: 200 });
+
+    } catch (error) {
+        await client.query('ROLLBACK');
+        console.error(`[API /rotas/${id}/reorder] Erro ao reordenar rota:`, error);
+        const errorMessage = error instanceof Error ? error.message : 'Erro desconhecido no servidor.';
+        return NextResponse.json({ message: 'Erro interno ao salvar a nova ordem.', error: errorMessage }, { status: 500 });
+    } finally {
+        client.release();
+    }
+}
+
+
+// +++ INÍCIO DA NOVA FUNÇÃO DELETE +++
+export async function DELETE(request: NextRequest, { params }: { params: Params }) {
+    const { id } = params;
+    const rotaId = Number(id);
+    console.log(`[API /rotas/${id}] Recebido DELETE para apagar rota.`);
+
+    if (isNaN(rotaId)) {
+        return NextResponse.json({ message: 'ID da rota inválido.' }, { status: 400 });
+    }
+
+    const client = await pool.connect();
+    
+    try {
+        // Graças ao 'ON DELETE CASCADE' na tabela 'rotas_demandas',
+        // só precisamos deletar da tabela 'rotas'.
+        
+        await client.query('BEGIN');
+
+        const query = 'DELETE FROM rotas WHERE id = $1 RETURNING nome';
+        const result = await client.query(query, [rotaId]);
+
+        if (result.rowCount === 0) {
+            await client.query('ROLLBACK');
+            return NextResponse.json({ message: 'Rota não encontrada.' }, { status: 404 });
+        }
+
+        await client.query('COMMIT');
+        
+        const nomeRotaDeletada = result.rows[0].nome;
+        console.log(`[API /rotas/${id}] Rota "${nomeRotaDeletada}" deletada com sucesso.`);
+        
+        return NextResponse.json({
+            message: `Rota "${nomeRotaDeletada}" deletada com sucesso!`
+        }, { status: 200 });
+
+    } catch (error) {
+        await client.query('ROLLBACK');
+        console.error(`[API /rotas/${id}] Erro ao deletar rota:`, error);
+        const errorMessage = error instanceof Error ? error.message : 'Erro desconhecido.';
+        
+        // Erro 23503 indica violação de foreign key (se não tivéssemos o cascade)
+        if (error instanceof Error && 'code' in error && error.code === '23503') {
+             return NextResponse.json({ message: 'Erro: Esta rota não pode ser deletada pois está sendo referenciada por outros dados.', error: errorMessage }, { status: 409 });
+        }
+
+        return NextResponse.json({ message: 'Erro interno ao deletar a rota.', error: errorMessage }, { status: 500 });
+    } finally {
+        client.release();
+    }
+}
+// +++ FIM DA NOVA FUNÇÃO DELETE +++
