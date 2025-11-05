@@ -1,95 +1,164 @@
 // src/app/demandas/importar/page.tsx
 'use client';
 
-import React, { useState, ChangeEvent } from 'react'; // Adicionar ChangeEvent
+import React, { useState, ChangeEvent } from 'react';
 import {
     Box, Button, Typography, CircularProgress, Alert,
-    List, ListItem, ListItemText, Paper
+    List, ListItem, ListItemText, Paper,
+    LinearProgress // <-- Importar LinearProgress
 } from '@mui/material';
 import CloudUploadIcon from '@mui/icons-material/CloudUpload';
-// Remover LinkIcon se não for mais usado
-// import LinkIcon from '@mui/icons-material/Link';
+import * as XLSX from "xlsx"; // <-- Importar o leitor de XLSX
 
-// Interface para o resultado da importação (mantida)
-interface ImportResult {
-    successCount: number;
-    errors: { row: number; message: string; data: unknown }[];
+// Interface para o resultado de UMA LINHA
+interface RowError {
+    row: number;
+    message: string;
+    data: unknown;
 }
 
 export default function ImportarDemandasPage() {
-    // Estados atualizados: remover sheetLink, adicionar selectedFile
-    const [selectedFile, setSelectedFile] = useState<File | null>(null); // Estado para o arquivo selecionado
+    const [selectedFile, setSelectedFile] = useState<File | null>(null);
     const [isLoading, setIsLoading] = useState(false);
-    const [result, setResult] = useState<ImportResult | null>(null);
+    
+    // --- (Estados de controle permanecem os mesmos) ---
+    const [importStatus, setImportStatus] = useState<string>('');
+    const [progress, setProgress] = useState<number>(0);
+    const [rowErrors, setRowErrors] = useState<RowError[]>([]);
+    const [successCount, setSuccessCount] = useState<number>(0);
+    
     const [apiError, setApiError] = useState<string | null>(null);
 
-    // Nova função para lidar com a seleção do arquivo
+    // Função para limpar estados antigos (sem alteração)
+    const resetImport = () => {
+        setIsLoading(false);
+        setImportStatus('');
+        setProgress(0);
+        setRowErrors([]);
+        setSuccessCount(0);
+        setApiError(null);
+    };
+
+    // handleFileChange (sem alteração)
     const handleFileChange = (event: ChangeEvent<HTMLInputElement>) => {
+        resetImport(); 
         if (event.target.files && event.target.files.length > 0) {
             const file = event.target.files[0];
-            // Validação opcional do tipo de arquivo aqui (ex: verificar extensão ou MIME type)
             const allowedTypes = [
                 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', // .xlsx
                 'application/vnd.ms-excel', // .xls
                 'application/vnd.oasis.opendocument.spreadsheet', // .ods
                 'text/csv' // .csv
             ];
-            if (!allowedTypes.includes(file.type)) {
+            if (!allowedTypes.includes(file.type) && !file.name.endsWith('.csv')) {
                 setApiError('Tipo de arquivo inválido. Por favor, selecione um arquivo .xlsx, .xls, .ods ou .csv.');
                 setSelectedFile(null);
-                event.target.value = ''; // Limpa o input file
+                event.target.value = ''; 
                 return;
             }
-
             setSelectedFile(file);
-            setApiError(null); // Limpa erros ao selecionar novo arquivo válido
-            setResult(null); // Limpa resultado anterior
         } else {
             setSelectedFile(null);
         }
     };
 
-    // Função handleImport atualizada para enviar FormData
+    // --- FUNÇÃO handleImport CORRIGIDA ---
     const handleImport = async () => {
         if (!selectedFile) {
             setApiError('Por favor, selecione um arquivo de planilha.');
             return;
         }
 
-        setIsLoading(true);
-        setApiError(null);
-        setResult(null);
+        resetImport();
+        setIsLoading(true); 
 
-        const formData = new FormData();
-        formData.append('file', selectedFile); // Adiciona o arquivo ao FormData com a chave 'file'
+        let jsonData: Record<string, unknown>[] = [];
 
+        // --- Etapa 1: Ler o arquivo no Frontend (sem alteração) ---
         try {
-            // Envia para a mesma rota de API (que será atualizada no backend)
-            const response = await fetch('/api/demandas/import', {
-                method: 'POST',
-                // Não defina Content-Type, o navegador faz isso automaticamente para FormData
-                body: formData,
-            });
-
-            const data = await response.json();
-
-            if (!response.ok) {
-                // Usa a mensagem de erro da API ou um erro genérico
-                throw new Error(data.message || `Erro ${response.status} ao importar.`);
-            }
-
-            setResult(data); // Define o resultado do backend
-
+            setImportStatus('Lendo arquivo...');
+            const data = await selectedFile.arrayBuffer();
+            const workbook = XLSX.read(data, { type: "buffer", cellDates: true });
+            const sheetName = workbook.SheetNames[0];
+            const worksheet = workbook.Sheets[sheetName];
+            jsonData = XLSX.utils.sheet_to_json(
+                worksheet,
+                { raw: false, defval: null } 
+            );
         } catch (err) {
-            console.error("Erro na importação:", err);
-            setApiError(err instanceof Error ? err.message : 'Erro desconhecido durante a importação.');
-        } finally {
+            console.error("Erro ao ler o arquivo:", err);
+            setApiError(err instanceof Error ? err.message : 'Não foi possível ler o arquivo.');
             setIsLoading(false);
+            return;
         }
+
+        const totalRows = jsonData.length;
+        if (totalRows === 0) {
+            setApiError('O arquivo está vazio ou não contém dados.');
+            setIsLoading(false);
+            return;
+        }
+
+        // --- Etapa 2: Fazer o loop e enviar linha por linha ---
+        setImportStatus(`Iniciando importação de ${totalRows} linhas...`);
+        
+        let currentSuccessCount = 0;
+        const currentErrors: RowError[] = [];
+
+        for (let i = 0; i < totalRows; i++) {
+            const rowData = jsonData[i];
+            const rowNumberInSheet = i + 2; // +1 do header, +1 do índice 0
+            
+            // ***** INÍCIO DA CORREÇÃO *****
+            // Criamos uma CÓPIA do objeto 'rowData' e adicionamos o '__rowNum__'
+            const rowDataWithNum = {
+                ...rowData,
+                "__rowNum__": rowNumberInSheet
+            };
+            // ***** FIM DA CORREÇÃO *****
+
+            // Atualiza o status e a barra de progresso
+            const cep = rowData["cep"]?.toString() || '??';
+            setImportStatus(`Processando linha ${i + 1}/${totalRows} (CEP: ${cep})...`);
+            setProgress(Math.round(((i + 1) / totalRows) * 100));
+
+            try {
+                const response = await fetch('/api/demandas/import-row', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    // Enviamos o novo objeto (a cópia) para o backend
+                    body: JSON.stringify(rowDataWithNum),
+                });
+
+                const result = await response.json();
+
+                if (!response.ok) {
+                    // Erro de processamento da linha
+                    throw new Error(result.message || `Erro HTTP ${response.status}`);
+                }
+
+                // Sucesso na linha
+                currentSuccessCount++;
+                
+            } catch (err) {
+                // Erro de rede ou erro lançado acima
+                console.error(`Falha na linha ${rowNumberInSheet}:`, err);
+                currentErrors.push({
+                    row: rowNumberInSheet,
+                    message: err instanceof Error ? err.message : 'Erro desconhecido.',
+                    data: rowData, // Salva o 'rowData' original no log de erro
+                });
+            }
+        } // --- Fim do loop ---
+
+        // --- Etapa 3: Finalizar (sem alteração) ---
+        setIsLoading(false);
+        setImportStatus('Importação concluída.');
+        setProgress(100);
+        setSuccessCount(currentSuccessCount);
+        setRowErrors(currentErrors);
     };
 
-    // Link para planilha modelo pode ser removido ou adaptado para download
-    // const templateLink = "SEU_LINK_PARA_DOWNLOAD_DO_MODELO";
 
     return (
         <Box sx={{ p: 4 }}>
@@ -100,29 +169,20 @@ export default function ImportarDemandasPage() {
                 seguindo a estrutura de colunas esperada. Selecione o arquivo abaixo.
             </Typography>
 
-            {/* Opcional: Link para download do modelo, se tiver um */}
-            {/*
-            <MuiLink href={templateLink} download="modelo_importacao_demandas.xlsx" sx={{ mb: 3, display: 'inline-block' }}>
-                <Button variant="outlined" startIcon={<DownloadIcon />}>
-                    Baixar Planilha Modelo (.xlsx)
-                </Button>
-            </MuiLink>
-            */}
-
-            {/* Input para selecionar arquivo */}
+            {/* Input para selecionar arquivo (sem alteração) */}
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 2 }}>
                 <Button
                     component="label"
                     variant="outlined"
                     startIcon={<CloudUploadIcon />}
-                    disabled={isLoading}
+                    disabled={isLoading} 
                 >
                     Selecionar Arquivo
                     <input
                         type="file"
                         hidden
                         onChange={handleFileChange}
-                        accept=".xlsx, .xls, .ods, .csv" // Tipos aceitos pelo navegador
+                        accept=".xlsx, .xls, .ods, .csv" 
                     />
                 </Button>
                 {selectedFile && (
@@ -132,37 +192,47 @@ export default function ImportarDemandasPage() {
                 )}
             </Box>
 
-
+            {/* Botão de Importar (sem alteração) */}
             <Button
                 variant="contained"
                 onClick={handleImport}
-                disabled={isLoading || !selectedFile} // Desabilita se carregando ou sem arquivo
+                disabled={isLoading || !selectedFile} 
                 startIcon={isLoading ? <CircularProgress size={20} color="inherit" /> : <CloudUploadIcon />}
                 sx={{ backgroundColor: '#257e1a', '&:hover': { backgroundColor: '#1a5912' } }}
             >
                 {isLoading ? 'Importando...' : 'Importar Arquivo'}
             </Button>
 
-            {/* Feedback da Importação (mesma lógica de antes) */}
+            {/* Feedback de Progresso (sem alteração) */}
+            {isLoading && (
+                <Box sx={{ width: '100%', mt: 3 }}>
+                    <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
+                        {importStatus}
+                    </Typography>
+                    <LinearProgress variant="determinate" value={progress} />
+                </Box>
+            )}
+
+            {/* Feedback de Erro de Setup (sem alteração) */}
             {apiError && <Alert severity="error" sx={{ mt: 3 }}>{apiError}</Alert>}
 
-            {result && (
+            {/* Feedback de Resultado (sem alteração) */}
+            {!isLoading && (successCount > 0 || rowErrors.length > 0) && (
                 <Paper sx={{ mt: 3, p: 2 }}>
                     <Typography variant="h6">Resultado da Importação:</Typography>
-                    <Alert severity={result.errors.length === 0 ? "success" : "warning"} sx={{ mt: 1, mb: 2 }}>
-                        {result.successCount} demanda(s) importada(s) com sucesso.
-                        {result.errors.length > 0 && ` ${result.errors.length} linha(s) com erro.`}
+                    <Alert severity={rowErrors.length === 0 ? "success" : "warning"} sx={{ mt: 1, mb: 2 }}>
+                        {successCount} demanda(s) importada(s) com sucesso.
+                        {rowErrors.length > 0 && ` ${rowErrors.length} linha(s) com erro.`}
                     </Alert>
 
-                    {result.errors.length > 0 && (
+                    {rowErrors.length > 0 && (
                         <>
                             <Typography variant="subtitle1">Detalhes dos Erros:</Typography>
                             <List dense sx={{ maxHeight: 300, overflow: 'auto', border: '1px solid #ccc', borderRadius: 1, mt: 1 }}>
-                                {result.errors.map((err, index) => (
+                                {rowErrors.map((err, index) => (
                                     <ListItem key={index} divider>
                                         <ListItemText
                                             primary={`Linha ${err.row} (arquivo): ${err.message}`}
-                                            // Limita a exibição dos dados para não poluir
                                             secondary={`Dados: ${JSON.stringify(err.data).substring(0, 150)}...`}
                                         />
                                     </ListItem>

@@ -2,10 +2,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import pool from "../../../lib/db"; // Ajuste o caminho se necessário
 import { DemandaType } from "@/types/demanda";
-// Import DemandaType se precisar validar a estrutura completa
-// import { DemandaType } from '../../../types/demanda';
 
-// --- Handler para GET (Listar Demandas - CORRIGIDO) ---
+// --- Handler para GET (Listar Demandas - SEM ALTERAÇÃO) ---
 export async function GET() {
   console.log("[API /demandas] Recebido GET.");
   try {
@@ -14,22 +12,19 @@ export async function GET() {
               d.id, d.protocolo, d.nome_solicitante,
               d.cep, d.logradouro, d.numero, d.complemento, d.bairro, d.cidade, d.uf,
               d.tipo_demanda, d.descricao, d.prazo, d.created_at,
-              d.id_status,  -- <<< ADICIONADO AQUI
-              s.nome as status_nome, -- Opcional: Pega o nome do status diretamente
-              s.cor as status_cor,   -- Opcional: Pega a cor diretamente
+              d.id_status,
+              s.nome as status_nome, 
+              s.cor as status_cor,   
               ST_AsGeoJSON(d.geom) as geom
-           FROM demandas d -- Alias 'd' para a tabela demandas
-           LEFT JOIN demandas_status s ON d.id_status = s.id -- JOIN para buscar nome/cor do status
-           ORDER BY d.created_at DESC` // Ordena pela data de criação da demanda
+           FROM demandas d 
+           LEFT JOIN demandas_status s ON d.id_status = s.id
+           ORDER BY d.created_at DESC`
     );
 
-    // Mapeia os resultados, convertendo tipos conforme necessário
     const demandas = result.rows.map((row) => ({
       ...row,
       prazo: row.prazo ? new Date(row.prazo) : null,
       geom: row.geom ? JSON.parse(row.geom) : null,
-      // status_nome e status_cor já vêm prontos se você usou o JOIN
-      // O campo 'status' original pode ser removido ou ignorado se não for mais usado
     }));
 
     return NextResponse.json(demandas, { status: 200 });
@@ -44,15 +39,13 @@ export async function GET() {
   }
 }
 
-// --- Handler para POST (Criar Demanda - Mantido como antes) ---
+// --- Handler para POST (Criar Demanda - SEM ALTERAÇÃO) ---
 export async function POST(request: NextRequest) {
-  // ... (código do POST permanece o mesmo) ...
   console.log("[API /demandas] Recebido POST.");
   try {
     const body = (await request.json()) as Partial<
       DemandaType & { prazo: string }
     >;
-    console.log("[API /demandas] Body recebido:", body);
 
     const {
       nome_solicitante,
@@ -68,12 +61,11 @@ export async function POST(request: NextRequest) {
       tipo_demanda,
       descricao,
       prazo,
-      coordinates, // <-- CAMPO ADICIONADO
+      coordinates, 
     } = body as Partial<
       DemandaType & { prazo: string; coordinates?: [number, number] | null }
-    >; // <-- TIPO ATUALIZADO
+    >; 
 
-    // ***** INÍCIO DA CORREÇÃO *****
     // Validação Mínima (nome_solicitante não é mais obrigatório)
     if (!cep || !numero || !tipo_demanda || !descricao) {
       console.log("[API /demandas] Erro 400: Campos obrigatórios ausentes.");
@@ -85,8 +77,6 @@ export async function POST(request: NextRequest) {
         { status: 400 }
       );
     }
-    // ***** FIM DA CORREÇÃO *****
-
     if (!/^\d{5}-?\d{3}$/.test(cep)) {
       console.log("[API /demandas] Erro 400: Formato de CEP inválido.");
       return NextResponse.json(
@@ -96,11 +86,7 @@ export async function POST(request: NextRequest) {
     }
 
     const protocolo = `DEM-${Date.now()}`;
-    console.log(`[API /demandas] Protocolo gerado: ${protocolo}`);
-
-    // ... (lógica de geocodificação como antes) ...
-
-    // Define o ID do status inicial (Ex: busca por 'Pendente')
+    
     let initialStatusId: number | null = null;
     try {
       const statusResult = await pool.query(
@@ -119,18 +105,16 @@ export async function POST(request: NextRequest) {
         "[API /demandas] Erro ao buscar ID do status inicial:",
         statusError
       );
-      // Decide se quer parar ou continuar com NULL
     }
 
-    // Query SQL (Atualizada para usar id_status inicial)
     const queryText = `
           INSERT INTO demandas (
             protocolo, nome_solicitante, telefone_solicitante, email_solicitante,
             cep, logradouro, numero, complemento, bairro, cidade, uf,
-            tipo_demanda, descricao, id_status, geom, prazo -- Usa id_status
+            tipo_demanda, descricao, id_status, geom, prazo
           )
           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, ST_SetSRID(ST_MakePoint($15, $16), 4326), $17)
-          RETURNING id, protocolo, nome_solicitante, id_status, created_at, prazo, ST_AsGeoJSON(geom) as geom; -- Retorna id_status
+          RETURNING id, protocolo, nome_solicitante, id_status, created_at, prazo, ST_AsGeoJSON(geom) as geom;
         `;
 
     const prazoDate = prazo && prazo.trim() !== "" ? new Date(prazo) : null;
@@ -154,7 +138,6 @@ export async function POST(request: NextRequest) {
       tipo_demanda, // $12
       descricao, // $13
       initialStatusId, // $14
-      // ST_MakePoint(Longitude, Latitude)
       coordinates ? coordinates[1] : null, // $15 (Longitude)
       coordinates ? coordinates[0] : null, // $16 (Latitude)
       prazoValidoParaSQL, // $17
@@ -167,7 +150,6 @@ export async function POST(request: NextRequest) {
     }
 
     const createdDemanda = result.rows[0];
-    // ... (processamento da resposta como antes) ...
     if (createdDemanda.geom) {
       createdDemanda.geom = JSON.parse(createdDemanda.geom);
     }
@@ -175,7 +157,6 @@ export async function POST(request: NextRequest) {
       createdDemanda.prazo = new Date(createdDemanda.prazo);
     }
 
-    // Opcional: Adicionar nome/cor do status à resposta se fez o JOIN no RETURNING ou busca separada
     if (createdDemanda.id_status) {
       const statusInfo = await pool.query(
         "SELECT nome, cor FROM demandas_status WHERE id = $1",
@@ -196,7 +177,6 @@ export async function POST(request: NextRequest) {
       { status: 201 }
     );
   } catch (error) {
-    // ... (tratamento de erro como antes) ...
     console.error(
       "[API /demandas] Erro detalhado ao criar demanda (POST):",
       error
@@ -222,3 +202,66 @@ export async function POST(request: NextRequest) {
     );
   }
 }
+
+// +++ INÍCIO DA NOVA FUNÇÃO DELETE +++
+export async function DELETE(request: NextRequest) {
+  console.log("[API /demandas] Recebido DELETE para exclusão em massa.");
+
+  const client = await pool.connect();
+
+  try {
+    const body = await request.json();
+    const idsToDelete: number[] = body.ids;
+
+    if (!idsToDelete || !Array.isArray(idsToDelete) || idsToDelete.length === 0) {
+      return NextResponse.json({ message: "Nenhum ID fornecido para exclusão." }, { status: 400 });
+    }
+
+    // Validação para garantir que são números
+    const numericIds = idsToDelete.filter(id => typeof id === 'number' && !isNaN(id));
+    if (numericIds.length !== idsToDelete.length) {
+      return NextResponse.json({ message: "Array de IDs contém valores inválidos." }, { status: 400 });
+    }
+
+    await client.query('BEGIN');
+    
+    // 1. Deletar da tabela 'rotas_demandas' primeiro para evitar erro de FK
+    // (Assumindo que a restrição ON DELETE é RESTRICT ou NO ACTION)
+    const deleteRotasQuery = 'DELETE FROM rotas_demandas WHERE demanda_id = ANY($1::int[])';
+    await client.query(deleteRotasQuery, [numericIds]);
+
+    // 2. Deletar da tabela principal 'demandas'
+    const deleteDemandasQuery = 'DELETE FROM demandas WHERE id = ANY($1::int[]) RETURNING id';
+    const result = await client.query(deleteDemandasQuery, [numericIds]);
+
+    await client.query('COMMIT');
+
+    const deletedCount = result.rowCount || 0;
+    if (deletedCount === 0) {
+      console.warn("[API /demandas] Nenhuma demanda encontrada para os IDs fornecidos:", numericIds);
+      return NextResponse.json({ message: "Nenhuma demanda encontrada para os IDs fornecidos." }, { status: 404 });
+    }
+
+    console.log(`[API /demandas] ${deletedCount} demandas deletadas com sucesso.`);
+    return NextResponse.json(
+      { message: `${deletedCount} demandas deletadas com sucesso.`, deletedIds: result.rows.map(r => r.id) },
+      { status: 200 }
+    );
+
+  } catch (error) {
+    await client.query('ROLLBACK');
+    console.error("[API /demandas] Erro na transação de exclusão em massa:", error);
+    const errorMessage = error instanceof Error ? error.message : "Erro desconhecido.";
+    
+    // Checar erro de Foreign Key
+    if (error instanceof Error && 'code' in error && error.code === '23503') {
+       console.warn("[API /demandas] Tentativa de deletar demandas referenciadas em outras tabelas.");
+       return NextResponse.json({ message: "Erro: Algumas demandas não puderam ser deletadas pois estão associadas a outros registros (ex: rotas não deletadas).", error: errorMessage }, { status: 409 });
+    }
+    
+    return NextResponse.json({ message: "Erro interno ao deletar demandas.", error: errorMessage }, { status: 500 });
+  } finally {
+    client.release();
+  }
+}
+// +++ FIM DA NOVA FUNÇÃO DELETE +++

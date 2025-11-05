@@ -5,11 +5,12 @@ import React from 'react';
 import {
     Box, Button, IconButton, TextField,
     FormControl, InputLabel, Select, MenuItem, OutlinedInput, Checkbox, ListItemText, SelectChangeEvent,
-    CircularProgress // <-- Importar CircularProgress
+    CircularProgress
 } from "@mui/material";
 import ViewListIcon from '@mui/icons-material/ViewList';
 import ViewModuleIcon from '@mui/icons-material/ViewModule';
 import UploadFileIcon from '@mui/icons-material/UploadFile';
+import DeleteIcon from '@mui/icons-material/Delete'; // <-- Importar ícone de lixeira
 import Link from 'next/link';
 
 // ... (Interfaces StatusOption, TipoDemandaOption e MenuProps permanecem iguais) ...
@@ -33,7 +34,6 @@ const MenuProps = {
   },
 };
 
-
 // Props que o componente da Toolbar irá receber
 interface DemandasToolbarProps {
     filtro: string;
@@ -50,10 +50,11 @@ interface DemandasToolbarProps {
     onViewModeChange: (mode: 'card' | 'list') => void;
     onAddDemandaClick: () => void;
     onCreateRotaClick: () => void;
+    onDeleteSelectedClick: () => void; // <-- NOVA PROP
     selectedDemandasCount: number;
-    onClearStatusFilter: () => void;
-    onClearTipoFilter: () => void;
-    isOptimizing: boolean; // <-- NOVA PROP
+    onClearStatusFilter: () => void; 
+    onClearTipoFilter: () => void;  
+    isOptimizing: boolean; 
 }
 
 export default function DemandasToolbar({
@@ -71,16 +72,19 @@ export default function DemandasToolbar({
     onViewModeChange,
     onAddDemandaClick,
     onCreateRotaClick,
+    onDeleteSelectedClick, // <-- NOVA PROP
     selectedDemandasCount,
     onClearStatusFilter,
     onClearTipoFilter,
-    isOptimizing // <-- NOVA PROP
+    isOptimizing 
 }: DemandasToolbarProps) {
+
+    const hasSelection = selectedDemandasCount > 0;
 
     return (
         <Box sx={{ p: 2, display: 'flex', flexWrap: 'wrap', gap: 1.5, alignItems: 'center', borderBottom: '1px solid #ddd' }}>
-            {/* ... (Botões Adicionar Demanda, Importar, Filtros... tudo igual) ... */}
-            <Button variant="contained" sx={{ backgroundColor: '#257e1a', '&:hover': { backgroundColor: '#1a5912' } }} onClick={onAddDemandaClick} disabled={isOptimizing}>
+            {/* Botão Adicionar Demanda */}
+            <Button variant="contained" sx={{ backgroundColor: '#257e1a', '&:hover': { backgroundColor: '#1a5912' } }} onClick={onAddDemandaClick} disabled={isOptimizing || hasSelection}>
                 Adicionar Demanda
             </Button>
 
@@ -91,13 +95,38 @@ export default function DemandasToolbar({
                 sx={{ color: '#555', borderColor: '#ccc', '&:hover': { borderColor: '#aaa', backgroundColor: 'rgba(0,0,0,0.04)' } }}
                 component={Link}
                 href="/demandas/importar"
-                disabled={isOptimizing}
+                disabled={isOptimizing || hasSelection}
             >
                 Importar Planilha
             </Button>
 
-            {/* Filtro Status */}
-            <FormControl sx={{ minWidth: 180 }} size="small">
+            {/* --- NOVO BOTÃO DE DELETAR --- */}
+            <Button
+                variant="contained"
+                color="error"
+                startIcon={<DeleteIcon />}
+                onClick={onDeleteSelectedClick}
+                disabled={!hasSelection || isOptimizing}
+                sx={{ 
+                    // Mostra o botão apenas se houver seleção
+                    display: hasSelection ? 'inline-flex' : 'none',
+                    ml: 1 // Margem à esquerda para separar
+                }}
+            >
+                Excluir ({selectedDemandasCount})
+            </Button>
+            {/* --- FIM DO NOVO BOTÃO --- */}
+
+
+            {/* Filtro Status (adiciona 'ml: hasSelection ? 0 : 'auto'' para empurrar filtros para a direita) */}
+            <FormControl 
+                sx={{ 
+                    minWidth: 180,
+                    // Empurra os filtros para a direita se o botão de deletar NÃO estiver visível
+                    marginLeft: hasSelection ? 0 : { xs: 0, sm: 'auto' } 
+                }} 
+                size="small"
+            >
                 <InputLabel id="filtro-status-label">Status</InputLabel>
                 <Select
                     labelId="filtro-status-label"
@@ -134,14 +163,14 @@ export default function DemandasToolbar({
                 </Select>
             </FormControl>
 
-            {/* Filtro Texto */}
+            {/* Filtro Texto (remove 'marginLeft: auto') */}
             <TextField
                 label="Buscar..."
                 variant="outlined"
                 size="small"
                 value={filtro}
                 onChange={(e) => onFiltroChange(e.target.value)}
-                sx={{ marginLeft: 'auto', minWidth: 250 }}
+                sx={{ minWidth: 250 }} // Removido marginLeft: 'auto'
                 disabled={isOptimizing}
             />
             {/* Botões de View */}
@@ -152,10 +181,10 @@ export default function DemandasToolbar({
                 <ViewListIcon />
             </IconButton>
             
-            {/* Botão Criar Rota ATUALIZADO */}
+            {/* Botão Criar Rota */}
             <Button
                 variant="contained"
-                disabled={selectedDemandasCount === 0 || isOptimizing}
+                disabled={!hasSelection || isOptimizing}
                 onClick={onCreateRotaClick}
                 sx={{ backgroundColor: '#1976d2', '&:hover': { backgroundColor: '#115293' }, minWidth: 150 }}
             >

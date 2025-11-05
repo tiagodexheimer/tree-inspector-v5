@@ -4,7 +4,8 @@
 import { useState, useEffect } from 'react';
 import {
     Dialog, DialogTitle, DialogContent, DialogActions, Button, TextField, Box, Typography,
-    List, ListItem, ListItemText, Paper, IconButton, FormControl, InputLabel, Select, MenuItem, SelectChangeEvent
+    List, ListItem, ListItemText, Paper, IconButton, FormControl, InputLabel, Select, MenuItem, SelectChangeEvent,
+    CircularProgress, Alert // <-- Adicionar CircularProgress e Alert
 } from "@mui/material";
 import {
     DndContext,
@@ -26,7 +27,6 @@ import { CSS } from '@dnd-kit/utilities';
 import DragIndicatorIcon from '@mui/icons-material/DragIndicator';
 import { DemandaType } from "@/types/demanda"; 
 import dynamic from 'next/dynamic';
-// ***** INÍCIO DA CORREÇÃO 1: Importar LatLngExpression *****
 import { LatLngExpression } from 'leaflet';
 
 // Importar o novo mapa
@@ -53,12 +53,11 @@ interface CriarRotaModalProps {
 // Lista de exemplo para os responsáveis (mantida)
 const responsaveisExemplo = ['João Silva', 'Pedro Martins', 'Ana Costa', 'Mariana Dias'];
 
-// ***** INÍCIO DA CORREÇÃO 2: Definir ponto de partida *****
-// Duplicamos a constante aqui para usá-la no cálculo do novo path
-const START_END_POINT: LatLngExpression = [-29.8608, -51.1789]; // [lat, lng]
+const START_END_POINT: LatLngExpression = [-29.8608, -51.1789]; 
 
 // Função auxiliar para formatar endereço curto (mantida)
 const formatEnderecoCurto = (demanda: DemandaType): string => {
+    // ... (código mantido) ...
     const parts = [
         demanda.logradouro,
         demanda.numero ? `, ${demanda.numero}` : '',
@@ -70,6 +69,7 @@ const formatEnderecoCurto = (demanda: DemandaType): string => {
 
 // Componente para item arrastável na lista (mantido)
 function SortableItem({ demanda }: { demanda: DemandaType }) {
+    // ... (código mantido) ...
     const { attributes, listeners, setNodeRef, transform, transition } = useSortable({ id: demanda.id! });
     const style = { transform: CSS.Transform.toString(transform), transition };
 
@@ -88,9 +88,12 @@ export default function CriarRotaModal({ open, onClose, routeData, onRotaCriada 
     const [nomeRota, setNomeRota] = useState('');
     const [responsavel, setResponsavel] = useState('');
     const [orderedDemandas, setOrderedDemandas] = useState<DemandaType[]>([]);
-    
-    // ***** INÍCIO DA CORREÇÃO 3: Criar estado para o caminho do mapa *****
     const [currentRoutePath, setCurrentRoutePath] = useState<[number, number][]>([]);
+
+    // ***** INÍCIO DA CORREÇÃO 1: Adicionar estados de loading e erro *****
+    const [isSaving, setIsSaving] = useState(false);
+    const [apiError, setApiError] = useState<string | null>(null);
+    // ***** FIM DA CORREÇÃO 1 *****
 
     const sensors = useSensors(
         useSensor(PointerSensor),
@@ -101,61 +104,85 @@ export default function CriarRotaModal({ open, onClose, routeData, onRotaCriada 
     useEffect(() => {
         if (open && routeData) {
             setOrderedDemandas(routeData.optimizedDemands || []);
-            // Define o caminho inicial otimizado
             setCurrentRoutePath(routeData.routePath || []); 
-            // Reseta os campos
+            // Reseta os campos e erros
             setNomeRota('');
             setResponsavel('');
+            setIsSaving(false);
+            setApiError(null);
         } else if (!open) {
-             // Limpa ao fechar
              setOrderedDemandas([]);
              setCurrentRoutePath([]);
         }
     }, [routeData, open]);
 
-    // ***** INÍCIO DA CORREÇÃO 4: Atualizar o caminho ao arrastar *****
+    // handleDragEnd (mantido como na última correção)
     function handleDragEnd(event: DragEndEvent) {
         const { active, over } = event;
         if (over && active.id !== over.id) {
+            // Limpa o erro da API se o usuário reordenar (a rota mudou)
+            if (apiError) setApiError(null);
             
-            // Usamos a forma de callback do setState para garantir os dados mais recentes
             setOrderedDemandas((items) => {
                 const oldIndex = items.findIndex((item) => item.id === active.id);
                 const newIndex = items.findIndex((item) => item.id === over.id);
                  if (oldIndex === -1 || newIndex === -1) return items;
 
-                // 1. Gera a nova lista ordenada de demandas
                 const newOrderedItems = arrayMove(items, oldIndex, newIndex);
 
-                // 2. Recalcula o caminho do mapa (em linha reta)
                 const newPath: [number, number][] = [
-                    START_END_POINT as [number, number], // Ponto de partida
-                    // Mapeia as demandas reordenadas para suas coordenadas [lat, lng]
+                    START_END_POINT as [number, number], 
                     ...newOrderedItems.map(d => 
                         [d.geom!.coordinates[1], d.geom!.coordinates[0]] as [number, number]
                     ),
-                    START_END_POINT as [number, number] // Ponto final
+                    START_END_POINT as [number, number] 
                 ];
                 
-                // 3. Atualiza o estado do caminho do mapa
                 setCurrentRoutePath(newPath);
-
-                // 4. Retorna a nova lista de demandas
                 return newOrderedItems;
             });
         }
     }
-    // ***** FIM DA CORREÇÃO 4 *****
 
-    // Função para criar a rota (mantida)
-    const handleCreateRoute = () => {
+    // ***** INÍCIO DA CORREÇÃO 2: Atualizar handleCreateRoute *****
+    const handleCreateRoute = async () => {
         if (!nomeRota.trim() || !responsavel) {
-            alert('Por favor, preencha o nome da rota e selecione um responsável.');
+            setApiError('Por favor, preencha o nome da rota e selecione um responsável.');
             return;
         }
-        onRotaCriada(nomeRota, responsavel /*, orderedDemandas */); 
-        onClose(); // Fecha o modal
+
+        setIsSaving(true);
+        setApiError(null);
+
+        try {
+            const response = await fetch('/api/rotas', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    nome: nomeRota,
+                    responsavel: responsavel,
+                    demandas: orderedDemandas // Envia a lista de demandas na ordem atual
+                })
+            });
+
+            const result = await response.json();
+
+            if (!response.ok) {
+                throw new Error(result.message || result.error || `Erro ${response.status} ao salvar rota.`);
+            }
+
+            // Sucesso! Chama a função da página (que fecha o modal e mostra confirmação)
+            onRotaCriada(nomeRota, responsavel);
+            onClose(); // Fecha este modal
+
+        } catch (err) {
+            console.error("[MODAL] Falha ao salvar rota:", err);
+            setApiError(err instanceof Error ? err.message : 'Ocorreu um erro desconhecido.');
+        } finally {
+            setIsSaving(false);
+        }
     };
+    // ***** FIM DA CORREÇÃO 2 *****
 
     const sortableItemsIds = orderedDemandas.map(d => d.id!);
 
@@ -163,6 +190,9 @@ export default function CriarRotaModal({ open, onClose, routeData, onRotaCriada 
         <Dialog open={open} onClose={onClose} fullWidth maxWidth="md">
             <DialogTitle>Criar Nova Rota</DialogTitle>
             <DialogContent dividers>
+                {/* Exibe erro da API se houver */}
+                {apiError && <Alert severity="error" sx={{ mb: 2 }}>{apiError}</Alert>}
+
                 <Box sx={{ display: 'flex', gap: 3, flexDirection: { xs: 'column', md: 'row' } }}>
                     {/* Coluna Esquerda: Nome, Responsável, Lista Ordenável */}
                     <Box sx={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 2 }}>
@@ -171,17 +201,26 @@ export default function CriarRotaModal({ open, onClose, routeData, onRotaCriada 
                             variant="outlined"
                             fullWidth
                             value={nomeRota}
-                            onChange={(e) => setNomeRota(e.target.value)}
+                            onChange={(e) => {
+                                setNomeRota(e.target.value);
+                                if (apiError) setApiError(null); // Limpa erro ao digitar
+                            }}
                             required
+                            disabled={isSaving}
+                            error={!!apiError && !nomeRota.trim()}
                         />
 
-                        <FormControl fullWidth required>
+                        <FormControl fullWidth required error={!!apiError && !responsavel}>
                             <InputLabel id="responsavel-rota-label">Responsável pela Rota</InputLabel>
                             <Select
                                 labelId="responsavel-rota-label"
                                 value={responsavel}
                                 label="Responsável pela Rota"
-                                onChange={(e: SelectChangeEvent) => setResponsavel(e.target.value)}
+                                onChange={(e: SelectChangeEvent) => {
+                                    setResponsavel(e.target.value);
+                                    if (apiError) setApiError(null); // Limpa erro ao selecionar
+                                }}
+                                disabled={isSaving}
                             >
                                 <MenuItem value="" disabled>Selecione...</MenuItem>
                                 {responsaveisExemplo.map((nome) => (
@@ -199,7 +238,7 @@ export default function CriarRotaModal({ open, onClose, routeData, onRotaCriada 
                         {/* Contexto Drag and Drop */}
                         <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
                             <SortableContext items={sortableItemsIds} strategy={verticalListSortingStrategy}>
-                                <List component={Paper} sx={{ maxHeight: 300, overflow: 'auto', border: '1px solid #ddd' }}>
+                                <List component={Paper} sx={{ maxHeight: 300, overflow: 'auto', border: '1px solid #ddd', opacity: isSaving ? 0.7 : 1 }}>
                                     {orderedDemandas.map((demanda, index) => (
                                         <Box key={demanda.id} sx={{ display: 'flex', alignItems: 'center', borderBottom: '1px solid #eee' }}>
                                             <Typography sx={{ p: 1, minWidth: '35px', textAlign: 'center', fontWeight: 'bold', color: 'primary.main' }}>
@@ -222,27 +261,25 @@ export default function CriarRotaModal({ open, onClose, routeData, onRotaCriada 
                     </Box>
 
                      {/* Coluna Direita: Mapa da Rota */}
-                    <Box sx={{ flex: 1, minHeight: 400, border: '1px solid #ccc', borderRadius: 1, overflow: 'hidden' }}>
-                        {/* Garante que o mapa só renderize se tiver dados */}
+                    <Box sx={{ flex: 1, minHeight: 400, border: '1px solid #ccc', borderRadius: 1, overflow: 'hidden', opacity: isSaving ? 0.7 : 1 }}>
                         {routeData && (
-                            // ***** INÍCIO DA CORREÇÃO 5: Passar o estado do caminho *****
                             <RouteMap
                                 demands={orderedDemandas}
-                                path={currentRoutePath} // <-- Passa o caminho que é atualizado ao arrastar
+                                path={currentRoutePath} 
                             />
-                            // ***** FIM DA CORREÇÃO 5 *****
                         )}
                     </Box>
                 </Box>
             </DialogContent>
             <DialogActions>
-                <Button onClick={onClose}>Cancelar</Button>
+                <Button onClick={onClose} disabled={isSaving}>Cancelar</Button>
                 <Button
                     onClick={handleCreateRoute}
                     variant="contained"
-                    disabled={!nomeRota.trim() || !responsavel || orderedDemandas.length === 0}
+                    // Desabilita se salvando ou se campos obrigatórios estão vazios
+                    disabled={isSaving || !nomeRota.trim() || !responsavel || orderedDemandas.length === 0}
                 >
-                    Salvar Rota
+                    {isSaving ? <CircularProgress size={24} color="inherit" /> : 'Salvar Rota'}
                 </Button>
             </DialogActions>
         </Dialog>
