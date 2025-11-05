@@ -24,108 +24,118 @@ import {
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import DragIndicatorIcon from '@mui/icons-material/DragIndicator';
-import { DemandaType } from "@/types/demanda"; // Certifique-se que o caminho está correto
+import { DemandaType } from "@/types/demanda"; 
+import dynamic from 'next/dynamic'; // Importar dynamic
 
-// Props atualizadas: onRotaCriada agora recebe o responsável
+// *** IMPORTAR O NOVO MAPA ***
+const RouteMap = dynamic(() => import('./RouteMap'), {
+    ssr: false,
+    loading: () => <Box sx={{ height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', backgroundColor: '#eee', color: '#777' }}>Carregando mapa da rota...</Box>
+});
+
+// Interface para os dados da rota (vinda da página)
+interface OptimizedRouteData {
+    optimizedDemands: DemandaType[];
+    routePath: [number, number][];
+    startPoint: { lat: number, lng: number };
+}
+
+// Props atualizadas
 interface CriarRotaModalProps {
     open: boolean;
     onClose: () => void;
-    demandasSelecionadas: DemandaType[];
+    routeData: OptimizedRouteData | null; // <-- Recebe os dados otimizados
     onRotaCriada: (nomeRota: string, responsavel: string) => void;
 }
 
-// Lista de exemplo para os responsáveis
+// Lista de exemplo para os responsáveis (mantida)
 const responsaveisExemplo = ['João Silva', 'Pedro Martins', 'Ana Costa', 'Mariana Dias'];
 
-// Função auxiliar para formatar endereço curto (ADICIONADA AQUI ou importada)
+// Função auxiliar para formatar endereço curto (mantida)
 const formatEnderecoCurto = (demanda: DemandaType): string => {
     const parts = [
         demanda.logradouro,
         demanda.numero ? `, ${demanda.numero}` : '',
         demanda.bairro ? ` - ${demanda.bairro}` : '',
-        // Poderia adicionar cidade/UF se quisesse
     ];
     return parts.filter(Boolean).join('').trim() || 'Endereço não informado';
 };
 
 
-// Componente para item arrastável na lista
+// Componente para item arrastável na lista (mantido)
 function SortableItem({ demanda }: { demanda: DemandaType }) {
-    // Correção: Adiciona '!' para garantir que demanda.id não é undefined
     const { attributes, listeners, setNodeRef, transform, transition } = useSortable({ id: demanda.id! });
     const style = { transform: CSS.Transform.toString(transform), transition };
 
     return (
         <ListItem ref={setNodeRef} style={style} {...attributes}>
-            <IconButton {...listeners} sx={{ cursor: 'grab' }} aria-label="arrastar ordem"> {/* Adicionado aria-label */}
+            <IconButton {...listeners} sx={{ cursor: 'grab' }} aria-label="arrastar ordem">
                 <DragIndicatorIcon />
             </IconButton>
-            {/* ***** CORREÇÃO AQUI ***** */}
-            {/* Exibe o id numérico e usa a função para formatar o endereço */}
             <ListItemText primary={`ID: ${demanda.id}`} secondary={formatEnderecoCurto(demanda)} />
         </ListItem>
     );
 }
 
 // Componente principal do Modal
-export default function CriarRotaModal({ open, onClose, demandasSelecionadas, onRotaCriada }: CriarRotaModalProps) {
+export default function CriarRotaModal({ open, onClose, routeData, onRotaCriada }: CriarRotaModalProps) {
     const [nomeRota, setNomeRota] = useState('');
     const [responsavel, setResponsavel] = useState('');
-    const [orderedDemandas, setOrderedDemandas] = useState<DemandaType[]>(demandasSelecionadas);
+    // Estado inicializa com as demandas já otimizadas
+    const [orderedDemandas, setOrderedDemandas] = useState<DemandaType[]>([]);
 
-    // Configuração dos sensores para o DndContext
     const sensors = useSensors(
         useSensor(PointerSensor),
         useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
     );
 
-    // Atualiza a lista ordenada quando as demandas selecionadas mudam ou o modal abre
+    // Atualiza a lista ordenada quando os dados da rota mudam (ao abrir o modal)
     useEffect(() => {
-        setOrderedDemandas(demandasSelecionadas);
-        // Reseta os campos quando o modal abre
-        if (open) {
+        if (open && routeData) {
+            
+            // ***** CORREÇÃO AQUI *****
+            // Garante que 'orderedDemandas' seja sempre um array,
+            // mesmo se 'routeData.optimizedDemands' for null ou undefined.
+            setOrderedDemandas(routeData.optimizedDemands || []); 
+            // ***** FIM DA CORREÇÃO *****
+
+            // Reseta os campos
             setNomeRota('');
             setResponsavel('');
+        } else if (!open) {
+             // Limpa ao fechar para não manter dados antigos
+             setOrderedDemandas([]);
         }
-    }, [demandasSelecionadas, open]);
+    }, [routeData, open]);
 
-    // Função para lidar com o fim do arraste (reordenar)
+    // Função para lidar com o fim do arraste (reordenar manualmente)
     function handleDragEnd(event: DragEndEvent) {
         const { active, over } = event;
         if (over && active.id !== over.id) {
             setOrderedDemandas((items) => {
-                // Encontra os índices antigo e novo baseados no ID (que é número)
                 const oldIndex = items.findIndex((item) => item.id === active.id);
                 const newIndex = items.findIndex((item) => item.id === over.id);
-                 // Verifica se os índices foram encontrados antes de mover
                  if (oldIndex === -1 || newIndex === -1) return items;
                 return arrayMove(items, oldIndex, newIndex);
             });
         }
     }
 
-    // Função para otimizar rota (ordem alfabética de endereço - agora usa logradouro)
-    const handleOtimizarRota = () => {
-        // Cria uma cópia ordenada
-        const sorted = [...orderedDemandas].sort((a, b) =>
-            (a.logradouro || '').localeCompare(b.logradouro || '') // Comparação de strings (logradouro)
-        );
-        setOrderedDemandas(sorted);
-    };
+    // --- Botão de Otimizar Rota foi REMOVIDO ---
 
-    // Função para criar a rota
+    // Função para criar a rota (mantida)
     const handleCreateRoute = () => {
         if (!nomeRota.trim() || !responsavel) {
             alert('Por favor, preencha o nome da rota e selecione um responsável.');
             return;
         }
-        // Chama a função passada por props com os dados da rota e a ordem atual das demandas
-        onRotaCriada(nomeRota, responsavel /*, orderedDemandas */); // Pode passar orderedDemandas se precisar da ordem
+        // A API de salvar a rota (a ser criada) receberia 'nomeRota', 'responsavel' e 'orderedDemandas'
+        onRotaCriada(nomeRota, responsavel /*, orderedDemandas */); 
         onClose(); // Fecha o modal
     };
 
     // Prepara os IDs para o SortableContext (garantindo que não sejam undefined)
-    const sortableItemsIds = orderedDemandas.map(d => d.id!);
+    const sortableItemsIds = orderedDemandas.map(d => d.id!); // Esta linha agora é segura
 
     return (
         <Dialog open={open} onClose={onClose} fullWidth maxWidth="md">
@@ -158,39 +168,48 @@ export default function CriarRotaModal({ open, onClose, demandasSelecionadas, on
                             </Select>
                         </FormControl>
 
-                        <Typography variant="h6" sx={{ mt: 2 }}>Ordem das Demandas</Typography>
+                        <Typography variant="h6" sx={{ mt: 2 }}>Ordem das Demandas (Otimizada)</Typography>
+                        <Typography variant="caption" sx={{ mt: -2, color: 'text.secondary' }}>
+                            A rota foi pré-otimizada. Você pode reordenar manualmente se necessário.
+                        </Typography>
+
 
                         {/* Contexto Drag and Drop */}
                         <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
-                            {/* Contexto para itens sorteáveis */}
                             <SortableContext items={sortableItemsIds} strategy={verticalListSortingStrategy}>
                                 <List component={Paper} sx={{ maxHeight: 300, overflow: 'auto', border: '1px solid #ddd' }}>
-                                    {orderedDemandas.map((demanda) => (
-                                        // Renderiza cada item sorteável
-                                        <SortableItem key={demanda.id} demanda={demanda} />
+                                    {orderedDemandas.map((demanda, index) => (
+                                        // Adiciona um prefixo visual de ordem
+                                        <Box key={demanda.id} sx={{ display: 'flex', alignItems: 'center', borderBottom: '1px solid #eee' }}>
+                                            <Typography sx={{ p: 1, minWidth: '35px', textAlign: 'center', fontWeight: 'bold', color: 'primary.main' }}>
+                                                {index + 1}.
+                                            </Typography>
+                                            <Box sx={{ flexGrow: 1 }}>
+                                                <SortableItem demanda={demanda} />
+                                            </Box>
+                                        </Box>
                                     ))}
                                     {orderedDemandas.length === 0 && (
                                         <ListItem>
-                                            <ListItemText secondary="Nenhuma demanda selecionada para esta rota." />
+                                            <ListItemText secondary="Nenhuma demanda selecionada." />
                                         </ListItem>
                                     )}
                                 </List>
                             </SortableContext>
                         </DndContext>
-                        <Button
-                            onClick={handleOtimizarRota}
-                            variant="outlined"
-                            sx={{ mt: 1 }}
-                            disabled={orderedDemandas.length < 2} // Desabilita se não houver pelo menos 2 itens para ordenar
-                        >
-                            Otimizar Rota (Ordem Alfabética de Logradouro) {/* Atualizado texto do botão */}
-                        </Button>
+                        
+                        {/* Botão de Otimizar REMOVIDO */}
                     </Box>
 
-                     {/* Coluna Direita: Placeholder do Mapa */}
-                    <Box sx={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', backgroundColor: '#f0f0f0', borderRadius: 1, minHeight: 300, border: '1px dashed #ccc' }}>
-                        <Typography color="textSecondary">Área do Mapa (Implementação Futura)</Typography>
-                        {/* Aqui entraria um componente de mapa mostrando os pontos ordenados */}
+                     {/* Coluna Direita: Mapa da Rota */}
+                    <Box sx={{ flex: 1, minHeight: 400, border: '1px solid #ccc', borderRadius: 1, overflow: 'hidden' }}>
+                        {/* Garante que o mapa só renderize se tiver dados */}
+                        {routeData && (
+                            <RouteMap
+                                demands={orderedDemandas} // Passa as demandas reordenáveis
+                                path={routeData.routePath || []}
+                            />
+                        )}
                     </Box>
                 </Box>
             </DialogContent>
@@ -199,10 +218,9 @@ export default function CriarRotaModal({ open, onClose, demandasSelecionadas, on
                 <Button
                     onClick={handleCreateRoute}
                     variant="contained"
-                    // Desabilita se nome ou responsável não estiverem preenchidos ou não houver demandas
                     disabled={!nomeRota.trim() || !responsavel || orderedDemandas.length === 0}
                 >
-                    Criar Rota
+                    Salvar Rota
                 </Button>
             </DialogActions>
         </Dialog>

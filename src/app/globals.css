@@ -1,3 +1,24 @@
+/* src/app/globals.css */
 @import "tailwindcss";
 
+/* Estilos para o marcador numerado 
+  Baseado no arquivo:
+*/
+.leaflet-div-icon {
+  background: transparent;
+  border: none;
+}
 
+.numbered-marker-icon {
+  background-color: #1976d2; /* Cor azul (padrão MUI) */
+  color: white;
+  font-weight: bold;
+  font-size: 12px;
+  line-height: 20px;
+  text-align: center;
+  border-radius: 50%;
+  width: 20px;
+  height: 20px;
+  border: 2px solid white;
+  box-shadow: 0 2px 5px rgba(0,0,0,0.5);
+}
