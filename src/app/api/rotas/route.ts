@@ -3,17 +3,62 @@ import { NextRequest, NextResponse } from 'next/server';
 import pool from '../../../lib/db';
 import { DemandaType } from '@/types/demanda';
 
-// Interface para os dados vindos do modal
+// Interface para os dados vindos do modal (do POST)
 interface RotaRequestBody {
     nome: string;
     responsavel: string;
     demandas: DemandaType[]; // Espera a lista de demandas ordenadas
 }
 
+
+// +++ INÍCIO DA NOVA FUNÇÃO GET +++
+export async function GET() {
+    console.log("[API /rotas] Recebido GET para listar rotas.");
+    
+    try {
+        const query = `
+            SELECT
+                r.id,
+                r.nome,
+                r.responsavel,
+                r.status,
+                r.data_rota,
+                r.created_at,
+                -- Contar o número de demandas associadas a cada rota
+                COUNT(rd.demanda_id) AS total_demandas
+            FROM
+                rotas r
+            LEFT JOIN
+                rotas_demandas rd ON r.id = rd.rota_id
+            GROUP BY
+                r.id
+            ORDER BY
+                r.created_at DESC;
+        `;
+
+        const result = await pool.query(query);
+
+        // Converte o total_demandas de string (do count) para número
+        const rotas = result.rows.map(rota => ({
+            ...rota,
+            total_demandas: parseInt(rota.total_demandas, 10) || 0
+        }));
+
+        return NextResponse.json(rotas, { status: 200 });
+
+    } catch (error) {
+        console.error('[API /rotas] Erro ao buscar rotas (GET):', error);
+        const errorMessage = error instanceof Error ? error.message : 'Erro desconhecido no servidor.';
+        return NextResponse.json({ message: 'Erro interno ao buscar rotas.', error: errorMessage }, { status: 500 });
+    }
+}
+// +++ FIM DA NOVA FUNÇÃO GET +++
+
+
+// --- Função POST (Criar Rota - Sem Alteração) ---
 export async function POST(request: NextRequest) {
     console.log('[API /rotas] Recebido POST para criar nova rota.');
     
-    // Obter um 'client' do pool para usar em uma transação
     const client = await pool.connect();
     
     try {
@@ -49,21 +94,18 @@ export async function POST(request: NextRequest) {
         const rotaId = rotaInsertResult.rows[0].id;
 
         // 2. Preparar as inserções na tabela 'rotas_demandas'
-        // Criamos uma query de inserção múltipla
         const demandaValues: any[] = [];
-        const queryParams: any[] = [rotaId]; // Começa com $1 = rotaId
+        const queryParams: any[] = [rotaId]; 
         
         demandas.forEach((demanda, index) => {
-            const ordem = index; // A ordem é o índice do array
+            const ordem = index; 
             const demandaId = demanda.id;
             
             if (demandaId === undefined) {
-                 // Se alguma demanda não tiver ID, cancela a transação
                 throw new Error('Uma das demandas na lista está sem ID.');
             }
             
-            // Ex: ($1, $2, $3), ($1, $4, $5), ...
-            const placeholderIndex = queryParams.length; // Posição inicial dos novos params
+            const placeholderIndex = queryParams.length; 
             demandaValues.push(`($1, $${placeholderIndex + 1}, $${placeholderIndex + 2})`);
             queryParams.push(demandaId, ordem);
         });
@@ -76,9 +118,6 @@ export async function POST(request: NextRequest) {
         // 3. Executar a inserção das demandas
         await client.query(demandaInsertQuery, queryParams);
         
-        // 4. (Opcional) Atualizar o status das demandas para "Em rota"
-        // TODO: Implementar se necessário (ex: UPDATE demandas SET id_status = ... WHERE id = ANY(...))
-
         // --- Fim da Transação ---
         await client.query('COMMIT');
         
@@ -90,20 +129,17 @@ export async function POST(request: NextRequest) {
         }, { status: 201 });
 
     } catch (error) {
-        // Se qualquer query falhar, reverte a transação
         await client.query('ROLLBACK');
         
         console.error('[API /rotas] Erro ao criar rota:', error);
         const errorMessage = error instanceof Error ? error.message : 'Erro desconhecido no servidor.';
         
-        // Tratar erro de violação de chave (ex: demanda já em outra rota)
         if (error instanceof Error && 'code' in error && error.code === '23505') {
             return NextResponse.json({ message: 'Erro: Uma ou mais demandas já pertencem a outra rota.', error: errorMessage }, { status: 409 });
         }
 
         return NextResponse.json({ message: 'Erro interno ao salvar a rota.', error: errorMessage }, { status: 500 });
     } finally {
-        // Libera o client de volta para o pool, independente de sucesso ou falha
         client.release();
     }
 }
