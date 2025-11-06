@@ -44,6 +44,7 @@ export async function GET(
     const demandas = await db.query(
       `SELECT 
          d.id, d.logradouro, d.numero, d.bairro, d.tipo_demanda, d.id_status,
+         d.descricao, -- <-- CORREÇÃO AQUI
          s.nome as status_nome, s.cor as status_cor,
          ST_AsGeoJSON(d.geom)::json as geom,
          dr.ordem
