@@ -1,17 +1,33 @@
-import { NextResponse } from 'next/server';
-// Correção da importação (que fizemos na etapa anterior)
-import db from '@/lib/db'; 
+// src/app/api/rotas/[id]/route.ts
+import { NextRequest, NextResponse } from 'next/server'; // <-- Import NextRequest
+import db from '@/lib/db';
 import { PoolClient } from 'pg';
+import { DemandaType, GeoJsonPoint } from '@/types/demanda'; // Import types
+
+// Interface for the row returned by the 'demandas' query
+interface DemandaRow extends DemandaType {
+  geom: GeoJsonPoint | null;
+  ordem: number;
+  status_nome: string;
+  status_cor: string;
+}
+
+// FIX 1: Define the correct context type
+type ExpectedContext = {
+    params: Promise<{ id: string }>;
+};
+
 
 // --- FUNÇÃO GET (Corrigida) ---
 export async function GET(
-  req: Request,
-  { params }: { params: { id: string } }
+  req: NextRequest, // <-- FIX 2: Use NextRequest
+  context: ExpectedContext // <-- FIX 3: Use ExpectedContext
 ) {
   try {
+    const params = await context.params; // <-- FIX 4: Await params
     const id = params.id;
 
-    // 1. Busca os detalhes da Rota (Isto estava correto)
+    // 1. Busca os detalhes da Rota
     const rota = await db.query(
       `SELECT 
          r.id, r.nome, r.responsavel, r.status, r.data_rota, r.created_at
@@ -24,14 +40,13 @@ export async function GET(
       return NextResponse.json({ error: 'Rota não encontrada' }, { status: 404 });
     }
 
-    // 2. Busca as Demandas da Rota (Corrigido)
+    // 2. Busca as Demandas da Rota
     const demandas = await db.query(
       `SELECT 
          d.id, d.logradouro, d.numero, d.bairro, d.tipo_demanda, d.id_status,
          s.nome as status_nome, s.cor as status_cor,
          ST_AsGeoJSON(d.geom)::json as geom,
          dr.ordem
-       -- **** CORREÇÃO 1 AQUI ****
        FROM rotas_demandas dr 
        JOIN demandas d ON dr.demanda_id = d.id
        LEFT JOIN demandas_status s ON d.id_status = s.id
@@ -40,15 +55,16 @@ export async function GET(
       [id]
     );
 
-    // 3. Lógica do OSRM (Isto estava correto)
+    // 3. Lógica do OSRM
     let geometry: string | null = null;
     if (demandas.rows.length > 1) {
       try {
+        // Use the DemandaRow interface
         const demandasComGeom = demandas.rows.filter(
-          (d: any) => d.geom && d.geom.coordinates
+          (d: DemandaRow) => d.geom && d.geom.coordinates
         );
         const coordinates = demandasComGeom
-          .map((d: any) => d.geom.coordinates.join(','))
+          .map((d: DemandaRow) => d.geom!.coordinates.join(','))
           .join(';');
         
         const osrmUrl = `http://osrm:5000/route/v1/driving/${coordinates}?overview=full`;
@@ -68,7 +84,7 @@ export async function GET(
       }
     }
     
-    // 4. Retorna a resposta (Isto estava correto)
+    // 4. Retorna a resposta
     return NextResponse.json({
       rota: rota.rows[0],
       demandas: demandas.rows,
@@ -81,13 +97,13 @@ export async function GET(
   }
 }
 
-// --- FUNÇÃO PUT (Atualizar Rota) ---
-// (Esta função não usa a tabela de junção, então está correta)
+// --- FUNÇÃO PUT (Corrigida) ---
 export async function PUT(
-  req: Request,
-  { params }: { params: { id: string } }
+  req: NextRequest, // <-- FIX 2
+  context: ExpectedContext // <-- FIX 3
 ) {
   try {
+    const params = await context.params; // <-- FIX 4
     const id = params.id;
     const body = await req.json();
     const { nome, responsavel, status, data_rota } = body;
@@ -113,16 +129,16 @@ export async function PUT(
 
 // --- FUNÇÃO DELETE (Corrigida) ---
 export async function DELETE(
-  req: Request,
-  { params }: { params: { id: string } }
+  req: NextRequest, // <-- FIX 2
+  context: ExpectedContext // <-- FIX 3
 ) {
   let client: PoolClient | null = null;
   try {
+    const params = await context.params; // <-- FIX 4
     const id = params.id;
     client = await db.connect();
     await client.query('BEGIN');
 
-    // **** CORREÇÃO 2 AQUI ****
     // 1. Deleta as associações em 'rotas_demandas'
     await client.query(
       `DELETE FROM rotas_demandas WHERE rota_id = $1`,

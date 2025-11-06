@@ -161,10 +161,7 @@ export default function DemandasPage() {
             prev.length === demandasFiltradas.length ? [] : demandasFiltradas.map(d => d.id!)
          );
     };
-    const demandasParaRota = useMemo(() => /* ... (código existente) ... */ 
-        demandas.filter(d => d.id !== undefined && selectedDemandas.includes(d.id)),
-        [demandas, selectedDemandas]
-    );
+
     const handleRotaCriada = (nomeRota: string, responsavel: string) => { /* ... (código existente) ... */ 
         console.log(`[PAGE] Rota "${nomeRota}" criada com responsável ${responsavel}`);
         setNomeNovaRota(nomeRota);

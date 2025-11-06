@@ -12,9 +12,6 @@ async function geocodeAddress(
   uf?: string | null
 ): Promise<[number, number] | null> {
     // ... (código da função geocodeAddress - copiado da sua API 'import') ...
-  const addressString = [numero, logradouro, cidade, uf]
-    .filter(Boolean)
-    .join(", "); 
   if (logradouro && numero && cidade && uf) {
     try {
       const apiBaseUrl = new URL(req.url).origin; 
@@ -95,7 +92,7 @@ function parseDate(dateInput: unknown): Date | null {
       if (date && !isNaN(date.getTime())) {
         return date;
       }
-    } catch (e) {}
+    } catch {}
   }
   return null;
 }

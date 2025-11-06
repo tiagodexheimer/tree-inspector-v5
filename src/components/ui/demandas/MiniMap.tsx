@@ -2,7 +2,7 @@
 'use client'; // Necessário para react-leaflet
 
 // 1. Importe o useMap e o React
-import { MapContainer, TileLayer, Marker, Popup, useMap } from 'react-leaflet';
+import { MapContainer, TileLayer, Marker, Popup } from 'react-leaflet';
 import 'leaflet/dist/leaflet.css';
 import L from 'leaflet'; // Importa a biblioteca Leaflet
 import React from 'react'; // Necessário para JSX

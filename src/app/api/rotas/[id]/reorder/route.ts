@@ -1,7 +1,6 @@
 // src/app/api/rotas/[id]/reorder/route.ts
 import { NextRequest, NextResponse } from 'next/server';
 import pool from '../../../../../lib/db';
-import { DemandaType } from '@/types/demanda';
 
 // Interface para os parâmetros da URL (Removida - não é mais necessária)
 // interface Params {
