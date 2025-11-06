@@ -1,21 +1,28 @@
 // src/app/api/rotas/optimize/route.ts
 import { NextRequest, NextResponse } from 'next/server';
 import pool from '../../../../lib/db';
-import { DemandaType, GeoJsonPoint } from '@/types/demanda'; // Importe GeoJsonPoint
+import { DemandaType, GeoJsonPoint } from '@/types/demanda';
 import { decode } from '@googlemaps/polyline-codec';
 
 const START_END_POINT_COORDS = { latitude: -29.8608, longitude: -51.1789 };
 const START_END_POINT_JSON = { lat: -29.8608, lng: -51.1789 };
 
+// --- MUDANÇA 1: ATUALIZAR O TIPO DO BODY ---
+// O body agora espera 'demandaIds' e uma 'userLocation' opcional
 interface OptimizeRequestBody {
     demandaIds: number[];
+    userLocation?: {
+        latitude: number;
+        longitude: number;
+    };
 }
+// ------------------------------------------
 
 interface RoutesApiResponse {
     routes: Array<{
-        optimizedIntermediateWaypointIndex: number[]; 
-        polyline: { 
-            encodedPolyline: string; 
+        optimizedIntermediateWaypointIndex: number[];
+        polyline: {
+            encodedPolyline: string;
         };
     }>;
     error?: {
@@ -27,7 +34,7 @@ interface RoutesApiResponse {
 interface DemandaWithCoords extends DemandaType {
     lat: number;
     lng: number;
-    geom: GeoJsonPoint | null; 
+    geom: GeoJsonPoint | null;
 }
 
 
@@ -41,18 +48,20 @@ export async function POST(request: NextRequest) {
     }
 
     try {
+        // --- MUDANÇA 2: LER O NOVO BODY ---
         const body: OptimizeRequestBody = await request.json();
-        const { demandaIds } = body;
+        const { demandaIds, userLocation } = body;
+        // ------------------------------------
 
         if (!demandaIds || demandaIds.length === 0) {
             return NextResponse.json({ message: 'Nenhum ID de demanda fornecido.' }, { status: 400 });
         }
 
-        // 1. Buscar coordenadas E O OBJETO GEOM
+        // 1. Buscar coordenadas
         const queryResult = await pool.query(
             `SELECT id, nome_solicitante, logradouro, numero, bairro, cidade, uf, cep, tipo_demanda, descricao, prazo, id_status,
-                    ST_Y(geom) as lat, ST_X(geom) as lng,
-                    ST_AsGeoJSON(geom) as geom
+                   ST_Y(geom) as lat, ST_X(geom) as lng,
+                   ST_AsGeoJSON(geom) as geom
              FROM demandas 
              WHERE id = ANY($1::int[])`,
             [demandaIds]
@@ -69,21 +78,31 @@ export async function POST(request: NextRequest) {
              return NextResponse.json({ message: 'Nenhuma das demandas selecionadas possui coordenadas para roteirizar.' }, { status: 400 });
         }
 
+        // --- MUDANÇA 3: LÓGICA DO PONTO DE PARTIDA ---
+        // Define o ponto de partida (origin) com base no que foi recebido
+        let originCoordinates = START_END_POINT_COORDS; // Padrão
+        
+        if (userLocation && userLocation.latitude && userLocation.longitude) {
+            console.log("[API /rotas/optimize] Usando localização do usuário como origem:", userLocation);
+            originCoordinates = { latitude: userLocation.latitude, longitude: userLocation.longitude };
+        } else {
+            console.log("[API /rotas/optimize] Localização do usuário não recebida. Usando PONTO PADRÃO como origem.");
+        }
+        // -----------------------------------------------
+
         // 2. Montar a requisição
         const newDirectionsUrl = 'https://routes.googleapis.com/directions/v2:computeRoutes';
         
-        // ***** CORREÇÃO AQUI: Ajustar o FieldMask *****
-        // Pedimos o objeto 'polyline' inteiro, e não seu sub-campo.
         const headers = {
             'Content-Type': 'application/json',
             'X-Goog-Api-Key': apiKey,
             'X-Goog-FieldMask': 'routes.optimizedIntermediateWaypointIndex,routes.polyline'
         };
-        // ***** FIM DA CORREÇÃO *****
 
+        // --- MUDANÇA 4: USAR A 'originCoordinates' DINÂMICA ---
         const requestBody = {
-            origin: { location: { latLng: START_END_POINT_COORDS } },
-            destination: { location: { latLng: START_END_POINT_COORDS } },
+            origin: { location: { latLng: originCoordinates } }, // <-- MODIFICADO
+            destination: { location: { latLng: START_END_POINT_COORDS } }, // Destino permanece a base
             intermediates: demandasComGeom.map(d => ({
                 location: {
                     latLng: { 
@@ -96,8 +115,9 @@ export async function POST(request: NextRequest) {
             routingPreference: 'TRAFFIC_AWARE',
             optimizeWaypointOrder: true
         };
+        // --------------------------------------------------------
 
-        console.log(`[API /rotas/optimize] Chamando NOVA Google Routes API (com FieldMask corrigido)...`);
+        console.log(`[API /rotas/optimize] Chamando NOVA Google Routes API...`);
         
         const directionsResponse = await fetch(newDirectionsUrl, {
             method: 'POST',
@@ -114,16 +134,15 @@ export async function POST(request: NextRequest) {
         }
         
         if (!data.routes || data.routes.length === 0) {
-             throw new Error(`Erro da API de Roteamento: Nenhuma rota retornada.`);
+            throw new Error(`Erro da API de Roteamento: Nenhuma rota retornada.`);
         }
         
         // 3. Processar a resposta
         const route = data.routes[0];
         
-        // A verificação permanece a mesma, pois 'polyline' conterá 'encodedPolyline'
         if (!route.optimizedIntermediateWaypointIndex || !route.polyline?.encodedPolyline) {
-             console.error('[API /rotas/optimize] Resposta da API não contém os campos esperados (polyline/index).', route);
-             throw new Error('Resposta da API de Roteamento está incompleta.');
+            console.error('[API /rotas/optimize] Resposta da API não contém os campos esperados (polyline/index).', route);
+            throw new Error('Resposta da API de Roteamento está incompleta.');
         }
 
         const optimizedOrder: number[] = route.optimizedIntermediateWaypointIndex;
@@ -137,11 +156,13 @@ export async function POST(request: NextRequest) {
 
         console.log(`[API /rotas/optimize] Rota otimizada com sucesso. Ordem:`, optimizedOrder.join(', '));
 
+        // --- MUDANÇA 5: RETORNAR O PONTO DE PARTIDA QUE FOI USADO ---
         return NextResponse.json({
             optimizedDemands: optimizedDemands, 
             routePath: routePath,             
-            startPoint: START_END_POINT_JSON 
+            startPoint: { lat: originCoordinates.latitude, lng: originCoordinates.longitude } // <-- MODIFICADO
         }, { status: 200 });
+        // -----------------------------------------------------------
 
     } catch (error) {
         console.error('[API /rotas/optimize] Erro inesperado:', error);
