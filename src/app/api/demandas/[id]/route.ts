@@ -47,14 +47,14 @@ export async function PUT(request: NextRequest, context: ExpectedContext) {
     } = body as UpdateDemandaBody & { coordinates?: [number, number] | null }; // <-- TIPO ATUALIZADO
 
     // Validação Mínima (igual ao POST)
-    if (!nome_solicitante || !cep || !numero || !tipo_demanda || !descricao) {
+    if (!cep || !numero || !tipo_demanda || !descricao) {
       console.log(
         "[API] Erro 400: Campos obrigatórios ausentes na atualização."
       );
       return NextResponse.json(
         {
           message:
-            "Campos obrigatórios ausentes: Nome, CEP, Número, Tipo e Descrição.",
+            "Campos obrigatórios ausentes: CEP, Número, Tipo e Descrição.",
         },
         { status: 400 }
       );
