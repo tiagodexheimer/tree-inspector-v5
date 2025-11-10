@@ -1,31 +1,54 @@
 // src/app/api/rotas/[id]/route.ts
-import { NextRequest, NextResponse } from 'next/server'; // <-- Import NextRequest
+import { NextRequest, NextResponse } from 'next/server'; 
 import db from '@/lib/db';
 import { PoolClient } from 'pg';
-import { DemandaType, GeoJsonPoint } from '@/types/demanda'; // Import types
+import { DemandaType, GeoJsonPoint } from '@/types/demanda'; 
 
-// Interface for the row returned by the 'demandas' query
+// --- NOVOS ADICIONAIS ---
+// Ponto de partida/chegada (igual ao optimize/route.ts)
+const START_END_POINT_COORDS = { latitude: -29.8608, longitude: -51.1789 };
+
+// Interface da API do Google (igual ao optimize/route.ts)
+interface RoutesApiResponse {
+    routes: Array<{
+        // Não vamos pedir 'optimizedIntermediateWaypointIndex' aqui
+        polyline: {
+            encodedPolyline: string;
+        };
+    }>;
+    error?: {
+        code: number;
+        message: string;
+        status: string;
+    };
+}
+// --- FIM DOS NOVOS ADICIONAIS ---
+
+
 interface DemandaRow extends DemandaType {
   geom: GeoJsonPoint | null;
   ordem: number;
   status_nome: string;
   status_cor: string;
+  // Adicionando lat/lng para facilitar
+  lat?: number;
+  lng?: number;
 }
 
-// FIX 1: Define the correct context type
 type ExpectedContext = {
     params: Promise<{ id: string }>;
 };
 
 
-// --- FUNÇÃO GET (Corrigida) ---
+// --- FUNÇÃO GET (Atualizada) ---
 export async function GET(
-  req: NextRequest, // <-- FIX 2: Use NextRequest
-  context: ExpectedContext // <-- FIX 3: Use ExpectedContext
+  req: NextRequest, 
+  context: ExpectedContext 
 ) {
   try {
-    const params = await context.params; // <-- FIX 4: Await params
+    const params = await context.params; 
     const id = params.id;
+    const apiKey = process.env.GOOGLE_MAPS_API_KEY; // <-- Precisamos da Chave
 
     // 1. Busca os detalhes da Rota
     const rota = await db.query(
@@ -40,56 +63,92 @@ export async function GET(
       return NextResponse.json({ error: 'Rota não encontrada' }, { status: 404 });
     }
 
-    // 2. Busca as Demandas da Rota
+    // 2. Busca as Demandas da Rota (e já extrai lat/lng)
     const demandas = await db.query(
       `SELECT 
          d.id, d.logradouro, d.numero, d.bairro, d.tipo_demanda, d.id_status,
-         d.descricao, -- <-- CORREÇÃO AQUI
+         d.descricao, 
          s.nome as status_nome, s.cor as status_cor,
          ST_AsGeoJSON(d.geom)::json as geom,
+         ST_Y(d.geom) as lat, ST_X(d.geom) as lng, -- <-- Extrai lat/lng
          dr.ordem
        FROM rotas_demandas dr 
        JOIN demandas d ON dr.demanda_id = d.id
        LEFT JOIN demandas_status s ON d.id_status = s.id
        WHERE dr.rota_id = $1
-       ORDER BY dr.ordem ASC`,
+       ORDER BY dr.ordem ASC`, // <-- A ORDEM JÁ VEM CORRETA
       [id]
     );
 
-    // 3. Lógica do OSRM
-    let geometry: string | null = null;
-    if (demandas.rows.length > 1) {
-      try {
-        // Use the DemandaRow interface
-        const demandasComGeom = demandas.rows.filter(
-          (d: DemandaRow) => d.geom && d.geom.coordinates
-        );
-        const coordinates = demandasComGeom
-          .map((d: DemandaRow) => d.geom!.coordinates.join(','))
-          .join(';');
-        
-        const osrmUrl = `http://osrm:5000/route/v1/driving/${coordinates}?overview=full`;
-        console.log(`[Rota ID: ${id}] Chamando OSRM: ${osrmUrl}`);
-        const osrmResponse = await fetch(osrmUrl);
+    // Converte geom de string para JSON
+    const demandasFormatadas: DemandaRow[] = demandas.rows.map((row: DemandaRow) => ({
+      ...row,
+      geom: row.geom ? (typeof row.geom === 'string' ? JSON.parse(row.geom) : row.geom) : null
+    }));
 
-        if (osrmResponse.ok) {
-          const osrmData = await osrmResponse.json();
-          if (osrmData && osrmData.routes && osrmData.routes.length > 0) {
-            geometry = osrmData.routes[0].geometry;
-          }
+
+    // 3. Lógica do Google Maps (Substituindo OSRM)
+    let encodedPolyline: string | null = null;
+    const demandasComGeom = demandasFormatadas.filter(
+      (d: DemandaRow) => d.lat && d.lng && d.geom
+    );
+
+    if (demandasComGeom.length > 0 && apiKey) {
+      try {
+        const newDirectionsUrl = 'https://routes.googleapis.com/directions/v2:computeRoutes';
+        const headers = {
+            'Content-Type': 'application/json',
+            'X-Goog-Api-Key': apiKey,
+            // Pedimos apenas a polilinha
+            'X-Goog-FieldMask': 'routes.polyline' 
+        };
+
+        const requestBody = {
+            origin: { location: { latLng: START_END_POINT_COORDS } },
+            destination: { location: { latLng: START_END_POINT_COORDS } },
+            intermediates: demandasComGeom.map(d => ({
+                location: {
+                    latLng: { 
+                        latitude: d.lat,
+                        longitude: d.lng 
+                    }
+                }
+            })),
+            travelMode: 'DRIVE',
+            routingPreference: 'TRAFFIC_AWARE',
+            optimizeWaypointOrder: false // <-- IMPORTANTE: Não otimizar, usar a ordem fornecida
+        };
+
+        console.log(`[Rota ID: ${id}] Chamando Google Routes API (sem otimização)...`);
+        const directionsResponse = await fetch(newDirectionsUrl, {
+            method: 'POST',
+            headers: headers,
+            body: JSON.stringify(requestBody)
+        });
+        
+        const data: RoutesApiResponse = await directionsResponse.json();
+
+        if (!directionsResponse.ok || data.error) {
+           console.error(`[Rota ID: ${id}] Erro do Google Routes API:`, data.error);
+        } else if (data.routes && data.routes.length > 0 && data.routes[0].polyline) {
+           encodedPolyline = data.routes[0].polyline.encodedPolyline;
+           console.log(`[Rota ID: ${id}] Polilinha da rota obtida com sucesso.`);
         } else {
-          console.error(`[Rota ID: ${id}] Falha na chamada OSRM: ${osrmResponse.statusText}`);
+           console.warn(`[Rota ID: ${id}] Google API OK, mas sem polilinha.`, data);
         }
-      } catch (osrmError) {
-        console.error(`[Rota ID: ${id}] Erro interno ao chamar OSRM:`, osrmError);
+      
+      } catch (googleError) {
+        console.error(`[Rota ID: ${id}] Erro interno ao chamar Google API:`, googleError);
       }
+    } else if (!apiKey) {
+         console.warn(`[Rota ID: ${id}] GOOGLE_MAPS_API_KEY não configurada. Pulando busca de rota.`);
     }
     
-    // 4. Retorna a resposta
+    // 4. Retorna a resposta (agora com encodedPolyline)
     return NextResponse.json({
       rota: rota.rows[0],
-      demandas: demandas.rows,
-      geometry: geometry,
+      demandas: demandasFormatadas, // Envia as demandas já formatadas
+      encodedPolyline: encodedPolyline, // <-- Envia a polilinha
     });
 
   } catch (error) {
@@ -100,11 +159,11 @@ export async function GET(
 
 // --- FUNÇÃO PUT (Corrigida) ---
 export async function PUT(
-  req: NextRequest, // <-- FIX 2
-  context: ExpectedContext // <-- FIX 3
+  req: NextRequest, 
+  context: ExpectedContext 
 ) {
   try {
-    const params = await context.params; // <-- FIX 4
+    const params = await context.params; 
     const id = params.id;
     const body = await req.json();
     const { nome, responsavel, status, data_rota } = body;
@@ -130,12 +189,12 @@ export async function PUT(
 
 // --- FUNÇÃO DELETE (Corrigida) ---
 export async function DELETE(
-  req: NextRequest, // <-- FIX 2
-  context: ExpectedContext // <-- FIX 3
+  req: NextRequest, 
+  context: ExpectedContext 
 ) {
   let client: PoolClient | null = null;
   try {
-    const params = await context.params; // <-- FIX 4
+    const params = await context.params; 
     const id = params.id;
     client = await db.connect();
     await client.query('BEGIN');

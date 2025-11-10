@@ -1,13 +1,11 @@
 // src/app/rotas/[id]/page.tsx
 'use client';
 
-// useCallback foi mantido para corrigir o aviso do useEffect
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { useParams } from 'next/navigation'; 
 import {
     Box, Typography, CircularProgress, Alert, Button, Paper,
     Chip, Snackbar 
-    // Grid foi removido das importações
 } from '@mui/material';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import SaveIcon from '@mui/icons-material/Save'; 
@@ -19,18 +17,19 @@ import { DemandaType } from '@/types/demanda';
 import DetalheRotaLista from '@/components/ui/rotas/DetalheRotaLista';
 import { format } from 'date-fns';
 import {
-    // DndContext, // Não são usados diretamente aqui
-    // closestCenter, // Não são usados diretamente aqui
+    // *** IMPORTS DO DND-KIT ***
     KeyboardSensor,
     PointerSensor,
     useSensor,
-    useSensors,
+    useSensors, // Importado
     DragEndEvent
 } from '@dnd-kit/core';
 import {
     arrayMove,
     sortableKeyboardCoordinates,
 } from '@dnd-kit/sortable';
+// Importar o Decode
+import { decode } from '@googlemaps/polyline-codec'; 
 
 
 const RouteMap = dynamic(() => import('@/components/ui/demandas/RouteMap'), {
@@ -40,7 +39,7 @@ const RouteMap = dynamic(() => import('@/components/ui/demandas/RouteMap'), {
 
 const START_END_POINT: [number, number] = [-29.8608, -51.1789]; 
 
-// Interfaces (sem alteração)
+// Interfaces
 interface Rota {
     id: number;
     nome: string;
@@ -53,6 +52,12 @@ export interface DemandaComOrdem extends DemandaType {
     status_nome: string;
     status_cor: string;
 }
+interface RotaDetalhesResponse {
+  rota: Rota;
+  demandas: DemandaComOrdem[];
+  encodedPolyline: string | null; 
+}
+
 
 export default function PaginaDetalheRota() {
     const params = useParams(); 
@@ -63,7 +68,10 @@ export default function PaginaDetalheRota() {
     const [isLoading, setIsLoading] = useState<boolean>(true);
     const [error, setError] = useState<string | null>(null);
     
+    const [apiPolyline, setApiPolyline] = useState<string | null>(null);
+    const [originalApiPolyline, setOriginalApiPolyline] = useState<string | null>(null);
     const [originalDemandas, setOriginalDemandas] = useState<DemandaComOrdem[]>([]);
+    
     const [isSaving, setIsSaving] = useState(false);
     const [saveSuccess, setSaveSuccess] = useState(false);
     const [saveError, setSaveError] = useState<string | null>(null);
@@ -76,7 +84,7 @@ export default function PaginaDetalheRota() {
     }, [demandas, originalDemandas]);
 
 
-    // Função de busca (com useCallback para corrigir o warning do useEffect)
+    // Função de busca
     const fetchRotaDetalhes = useCallback(async () => {
         if (!id) return;
         setIsLoading(true);
@@ -87,10 +95,14 @@ export default function PaginaDetalheRota() {
                 const errorData = await response.json().catch(() => ({}));
                 throw new Error(errorData.message || `Erro HTTP ${response.status}`);
             }
-            const data: { rota: Rota; demandas: DemandaComOrdem[] } = await response.json();
+            const data: RotaDetalhesResponse = await response.json();
+            
             setRota(data.rota);
             setDemandas(data.demandas);
             setOriginalDemandas(data.demandas); 
+            setApiPolyline(data.encodedPolyline);
+            setOriginalApiPolyline(data.encodedPolyline); 
+            
         } catch (err) {
             console.error(`[PAGE /rotas/${id}] Falha ao buscar detalhes:`, err);
             setError(err instanceof Error ? err.message : 'Erro desconhecido.');
@@ -103,10 +115,17 @@ export default function PaginaDetalheRota() {
         if (id) {
             fetchRotaDetalhes();
         }
-    }, [id, fetchRotaDetalhes]); // Adicionado fetchRotaDetalhes
+    }, [id, fetchRotaDetalhes]); 
 
-    // Recalcula o caminho do mapa (sem alteração)
+    // Recalcula o caminho do mapa
     const routePath = useMemo(() => {
+        if (apiPolyline && !hasChanges) {
+            try {
+                return decode(apiPolyline); 
+            } catch (e) {
+                console.error("Erro ao decodificar polyline da API:", e);
+            }
+        }
         if (demandas.length === 0) return [];
         const path: [number, number][] = [
             START_END_POINT,
@@ -118,12 +137,12 @@ export default function PaginaDetalheRota() {
             START_END_POINT
         ];
         return path;
-    }, [demandas]); 
+    }, [demandas, apiPolyline, hasChanges]); 
 
     
-    // --- (Funções Dnd, Save, Cancel, Export - permanecem iguais) ---
+    // --- (Funções Dnd, Save, Cancel, Export) ---
 
-    // Lógica DndKit
+    // Definir a constante 'sensors'
     const sensors = useSensors(
         useSensor(PointerSensor),
         useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
@@ -132,6 +151,7 @@ export default function PaginaDetalheRota() {
     function handleDragEnd(event: DragEndEvent) {
         const { active, over } = event;
         if (over && active.id !== over.id) {
+            setApiPolyline(null); // Limpa a polyline para usar linhas retas
             setDemandas((items) => {
                 const oldIndex = items.findIndex((item) => item.id === active.id);
                 const newIndex = items.findIndex((item) => item.id === over.id);
@@ -146,6 +166,7 @@ export default function PaginaDetalheRota() {
     // Função para Remover Demanda (localmente)
     const handleRemoveDemanda = (demandaIdToRemove: number) => {
         console.log("Removendo demanda ID:", demandaIdToRemove);
+        setApiPolyline(null); // Limpa a polyline
         setDemandas(prev => prev.filter(d => d.id !== demandaIdToRemove));
         setSaveError(null);
         setSaveSuccess(false);
@@ -153,7 +174,8 @@ export default function PaginaDetalheRota() {
 
     // Função para Cancelar Alterações
     const handleCancelChanges = () => {
-        setDemandas(originalDemandas); // Reseta para a ordem original
+        setDemandas(originalDemandas); 
+        setApiPolyline(originalApiPolyline); // Restaura polyline original
         setSaveError(null);
         setSaveSuccess(false);
     };
@@ -179,8 +201,9 @@ export default function PaginaDetalheRota() {
                 throw new Error(result.message || `Erro ${response.status} ao salvar.`);
             }
 
-            setOriginalDemandas([...demandas]); 
             setSaveSuccess(true); 
+            // Re-busca os dados para pegar a nova polyline oficial
+            await fetchRotaDetalhes(); 
 
         } catch (err) {
              console.error(`[PAGE /rotas/${id}] Falha ao salvar ordem:`, err);
@@ -194,7 +217,7 @@ export default function PaginaDetalheRota() {
     const handleExport = async () => {
         if (!rota) return;
         setIsExporting(true);
-        setSaveError(null); // Limpa outros erros
+        setSaveError(null); 
 
         try {
             const response = await fetch(`/api/rotas/${id}/export`);
@@ -272,7 +295,7 @@ export default function PaginaDetalheRota() {
 
     return (
         <Box sx={{ p: { xs: 1, md: 3 } }}>
-            {/* Cabeçalho da Página (sem alteração) */}
+            {/* Cabeçalho da Página */}
             <Box sx={{ display: 'flex', alignItems: 'center', mb: 2, flexWrap: 'wrap', gap: 1 }}>
                 <Button
                     component={Link}
@@ -330,24 +353,20 @@ export default function PaginaDetalheRota() {
                 </Button>
             </Box>
 
-            {/* Alerta de Erro de Salvamento (sem alteração) */}
+            {/* Alerta de Erro de Salvamento */}
             {saveError && <Alert severity="error" sx={{ mb: 2 }}>{saveError}</Alert>}
 
-            {/* ***** INÍCIO DA SUBSTITUIÇÃO DO GRID ***** */}
-            {/* Informações da Rota (Substituído Grid por Flexbox) */}
+            {/* Informações da Rota */}
             <Paper elevation={0} sx={{ p: 2, mb: 3, backgroundColor: '#f9f9f9', borderRadius: 2 }}>
                  <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 2 }}>
-                    {/* Item 1: Responsável */}
                     <Box sx={{ flexGrow: 1, flexBasis: { xs: '100%', sm: '30%' }, minWidth: '200px' }}>
                         <Typography variant="body2" color="text.secondary">Responsável</Typography>
                         <Typography variant="body1" sx={{ fontWeight: 500 }}>{rota.responsavel || 'N/A'}</Typography>
                     </Box>
-                    {/* Item 2: Status */}
                     <Box sx={{ flexGrow: 1, flexBasis: { xs: '45%', sm: '30%' }, minWidth: '150px' }}>
                         <Typography variant="body2" color="text.secondary">Status</Typography>
                         <Chip label={rota.status} color={statusColor} size="small" sx={{ fontWeight: 'bold' }} />
                     </Box>
-                    {/* Item 3: Criada em */}
                     <Box sx={{ flexGrow: 1, flexBasis: { xs: '45%', sm: '30%' }, minWidth: '200px' }}>
                         <Typography variant="body2" color="text.secondary">Criada em</Typography>
                         <Typography variant="body1" sx={{ fontWeight: 500 }}>
@@ -357,7 +376,7 @@ export default function PaginaDetalheRota() {
                 </Box>
             </Paper>
 
-            {/* Layout Dividido (Substituído Grid por Flexbox) */}
+            {/* Layout Dividido */}
             <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 3 }}>
                 {/* Coluna da Esquerda (Lista) */}
                 <Box sx={{ flexGrow: 1, flexBasis: { xs: '100%', md: '40%' }, minWidth: '300px' }}>
@@ -366,7 +385,7 @@ export default function PaginaDetalheRota() {
                     </Typography>
                     <DetalheRotaLista 
                         demandas={demandas} 
-                        sensors={sensors}
+                        sensors={sensors} 
                         onDragEnd={handleDragEnd}
                         disabled={isSaving || isExporting}
                         onRemove={handleRemoveDemanda}
@@ -385,10 +404,9 @@ export default function PaginaDetalheRota() {
                     </Box>
                 </Box>
             </Box>
-            {/* ***** FIM DA SUBSTITUIÇÃO DO GRID ***** */}
 
 
-            {/* Snackbar de Sucesso (sem alteração) */}
+            {/* Snackbar de Sucesso */}
             <Snackbar
                 open={saveSuccess}
                 autoHideDuration={4000}

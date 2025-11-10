@@ -5,7 +5,7 @@ import { DemandaType, GeoJsonPoint } from '@/types/demanda';
 import { decode } from '@googlemaps/polyline-codec';
 
 const START_END_POINT_COORDS = { latitude: -29.8608, longitude: -51.1789 };
-const START_END_POINT_JSON = { lat: -29.8608, lng: -51.1789 };
+// A linha 'START_END_POINT_JSON' foi removida daqui
 
 // --- MUDANÇA 1: ATUALIZAR O TIPO DO BODY ---
 // O body agora espera 'demandaIds' e uma 'userLocation' opcional
