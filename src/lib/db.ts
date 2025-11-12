@@ -1,60 +1,46 @@
-// src/lib/db.ts
 import { Pool } from 'pg';
 
+// 1. Declare o pool na 'globalThis' para sobreviver ao hot-reload
 declare global {
-  var pool: Pool | undefined;
+  var pgPool: Pool | undefined;
 }
 
-// --- CORREÇÃO (Linha 7) ---
-// Removemos a declaração 'let pool: Pool;' daqui.
-// pool será definido com 'const' abaixo.
-let connectionString: string | undefined;
+// 2. Função separada para obter a string de conexão
+function getConnectionString() {
+  let connectionString = process.env.POSTGRES_URL;
 
-// 1. Tenta pegar a URL de produção primeiro (ex: Vercel, Neon)
-connectionString = process.env.POSTGRES_URL;
+  if (!connectionString) {
+    const user = process.env.DB_USER;
+    const password = process.env.DB_PASSWORD;
+    const host = process.env.DB_HOST; 
+    const port = parseInt(process.env.DB_PORT || '5432', 10);
+    const database = process.env.DB_DATABASE;
 
-// 2. Se não existir, tenta construir a partir das variáveis de dev (docker-compose)
-if (!connectionString) {
-  console.log('API: POSTGRES_URL não encontrada. Tentando construir com variáveis locais...');
-  
-  const user = process.env.DB_USER;
-  const password = process.env.DB_PASSWORD;
-  const host = process.env.DB_HOST;
-  const port = parseInt(process.env.DB_PORT || '5432', 10);
-  const database = process.env.DB_DATABASE;
-
-  // Verifica se as variáveis locais existem
-  if (user && password && host && port && database) {
-    // Para o 'npm run build', o host deve ser 'localhost', não 'db'
-    // pois o build não está rodando dentro do Docker.
-    const buildHost = (host === 'db' && process.env.NODE_ENV === 'production') ? 'localhost' : host;
-    
-    connectionString = `postgresql://${user}:${password}@${buildHost}:${port}/${database}`;
-    console.log('API: String de conexão local construída com sucesso.');
-  } else {
-    console.log('API: Variáveis de banco de dados locais (DB_USER, etc.) também não foram encontradas.');
+    if (user && password && host && port && database) {
+      // Se o host for 'db' (de docker-compose), o servidor Next.js
+      // (rodando localmente) deve se conectar a 'localhost'.
+      const effectiveHost = (host === 'db') ? 'localhost' : host;
+      connectionString = `postgresql://${user}:${password}@${effectiveHost}:${port}/${database}`;
+    } else {
+      throw new Error("Não foi possível construir a string de conexão. Verifique as variáveis de ambiente.");
+    }
   }
-} else {
-  console.log('API: Usando POSTGRES_URL (ambiente de produção).');
+  return connectionString;
 }
 
-// 3. Agora, verifica se TEMOS uma string de conexão (de qualquer fonte)
-if (!connectionString) {
-  // Se ainda não temos uma string, o build deve falhar.
-  throw new Error("Não foi possível conectar ao banco de dados. Configure POSTGRES_URL (para produção) ou as variáveis DB_ (para desenvolvimento).");
-}
-
-// 4. Cria o pool (Singleton)
-if (!global.pool) {
-  console.log('API: Criando novo pool de conexão...');
-  global.pool = new Pool({
-    connectionString: connectionString,
+// 3. Cria o pool (Singleton)
+// Só executa esta lógica se o pool NÃO estiver no cache global
+if (!globalThis.pgPool) {
+  console.log('API: Pool de conexão (Singleton) não encontrado. Criando NOVO pool...');
+  const connString = getConnectionString();
+  console.log(`API: Conectando com: ${connString.replace(/:([^:]+)@/, ':****@')}`);
+  
+  globalThis.pgPool = new Pool({
+    connectionString: connString,
   });
 }
 
-// --- CORREÇÃO (Linha 54) ---
-// Declaramos 'pool' com 'const' e atribuímos o valor de uma vez.
-const pool: Pool = global.pool;
+// 4. Exporta o pool que está no 'globalThis'
+const pool: Pool = globalThis.pgPool;
 
-// Exporta o pool configurado
 export default pool;

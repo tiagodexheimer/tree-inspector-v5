@@ -1,89 +1,110 @@
 // src/app/api/auth/[...nextauth]/route.ts
-import NextAuth from "next-auth";
+
+import { NextAuthOptions } from "next-auth";
+import NextAuth from "next-auth/next";
 import CredentialsProvider from "next-auth/providers/credentials";
-import PgAdapter from "@auth/pg-adapter";
-import pool from "@/lib/db"; 
-import bcrypt from "bcryptjs"; 
-import { AuthOptions } from "next-auth";
-import { Adapter } from "next-auth/adapters"; // +++ IMPORTE O TIPO 'Adapter' +++
+import { compare } from "bcryptjs"; // Para comparação de hash
+import pool from "@/lib/db"; // O cliente de banco de dados pg.Pool
 
-export const authOptions: AuthOptions = {
-  // 1. Adaptador para o seu banco de dados Postgre
-  //    vvv ADICIONE "as Adapter" AQUI vvv
-  adapter: PgAdapter(pool) as Adapter,
-
-  // 2. Provedores (aqui usamos Email/Senha)
+// ----------------------------------------------------
+// DEFINIÇÃO DAS OPÇÕES DE AUTENTICAÇÃO
+// ----------------------------------------------------
+export const authOptions: NextAuthOptions = {
+  // 1. PROVEDORES (Credentials)
   providers: [
     CredentialsProvider({
-      name: "Credentials",
+      name: "credentials",
       credentials: {
-        email: { label: "Email", type: "text" },
-        password: { label: "Password", type: "password" },
+        email: { label: "E-mail", type: "email" },
+        password: { label: "Senha", type: "password" },
       },
       async authorize(credentials) {
-        if (!credentials?.email || !credentials.password) {
-          return null;
+        if (!credentials?.email || !credentials?.password) {
+          return null; // Credenciais incompletas
         }
 
-        // Encontra o usuário no banco
-        const result = await pool.query("SELECT * FROM users WHERE email = $1", [
-          credentials.email,
-        ]);
-        const user = result.rows[0];
+        // --- CORREÇÃO DO ERRO 401: Aplicar trim() ---
+        const emailToSearch = credentials.email.trim();
 
-        if (!user) {
+        try {
+          // 2. Busca o usuário no banco de dados
+          const userResult = await pool.query(
+            "SELECT id, name, email, password, role FROM users WHERE email = $1",
+            [emailToSearch] // Usa o email limpo
+          );
+          const user = userResult.rows[0];
+
+          if (!user || !user.password) {
+            // Usuário não encontrado ou sem senha hasheada
+            console.log("LOGIN FALHA: Usuário não encontrado ou senha nula.");
+            return null;
+          }
+
+          // 3. Compara a senha digitada com a senha hasheada do banco
+          const passwordIsValid = await compare(
+            credentials.password,
+            user.password
+          );
+
+          if (!passwordIsValid) {
+            console.log("LOGIN FALHA: Senha incorreta.");
+            return null;
+          }
+          
+          console.log(`LOGIN SUCESSO: Usuário ${user.email} logado.`);
+
+          // 4. Retorna o objeto do usuário (sem a senha) em caso de sucesso
+          return {
+            id: user.id,
+            name: user.name,
+            email: user.email,
+            role: user.role, // Inclui a role para os callbacks
+          };
+        } catch (error) {
+          console.error("Erro na autorização:", error);
           return null;
         }
-
-        // Verifica a senha
-        const isValidPassword = await bcrypt.compare(
-          credentials.password,
-          user.hashed_password
-        );
-
-        if (!isValidPassword) {
-          return null;
-        }
-
-        // Retorna o objeto do usuário (sem a senha)
-        return {
-          id: user.id,
-          name: user.name,
-          email: user.email,
-          role: user.role, // Importante para a Fase 3
-        };
       },
     }),
   ],
 
-  // 3. Estratégia de Sessão
+  // 2. CONFIGURAÇÃO DE SESSÃO
   session: {
-    strategy: "jwt",
+    strategy: "jwt", // Usa JWT para a sessão (ideal para APIs)
   },
 
-  // 4. Callbacks para adicionar dados ao JWT e à Sessão
+  // 3. CALLBACKS (Para injetar a role no JWT e na Sessão)
   callbacks: {
-    // Adiciona o 'role' e 'id' ao token JWT
+    // Injeta a 'role' no JWT
     async jwt({ token, user }) {
       if (user) {
-        token.id = user.id;
-        token.role = user.role; // Remove 'as any'
+        token.role = user.role; // Pega a role do objeto retornado em 'authorize'
       }
       return token;
     },
-    // Adiciona o 'role' e 'id' à sessão (para uso no frontend)
+    // Injeta a 'role' na Sessão
     async session({ session, token }) {
-      if (session.user) {
-        session.user.id = token.id;
-        session.user.role = token.role; // Remove 'as any'
+      if (token) {
+        session.user.role = token.role; // Pega a role do JWT
       }
       return session;
     },
   },
-
-  // 5. Chave secreta
+  
+  // 4. CHAVE SECRETA
   secret: process.env.NEXTAUTH_SECRET,
+
+  // 5. PÁGINAS CUSTOMIZADAS
+  pages: {
+    signIn: '/login', // Redireciona usuários não autenticados para a página de login
+  },
 };
 
+
+// ----------------------------------------------------
+// EXPORTAÇÃO DO HANDLER DE ROTAS
+// ----------------------------------------------------
+
 const handler = NextAuth(authOptions);
+
 export { handler as GET, handler as POST };

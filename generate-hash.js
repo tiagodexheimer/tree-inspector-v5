@@ -3,7 +3,7 @@ const bcrypt = require('bcryptjs'); // <-- USA 'bcryptjs'
 
 // ------------------------------------
 // 1. Coloque a senha simples que você VAI USAR no login
-const suaSenhaSimples = "1234"; 
+const suaSenhaSimples = "ud83sie9"; 
 // ------------------------------------
 
 const saltRounds = 10;

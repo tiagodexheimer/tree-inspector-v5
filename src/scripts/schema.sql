@@ -1,16 +1,17 @@
 -- scripts/schema.sql
 
--- Habilita a extensão PostGIS, essencial para suas demandas
+-- Habilita as extensões necessárias
 CREATE EXTENSION IF NOT EXISTS postgis;
+CREATE EXTENSION IF NOT EXISTS "pgcrypto"; -- Adicionado para gerar UUIDs
 
--- Tabela para os Status das Demandas (Ex: Pendente, Concluído)
+-- Tabela para os Status das Demandas
 CREATE TABLE IF NOT EXISTS demandas_status (
     id SERIAL PRIMARY KEY,
     nome TEXT UNIQUE NOT NULL,
     cor TEXT NOT NULL DEFAULT '#808080'
 );
 
--- Tabela para os Tipos de Demandas (Ex: Poda, Avaliação)
+-- Tabela para os Tipos de Demandas
 CREATE TABLE IF NOT EXISTS demandas_tipos (
     id SERIAL PRIMARY KEY,
     nome TEXT UNIQUE NOT NULL
@@ -30,19 +31,10 @@ CREATE TABLE IF NOT EXISTS demandas (
     bairro TEXT,
     cidade TEXT,
     uf VARCHAR(2),
-    
-    -- Este campo é uma string que referencia 'demandas_tipos.nome'.
-    -- Recomendo fortemente refatorar isso para um Integer (id_tipo) no futuro.
     tipo_demanda TEXT NOT NULL, 
-    
-    descricao TEXT NOT NULL,
-    
-    -- Chave estrangeira para a tabela de status
+    descricao TEXT NOT NULL, 
     id_status INT REFERENCES demandas_status(id) ON DELETE SET NULL,
-    
-    -- Armazena a geolocalização (Longitude, Latitude)
     geom GEOMETRY(Point, 4326),
-    
     prazo DATE,
     created_at TIMESTAMPTZ DEFAULT NOW(),
     updated_at TIMESTAMPTZ DEFAULT NOW()
@@ -63,12 +55,52 @@ CREATE TABLE IF NOT EXISTS rotas_demandas (
     rota_id INT NOT NULL REFERENCES rotas(id) ON DELETE CASCADE,
     demanda_id INT NOT NULL REFERENCES demandas(id) ON DELETE CASCADE,
     ordem INT,
-    
-    -- Chave primária composta
     PRIMARY KEY (rota_id, demanda_id),
-    
-    -- Garante que uma demanda só pode estar em uma rota
     UNIQUE(demanda_id) 
+);
+
+-- ===================================================================
+--  INÍCIO DA CORREÇÃO: TABELA DE USUÁRIOS FALTANTE
+-- ===================================================================
+
+-- Tabela de Usuários (Padrão NextAuth)
+CREATE TABLE IF NOT EXISTS users (
+    id TEXT PRIMARY KEY DEFAULT gen_random_uuid(),
+    name TEXT,
+    email TEXT UNIQUE,
+    email_verified TIMESTAMPTZ,
+    image TEXT,
+    password TEXT, -- Usado pelo provedor "credentials"
+    role TEXT NOT NULL DEFAULT 'user' -- Campo customizado para permissões
+);
+
+-- ===================================================================
+--  FIM DA CORREÇÃO
+-- ===================================================================
+
+-- Tabela de Sessões (Corrigida)
+CREATE TABLE IF NOT EXISTS sessions (
+    id TEXT PRIMARY KEY,
+    session_token TEXT UNIQUE NOT NULL,
+    user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    expires TIMESTAMPTZ NOT NULL
+);
+
+-- Tabela de Contas (Corrigida)
+CREATE TABLE IF NOT EXISTS accounts (
+    id SERIAL PRIMARY KEY,
+    user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    type TEXT NOT NULL,
+    provider TEXT NOT NULL,
+    provider_account_id TEXT NOT NULL,
+    refresh_token TEXT,
+    access_token TEXT,
+    expires_at BIGINT,
+    token_type TEXT,
+    scope TEXT,
+    id_token TEXT,
+    session_state TEXT,
+    UNIQUE(provider, provider_account_id)
 );
 
 -- Função para atualizar automaticamente o 'updated_at'
@@ -86,14 +118,7 @@ BEFORE UPDATE ON demandas
 FOR EACH ROW
 EXECUTE FUNCTION trigger_set_timestamp();
 
--- (Opcional) Trigger para a tabela 'rotas' (se você adicionar um campo 'updated_at' nela)
--- ALTER TABLE rotas ADD COLUMN updated_at TIMESTAMPTZ DEFAULT NOW();
--- CREATE TRIGGER set_rotas_timestamp
--- BEFORE UPDATE ON rotas
--- FOR EACH ROW
--- EXECUTE FUNCTION trigger_set_timestamp();
-
--- Inserção de dados iniciais (opcional, mas recomendado)
+-- Inserção de dados iniciais
 INSERT INTO demandas_status (nome, cor) VALUES
 ('Pendente', '#FFA500'),
 ('Em Andamento', '#1976D2'),
@@ -106,30 +131,3 @@ INSERT INTO demandas_tipos (nome) VALUES
 ('Supressão'),
 ('Fiscalização')
 ON CONFLICT (nome) DO NOTHING;
-
--- Tabela de Sessões (Corrigida)
--- Alteramos user_id de INTEGER para TEXT
-CREATE TABLE IF NOT EXISTS sessions (
-    id TEXT PRIMARY KEY,
-    session_token TEXT UNIQUE NOT NULL,
-    user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE, -- <-- CORRIGIDO
-    expires TIMESTAMPTZ NOT NULL
-);
-
--- Tabela de Contas (Corrigida)
--- Alteramos user_id de INTEGER para TEXT
-CREATE TABLE IF NOT EXISTS accounts (
-    id SERIAL PRIMARY KEY,
-    user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE, -- <-- CORRIGIDO
-    type TEXT NOT NULL,
-    provider TEXT NOT NULL,
-    provider_account_id TEXT NOT NULL,
-    refresh_token TEXT,
-    access_token TEXT,
-    expires_at BIGINT,
-    token_type TEXT,
-    scope TEXT,
-    id_token TEXT,
-    session_state TEXT,
-    UNIQUE(provider, provider_account_id)
-);
