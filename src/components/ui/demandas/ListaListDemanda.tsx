@@ -17,11 +17,13 @@ interface StatusOption {
     cor: string;
 }
 
-// Interface atualizada para DemandaType para incluir id_status
+// Interface atualizada para DemandaType para incluir id_status, lat e lng
 interface DemandaComIdStatus extends DemandaType {
     id_status?: number | null;
     status_nome?: string; // Campos opcionais que podem vir do JOIN
     status_cor?: string;
+    lat: number | null; // <-- ADICIONADO/CORRIGIDO
+    lng: number | null; // <-- ADICIONADO/CORRIGIDO
 }
 
 // 4. Atualiza a interface de Props

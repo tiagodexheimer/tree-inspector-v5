@@ -25,11 +25,11 @@ import { DemandaType } from "@/types/demanda";
  }
 
  // Interface for Demanda with id_status
- interface DemandaComIdStatus extends DemandaType {
+ interface DemandaComIdStatus extends DemandaType { 
     id_status?: number | null;
-    // [CORREÇÃO APLICADA AQUI]: Adicionado lat/lng para uso seguro
-    lat?: number | null; 
-    lng?: number | null;
+    // [CORREÇÃO APLICADA AQUI]: lat/lng agora são não-opcionais para corresponder à definição da página
+    lat: number | null; 
+    lng: number | null;
  }
 
 
@@ -49,7 +49,7 @@ import { DemandaType } from "@/types/demanda";
      // Destructure all props, including the new ones
      const { id, logradouro, numero, bairro, cidade, uf, tipo_demanda,
              descricao, prazo, // 'status' (string) might be unused now
-             isSelected, onSelect, onDelete, onEdit, onStatusChange, geom,
+             isSelected, onSelect, onDelete, onEdit, onStatusChange, geom: _geom, // <-- Renomeado geom para _geom
              id_status, // <-- Destructure id_status
              availableStatus, // <-- Destructure availableStatus
              lat, // <-- Destructure lat

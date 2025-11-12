@@ -44,6 +44,23 @@ export interface DemandaType {
   };
 }
 
+// --- NOVAS INTERFACES COMPARTILHADAS ---
+export interface DemandaComIdStatus extends DemandaType {
+    id_status?: number | null;
+    status_nome?: string;
+    status_cor?: string;
+    lat: number | null; 
+    lng: number | null;
+}
+
+export interface OptimizedRouteData {
+    optimizedDemands: DemandaComIdStatus[];
+    routePath: [number, number][];
+    startPoint: { lat: number, lng: number };
+}
+// --- FIM NOVAS INTERFACES COMPARTILHADAS ---
+
+
 export type FormField = {
   id: UniqueIdentifier;
   // A CORREÇÃO ESTÁ AQUI: Adicionamos o novo tipo 'switch'

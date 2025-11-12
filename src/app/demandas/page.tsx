@@ -9,29 +9,17 @@ import {
 } from "@mui/material";
 import { useMemo, useState, useEffect, useCallback } from "react"; // [MODIFICADO] Adicionado useCallback
 import InfoOutlinedIcon from '@mui/icons-material/InfoOutlined';
-import { DemandaType } from "@/types/demanda"; 
+import { DemandaType, DemandaComIdStatus, OptimizedRouteData } from "@/types/demanda"; // <-- IMPORTS CORRIGIDOS
 import AddDemandaModal from "@/components/ui/demandas/AddDemandaModal";
 import CriarRotaModal from "@/components/ui/demandas/CriarRotaModal";
 import DemandasToolbar from "@/components/ui/demandas/DemandasToolbar"; 
 
-// ... (Interfaces StatusOption, TipoDemandaOption, DemandaComIdStatus, OptimizedRouteData... permanecem iguais) ...
+// ... (Interfaces StatusOption, TipoDemandaOption... permanecem iguais) ...
 interface StatusOption { id: number; nome: string; cor: string; }
 interface TipoDemandaOption { id: number; nome: string; }
 
-// [CORREÇÃO DE TIPAGEM APLICADA AQUI]
-interface DemandaComIdStatus extends DemandaType {
-    id_status?: number | null;
-    status_nome?: string;
-    status_cor?: string;
-    // [NOVO DA AÇÃO 1.2] - Tipagem corrigida para consistência com o retorno do backend
-    lat: number | null; 
-    lng: number | null;
-}
-interface OptimizedRouteData {
-    optimizedDemandas: DemandaComIdStatus[]; // [MODIFICADO] Tipo corrigido
-    routePath: [number, number][];
-    startPoint: { lat: number, lng: number };
-}
+// REMOVIDO: DemandaComIdStatus e OptimizedRouteData foram movidos para src/types/demanda.ts
+
 interface DemandasResponse {
     demandas: DemandaComIdStatus[];
     totalCount: number;
@@ -226,7 +214,7 @@ export default function DemandasPage() {
          );
     };
     const handleRotaCriada = (nomeRota: string, responsavel: string) => { 
-        console.log(`[PAGE] Rota "${nomeRota}" criada com responsável ${responsavel}`);
+        console.log(`[PAGE] Rota "${nomeNovaRota}" criada com responsável ${responsavel}`);
         setNomeNovaRota(nomeRota);
         setConfirmacaoRotaOpen(true);
         setSelectedDemandas([]); 

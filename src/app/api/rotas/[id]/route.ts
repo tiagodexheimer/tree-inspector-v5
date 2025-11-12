@@ -4,6 +4,7 @@ import db from '@/lib/db';
 import { PoolClient } from 'pg';
 // Removida a importação de GeoJsonPoint (já que não vamos usá-la)
 import { DemandaType } from '@/types/demanda'; 
+import { decode } from '@googlemaps/polyline-codec';
 
 // --- NOVOS ADICIONAIS ---
 // Ponto de partida/chegada (igual ao optimize/route.ts)
@@ -33,7 +34,7 @@ interface DemandaRow extends DemandaType {
   ordem: number;
   status_nome: string;
   status_cor: string;
-  geom: unknown; // Mantemos 'geom' como unknown para compatibilidade de tipos no banco, mas não é usado
+  // geom: unknown; // <-- LINHA REMOVIDA PARA RESOLVER O ERRO DE TIPAGEM
 }
 
 type ExpectedContext = {

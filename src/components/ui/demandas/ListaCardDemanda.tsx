@@ -16,6 +16,8 @@ interface DemandaComIdStatus extends DemandaType {
     id_status?: number | null;
     status_nome?: string;
     status_cor?: string;
+    lat: number | null; // <-- ADICIONADO/CORRIGIDO
+    lng: number | null; // <-- ADICIONADO/CORRIGIDO
 }
 
 interface ListDemandaProps {
@@ -24,7 +26,7 @@ interface ListDemandaProps {
     onSelectDemanda: (id: number) => void;
     onDelete: (id: number) => void;
     onEdit: (demanda: DemandaComIdStatus) => void; // Adjust type here too
-    onStatusChange: (demandaId: number, newStatusId: number) => Promise<void>; // Updated for ID
+    onStatusChange: (demandaId: number, newStatusId: number) => Promise<void>; // Prop for changing status ID
     availableStatus: StatusOption[]; // <-- New prop
 }
 

@@ -11,11 +11,31 @@ import { DemandaType } from '@/types/demanda';
 // Define o ponto de início/fim
 const START_END_POINT: LatLngExpression = [-29.8608, -51.1789]; // [lat, lng]
 
-// [NOVO] Interface para garantir a presença de lat/lng (Ação 3.1)
-interface DemandaComCoordenadas extends DemandaType {
-    lat: number | null;
-    lng: number | null;
-}
+// [NOVO] Componente para forçar o Leaflet a recalcular o tamanho quando o modal abre
+const InvalidateSize: React.FC<{ trigger: boolean }> = ({ trigger }) => {
+    const map = useMap();
+    useEffect(() => {
+        // Invalidate size apenas quando 'trigger' for true
+        if (trigger) {
+            map.invalidateSize();
+            // Um pequeno delay pode ajudar em casos onde a transição do modal é lenta
+            setTimeout(() => { map.invalidateSize(); }, 50);
+        }
+    }, [map, trigger]);
+    return null;
+};
+
+// Corrige o problema do ícone padrão do Leaflet não aparecer
+const _icon = L.icon({ // <-- RENOMEADO PARA _icon
+    iconUrl: "https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-icon.png",
+    iconRetinaUrl: "https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-icon-2x.png",
+    shadowUrl: "https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-shadow.png",
+    iconSize: [25, 41],
+    iconAnchor: [12, 41],
+    popupAnchor: [1, -34],
+    shadowSize: [41, 41]
+});
+
 
 // Ícone para o Ponto de Partida (mantido)
 const iconStart = new L.Icon({
@@ -24,44 +44,44 @@ const iconStart = new L.Icon({
     iconSize: [25, 41], iconAnchor: [12, 41], popupAnchor: [1, -34], shadowSize: [41, 41]
 });
 
+
+// [NOVO] Interface para garantir a presença de lat/lng
+interface DemandaComCoordenadas extends DemandaType {
+    lat: number | null;
+    lng: number | null;
+}
+
 // Componente interno para ajustar o zoom do mapa
 const FitBounds: React.FC<{ bounds: LatLngBoundsExpression }> = ({ bounds }) => {
     const map = useMap();
     useEffect(() => {
-        // ***** CORREÇÃO DO ERRO DE BUILD *****
-        // Verificamos se 'bounds' é um array antes de checar 'bounds.length'
+        // Verifica se 'bounds' é um array antes de checar 'bounds.length'
         if (Array.isArray(bounds) && bounds.length > 0) {
             map.fitBounds(bounds, { padding: [50, 50] });
         }
-        // ***** FIM DA CORREÇÃO *****
     }, [map, bounds]);
     return null;
 };
 
-// Props do componente principal (MODIFICADO - Agora usa a interface tipada)
+// Props do componente principal (MODIFICADO - Adicionado modalIsOpen como opcional)
 interface RouteMapProps {
     demandas: DemandaComCoordenadas[]; // Usa a interface tipada
     path: [number, number][]; // Array de [lat, lng] da polilinha
+    modalIsOpen?: boolean; // <-- TORNADO OPCIONAL
 }
 
 // O componente agora desestrutura "demandas"
-const RouteMap: React.FC<RouteMapProps> = ({ demandas, path }) => {
+const RouteMap: React.FC<RouteMapProps> = ({ demandas, path, modalIsOpen = true }) => { // <-- DEFAULT TRUE
     
-    // --- CORREÇÃO: Adicionar a guarda para evitar .map() em undefined ---
     if (!demandas) {
         console.error("RouteMap recebeu demandas como undefined. Retornando null.");
         return null;
     }
-    // --- FIM CORREÇÃO ---
-
 
     // Cria os marcadores para as demandas (paradas)
-    // Usa "demandas" no lugar de "demands"
     const demandMarkers = demandas.map((demanda, index) => {
-        // *** CORREÇÃO: Usar 'demanda.lat' e 'demanda.lng' diretamente (Ação 3.1) ***
         const lat = demanda.lat;
         const lng = demanda.lng;
-        // *** FIM CORREÇÃO ***
         
         // Verifica se a coordenada é válida (é número e não é null)
         if (typeof lat !== 'number' || typeof lng !== 'number' || lat === null || lng === null) return null; 
@@ -110,7 +130,8 @@ const RouteMap: React.FC<RouteMapProps> = ({ demandas, path }) => {
             {/* Linha da Rota (mantido) */}
             {path.length > 0 && <Polyline positions={path} color="blue" />}
             
-            {/* Ajusta o Zoom (mantido) */}
+            {/* Componentes de Controle do Mapa */}
+            <InvalidateSize trigger={modalIsOpen} /> {/* <-- Usa o valor (que é true por default) */}
             <FitBounds bounds={bounds} />
         </MapContainer>
     );

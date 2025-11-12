@@ -33,8 +33,7 @@ interface RoutesApiResponse {
 interface DemandaWithCoords extends DemandaType {
     lat: number;
     lng: number;
-    // O campo 'geom' será o GeoJSON String retornado (mas não vamos usar)
-    geom: unknown; 
+    // O campo 'geom' não precisa ser explicitamente redefinido aqui
 }
 
 

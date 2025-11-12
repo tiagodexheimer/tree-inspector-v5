@@ -25,22 +25,16 @@ import {
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import DragIndicatorIcon from '@mui/icons-material/DragIndicator';
-import { DemandaType } from "@/types/demanda"; 
-import dynamic from 'next/dynamic';
+import { DemandaType, DemandaComIdStatus, OptimizedRouteData } from "@/types/demanda"; // <-- IMPORTS CORRIGIDOS DE INTERFACES COMPARTILHADAS
+import _dynamic from 'next/dynamic'; // <-- Renomeado dynamic para _dynamic
 import { LatLngExpression } from 'leaflet';
+import RouteMap from './RouteMap'; // Importado o tipo de arquivo real
 
-// Importar o novo mapa
-const RouteMap = dynamic(() => import('./RouteMap'), {
+// Importar o novo mapa (usando o dynamic renomeado)
+const RouteMapComponent = _dynamic(() => import('./RouteMap'), { // <-- Componente Dinâmico
     ssr: false,
     loading: () => <Box sx={{ height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', backgroundColor: '#eee', color: '#777' }}>Carregando mapa da rota...</Box>
 });
-
-// Interface para os dados da rota (vinda da página)
-interface OptimizedRouteData {
-    optimizedDemands: DemandaType[];
-    routePath: [number, number][];
-    startPoint: { lat: number, lng: number };
-}
 
 // Props atualizadas
 interface CriarRotaModalProps {
@@ -57,7 +51,6 @@ const START_END_POINT: LatLngExpression = [-29.8608, -51.1789];
 
 // Função auxiliar para formatar endereço curto (mantida)
 const formatEnderecoCurto = (demanda: DemandaType): string => {
-    // ... (código mantido) ...
     const parts = [
         demanda.logradouro,
         demanda.numero ? `, ${demanda.numero}` : '',
@@ -68,8 +61,7 @@ const formatEnderecoCurto = (demanda: DemandaType): string => {
 
 
 // Componente para item arrastável na lista (mantido)
-function SortableItem({ demanda }: { demanda: DemandaType }) {
-    // ... (código mantido) ...
+function SortableItem({ demanda }: { demanda: DemandaComIdStatus }) { // <-- Tipo atualizado
     const { attributes, listeners, setNodeRef, transform, transition } = useSortable({ id: demanda.id! });
     const style = { transform: CSS.Transform.toString(transform), transition };
 
@@ -87,13 +79,11 @@ function SortableItem({ demanda }: { demanda: DemandaType }) {
 export default function CriarRotaModal({ open, onClose, routeData, onRotaCriada }: CriarRotaModalProps) {
     const [nomeRota, setNomeRota] = useState('');
     const [responsavel, setResponsavel] = useState('');
-    const [orderedDemandas, setOrderedDemandas] = useState<DemandaType[]>([]);
+    const [orderedDemandas, setOrderedDemandas] = useState<DemandaComIdStatus[]>([]); // <--- Usa DemandaComIdStatus
     const [currentRoutePath, setCurrentRoutePath] = useState<[number, number][]>([]);
 
-    // ***** INÍCIO DA CORREÇÃO 1: Adicionar estados de loading e erro *****
     const [isSaving, setIsSaving] = useState(false);
     const [apiError, setApiError] = useState<string | null>(null);
-    // ***** FIM DA CORREÇÃO 1 *****
 
     const sensors = useSensors(
         useSensor(PointerSensor),
@@ -130,10 +120,14 @@ export default function CriarRotaModal({ open, onClose, routeData, onRotaCriada 
 
                 const newOrderedItems = arrayMove(items, oldIndex, newIndex);
 
+                // O campo 'geom' da demanda agora pode ser null ou undefined, mas 
+                // para fins de compatibilidade com o mapa, usamos a coerção [lat, lng]
+                // Se a DemandaComIdStatus não tiver geom, precisamos de lat/lng
                 const newPath: [number, number][] = [
                     START_END_POINT as [number, number], 
                     ...newOrderedItems.map(d => 
-                        [d.geom!.coordinates[1], d.geom!.coordinates[0]] as [number, number]
+                        // Assumimos que lat/lng são válidos ou que o mapa os tratará
+                        [d.lat!, d.lng!] as [number, number]
                     ),
                     START_END_POINT as [number, number] 
                 ];
@@ -144,7 +138,6 @@ export default function CriarRotaModal({ open, onClose, routeData, onRotaCriada 
         }
     }
 
-    // ***** INÍCIO DA CORREÇÃO 2: Atualizar handleCreateRoute *****
     const handleCreateRoute = async () => {
         if (!nomeRota.trim() || !responsavel) {
             setApiError('Por favor, preencha o nome da rota e selecione um responsável.');
@@ -182,7 +175,6 @@ export default function CriarRotaModal({ open, onClose, routeData, onRotaCriada 
             setIsSaving(false);
         }
     };
-    // ***** FIM DA CORREÇÃO 2 *****
 
     const sortableItemsIds = orderedDemandas.map(d => d.id!);
 
@@ -263,9 +255,10 @@ export default function CriarRotaModal({ open, onClose, routeData, onRotaCriada 
                      {/* Coluna Direita: Mapa da Rota */}
                     <Box sx={{ flex: 1, minHeight: 400, border: '1px solid #ccc', borderRadius: 1, overflow: 'hidden', opacity: isSaving ? 0.7 : 1 }}>
                         {routeData && (
-                            <RouteMap
-                                demands={orderedDemandas}
+                            <RouteMapComponent 
+                                demandas={orderedDemandas} // <-- Propriedade corrigida de 'demands' para 'demandas'
                                 path={currentRoutePath} 
+                                modalIsOpen={open} // <-- Passa o estado 'open' para forçar o redraw
                             />
                         )}
                     </Box>

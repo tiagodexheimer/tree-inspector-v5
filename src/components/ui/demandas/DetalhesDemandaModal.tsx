@@ -6,6 +6,8 @@ import { DemandaType } from "@/types/demanda";
 interface DemandaComCoordenadas extends DemandaType {
     lat?: number | null; // Inclui os novos campos lat/lng
     lng?: number | null;
+    status_nome?: string;
+    status_cor?: string;
 }
 
 interface DetalhesDemandaModalProps {
@@ -87,8 +89,8 @@ export default function DetalhesDemandaModal({ open, onClose, demanda }: Detalhe
             <ListItem>
                 <ListItemText primary="Tipo de Demanda" secondary={demanda.tipo_demanda || 'N/A'} />
             </ListItem>
-             <ListItem>
-                <ListItemText primary="Status" secondary={(demanda as any).status_nome || 'N/A'} />
+            <ListItem>
+                <ListItemText primary="Status" secondary={demanda.status_nome || 'N/A'} /> 
             </ListItem>
              <ListItem>
                  <ListItemText primary="Prazo" secondary={formatPrazo(demanda.prazo)} />

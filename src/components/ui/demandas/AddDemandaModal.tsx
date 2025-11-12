@@ -33,10 +33,17 @@ interface TipoDemandaOption {
     id: number;
     nome: string;
 }
+
+// Define extended type to cover API response properties used in useEffect to avoid 'as any'
+interface DemandaEditType extends DemandaType {
+    lat?: number | null; 
+    lng?: number | null;
+}
+
 interface AddDemandaModalProps {
     open: boolean;
     onClose: () => void;
-    demandaInicial?: DemandaType | null; 
+    demandaInicial?: DemandaEditType | null; // <-- TIPO CORRIGIDO
     onSuccess?: () => void;             
     availableTipos: TipoDemandaOption[]; 
 }
@@ -153,8 +160,8 @@ export default function AddDemandaModal({ open, onClose, demandaInicial = null, 
                 });
                 
                 // [MODIFICADO]: Inicializa coordenadas com lat/lng do objeto demandaInicial
-                const initialLat = (demandaInicial as any).lat;
-                const initialLng = (demandaInicial as any).lng;
+                const initialLat = demandaInicial.lat;
+                const initialLng = demandaInicial.lng;
 
                 if (typeof initialLat === 'number' && typeof initialLng === 'number') {
                      setCoordinates([initialLat, initialLng]);
