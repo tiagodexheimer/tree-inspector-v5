@@ -55,7 +55,8 @@ export async function GET(request: NextRequest) {
 
 
     // 6. Query 2: Dados Paginados
-    let queryText = `
+    // [FIX: prefer-const]: Alterado 'let' para 'const'
+    const queryText = ` 
            SELECT
               d.id, d.protocolo, d.nome_solicitante,
               d.cep, d.logradouro, d.numero, d.complemento, d.bairro, d.cidade, d.uf,
@@ -63,7 +64,7 @@ export async function GET(request: NextRequest) {
               d.id_status,
               s.nome as status_nome, 
               s.cor as status_cor,   
-              ST_AsGeoJSON(d.geom) as geom, -- MANTER por enquanto (será corrigido na 1.2)
+              ST_AsGeoJSON(d.geom) as geom, -- MANTIDO, mas ignorado no map para tipagem correta
               ST_Y(d.geom) as lat, ST_X(d.geom) as lng -- Incluir lat/lng para facilitar
            ${baseQuery}
            LIMIT $1 OFFSET $2
@@ -86,8 +87,11 @@ export async function GET(request: NextRequest) {
     const demandas = result.rows.map((row) => ({
       ...row,
       prazo: row.prazo ? new Date(row.prazo) : null,
-      // REMOVER o JSON.parse em 1.2
-      geom: row.geom ? JSON.parse(row.geom) : null,
+      // [CORREÇÃO ADICIONAL]: Removido JSON.parse(row.geom). O campo geom do objeto retornado 
+      // do banco agora é apenas para compatibilidade de tipos no banco, mas não mais usado 
+      // como objeto no frontend, que usa lat/lng.
+      // row.geom é uma string GeoJSON que não precisa ser enviada como objeto.
+      geom: row.geom ? row.geom : null, 
     }));
 
     // 7. Retorna os dados E a contagem total
@@ -108,9 +112,6 @@ export async function GET(request: NextRequest) {
     );
   }
 }
-
-// --- Handler para POST (Criar Demanda) e DELETE (Excluir Demandas) permanecem os mesmos (omitidos para brevidade) ---
-// ... (POST e DELETE functions remain the same) ...
 
 // --- Handler para POST (Criar Demanda - ATUALIZADO COM AUTENTICAÇÃO) ---
 export async function POST(request: NextRequest) {
@@ -232,6 +233,10 @@ export async function POST(request: NextRequest) {
       }
   
       const createdDemanda = result.rows[0];
+      // [CORREÇÃO ADICIONAL]: Mudamos o parse para usar o campo ST_Y/ST_X retornado do PUT/GET,
+      // mas no POST a API ainda retorna o GeoJSON string. Mantemos o parse aqui por enquanto
+      // para compatibilidade com o retorno anterior, mas se o frontend não precisa do objeto geom,
+      // esta parte pode ser simplificada no futuro.
       if (createdDemanda.geom) {
         createdDemanda.geom = JSON.parse(createdDemanda.geom);
       }
@@ -326,7 +331,7 @@ export async function POST(request: NextRequest) {
   
       // 2. Deletar da tabela principal 'demandas'
       const deleteDemandasQuery = 'DELETE FROM demandas WHERE id = ANY($1::int[]) RETURNING id';
-      const result = await client.query(deleteDemandasQuery, [numericIds]);
+      const result = await pool.query(deleteDemandasQuery, [numericIds]);
   
       await client.query('COMMIT');
   

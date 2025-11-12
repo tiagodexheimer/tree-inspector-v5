@@ -2,10 +2,17 @@
 import { Dialog, DialogTitle, DialogContent, Typography, DialogActions, Button, List, ListItem, ListItemText, Divider, Box } from "@mui/material"; // Adicionado Box
 import { DemandaType } from "@/types/demanda";
 
+// [CORREÇÃO 1: Estender a interface para reconhecer lat e lng]
+interface DemandaComCoordenadas extends DemandaType {
+    lat?: number | null; // Inclui os novos campos lat/lng
+    lng?: number | null;
+}
+
 interface DetalhesDemandaModalProps {
   open: boolean;
   onClose: () => void;
-  demanda: DemandaType | null; // Tipo já está atualizado aqui
+  // [CORREÇÃO 2: Usar a nova interface]
+  demanda: DemandaComCoordenadas | null; 
 }
 
 export default function DetalhesDemandaModal({ open, onClose, demanda }: DetalhesDemandaModalProps) {
@@ -35,6 +42,11 @@ export default function DetalhesDemandaModal({ open, onClose, demanda }: Detalhe
         }
         return 'Não definido';
     };
+
+    // Variáveis de coordenadas para uso mais limpo
+    const lat = demanda.lat;
+    const lng = demanda.lng;
+    const hasCoordinates = typeof lat === 'number' && typeof lng === 'number' && lat !== null && lng !== null;
 
 
   return (
@@ -66,15 +78,6 @@ export default function DetalhesDemandaModal({ open, onClose, demanda }: Detalhe
           <ListItem>
             <ListItemText primary="Email" secondary={demanda.email_solicitante || 'N/A'} />
           </ListItem>
-           {/* Remover 'contato' se for redundante
-           {demanda.contato && (
-                <>
-                    <ListItem><ListItemText primary="Nome (Contato)" secondary={demanda.contato.nome} /></ListItem>
-                    <ListItem><ListItemText primary="Telefone (Contato)" secondary={demanda.contato.telefone} /></ListItem>
-                    <ListItem><ListItemText primary="Email (Contato)" secondary={demanda.contato.email} /></ListItem>
-                </>
-            )}
-           */}
         </List>
         <Divider sx={{ my: 2 }} />
 
@@ -85,7 +88,7 @@ export default function DetalhesDemandaModal({ open, onClose, demanda }: Detalhe
                 <ListItemText primary="Tipo de Demanda" secondary={demanda.tipo_demanda || 'N/A'} />
             </ListItem>
              <ListItem>
-                <ListItemText primary="Status" secondary={demanda.status || 'N/A'} />
+                <ListItemText primary="Status" secondary={(demanda as any).status_nome || 'N/A'} />
             </ListItem>
              <ListItem>
                  <ListItemText primary="Prazo" secondary={formatPrazo(demanda.prazo)} />
@@ -93,19 +96,18 @@ export default function DetalhesDemandaModal({ open, onClose, demanda }: Detalhe
             <ListItem>
                 <ListItemText primary="Responsável Técnico" secondary={demanda.responsavel || 'N/A'} />
             </ListItem>
-            {/* Adicionar Protocolo, Data de Criação, etc. se disponíveis e relevantes */}
             {demanda.protocolo && <ListItem><ListItemText primary="Protocolo" secondary={demanda.protocolo} /></ListItem> }
          </List>
 
-         {/* (Opcional) Mostrar Mapa com base na geometria (geom) */}
-         {demanda.geom && (
+         {/* [CORREÇÃO 3: Usar lat e lng, e remover a dependência de demanda.geom] */}
+         {hasCoordinates && (
              <>
                  <Divider sx={{ my: 2 }} />
                  <Typography gutterBottom variant="h6">Localização (Aproximada)</Typography>
                  <Box sx={{ height: 200, backgroundColor: '#eee', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'text.secondary', borderRadius: 1 }}>
                       {/* Aqui poderia integrar um mapa real (Leaflet, Google Maps API) */}
                      <Typography variant="caption">
-                         Lat: {demanda.geom.coordinates[1]}, Lon: {demanda.geom.coordinates[0]}
+                         Lat: {lat.toFixed(6)}, Lon: {lng.toFixed(6)}
                      </Typography>
                  </Box>
              </>

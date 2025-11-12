@@ -6,6 +6,7 @@ import {
     List, ListItem, ListItemText, Chip, Paper,
     ListItemIcon, IconButton
 } from '@mui/material';
+// Importa a interface já corrigida e atualizada
 import { DemandaComOrdem } from '@/app/rotas/[id]/page'; 
 import {
     SortableContext,
@@ -108,6 +109,7 @@ interface DetalheRotaListaProps {
 
 export default function DetalheRotaLista({ demandas, sensors, onDragEnd, onRemove, disabled = false }: DetalheRotaListaProps) {
     
+    // O id! é seguro aqui, pois demandas na rota devem ter id
     const sortableItemsIds = demandas.map(d => d.id!);
 
     return (

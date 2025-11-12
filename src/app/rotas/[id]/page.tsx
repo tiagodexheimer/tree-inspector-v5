@@ -48,18 +48,22 @@ interface Rota {
     data_rota: string;
     created_at: string;
 }
-// [MODIFICADO]: Adicionado lat/lng como campos simples na demanda
+/**
+ * CORREÇÃO DE TIPAGEM:
+ * O lat e lng são agora tipados explicitamente como number | null,
+ * eliminando a necessidade de 'as any' no componente e garantindo coerência.
+ */
 export interface DemandaComOrdem extends DemandaType {
     ordem: number;
     status_nome: string;
     status_cor: string;
-    lat?: number; // Nova propriedade
-    lng?: number; // Nova propriedade
+    lat: number | null; // Tipagem corrigida
+    lng: number | null; // Tipagem corrigida
 }
 interface RotaDetalhesResponse {
-  rota: Rota;
-  demandas: DemandaComOrdem[];
-  encodedPolyline: string | null; 
+    rota: Rota;
+    demandas: DemandaComOrdem[];
+    encodedPolyline: string | null; 
 }
 
 
@@ -102,7 +106,7 @@ export default function PaginaDetalheRota() {
             const data: RotaDetalhesResponse = await response.json();
             
             setRota(data.rota);
-            // [MODIFICADO]: As demandas já vêm com lat/lng como números
+            // As demandas vêm com lat/lng como números ou null
             setDemandas(data.demandas);
             setOriginalDemandas(data.demandas); 
             setApiPolyline(data.encodedPolyline);
@@ -133,13 +137,13 @@ export default function PaginaDetalheRota() {
         }
         if (demandas.length === 0) return [];
         
-        // [MODIFICADO]: Usar .lat e .lng diretamente
+        // Usa .lat e .lng diretamente (agora tipado como number | null)
         const path: [number, number][] = [
             START_END_POINT,
             ...demandas
                 .filter(d => d.lat !== null && d.lng !== null) 
                 .map(d => 
-                    [d.lat!, d.lng!] as [number, number]
+                    [d.lat as number, d.lng as number] as [number, number]
             ),
             START_END_POINT
         ];

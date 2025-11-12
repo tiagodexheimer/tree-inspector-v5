@@ -11,6 +11,12 @@ import { DemandaType } from '@/types/demanda';
 // Define o ponto de início/fim
 const START_END_POINT: LatLngExpression = [-29.8608, -51.1789]; // [lat, lng]
 
+// [NOVO] Interface para garantir a presença de lat/lng (Ação 3.1)
+interface DemandaComCoordenadas extends DemandaType {
+    lat: number | null;
+    lng: number | null;
+}
+
 // Ícone para o Ponto de Partida (mantido)
 const iconStart = new L.Icon({
     iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-green.png',
@@ -32,9 +38,9 @@ const FitBounds: React.FC<{ bounds: LatLngBoundsExpression }> = ({ bounds }) => 
     return null;
 };
 
-// Props do componente principal (MODIFICADO)
+// Props do componente principal (MODIFICADO - Agora usa a interface tipada)
 interface RouteMapProps {
-    demandas: DemandaType[];       // Demandas na ordem otimizada (Propriedade renomeada)
+    demandas: DemandaComCoordenadas[]; // Usa a interface tipada
     path: [number, number][]; // Array de [lat, lng] da polilinha
 }
 
@@ -52,11 +58,13 @@ const RouteMap: React.FC<RouteMapProps> = ({ demandas, path }) => {
     // Cria os marcadores para as demandas (paradas)
     // Usa "demandas" no lugar de "demands"
     const demandMarkers = demandas.map((demanda, index) => {
-        // Já que migramos para lat/lng diretos, precisamos verificar as novas props:
-        const lat = (demanda as any).lat;
-        const lng = (demanda as any).lng;
+        // *** CORREÇÃO: Usar 'demanda.lat' e 'demanda.lng' diretamente (Ação 3.1) ***
+        const lat = demanda.lat;
+        const lng = demanda.lng;
+        // *** FIM CORREÇÃO ***
         
-        if (typeof lat !== 'number' || typeof lng !== 'number') return null; // Use as novas props lat/lng
+        // Verifica se a coordenada é válida (é número e não é null)
+        if (typeof lat !== 'number' || typeof lng !== 'number' || lat === null || lng === null) return null; 
         
         // Leaflet usa [lat, lng]
         const position: LatLngExpression = [lat, lng];

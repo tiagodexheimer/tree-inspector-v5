@@ -27,6 +27,9 @@ import { DemandaType } from "@/types/demanda";
  // Interface for Demanda with id_status
  interface DemandaComIdStatus extends DemandaType {
     id_status?: number | null;
+    // [CORREÇÃO APLICADA AQUI]: Adicionado lat/lng para uso seguro
+    lat?: number | null; 
+    lng?: number | null;
  }
 
 
@@ -48,7 +51,9 @@ import { DemandaType } from "@/types/demanda";
              descricao, prazo, // 'status' (string) might be unused now
              isSelected, onSelect, onDelete, onEdit, onStatusChange, geom,
              id_status, // <-- Destructure id_status
-             availableStatus // <-- Destructure availableStatus
+             availableStatus, // <-- Destructure availableStatus
+             lat, // <-- Destructure lat
+             lng // <-- Destructure lng
            } = props;
      const [modalOpen, setModalOpen] = useState(false);
 
@@ -56,10 +61,10 @@ import { DemandaType } from "@/types/demanda";
      const formatPrazo = (date: Date | null | undefined): string => { if (!date) return 'N/A'; if (date instanceof Date && !isNaN(date.getTime())) { try { return date.toLocaleDateString('pt-BR'); } catch (e) { console.error("Error formatting date:", date, e); return 'Data inválida'; } } console.warn("Invalid date value received:", date); return 'Data inválida'; };
      const formatEnderecoCurto = (): string => { const parts = [ logradouro, numero ? `, ${numero}` : '', bairro ? ` - ${bairro}` : '' ]; return parts.filter(Boolean).join('').trim() || 'Endereço não informado'; };
 
-     // Extrai coordenadas
-     const coordinates = geom?.type === 'Point' ? geom.coordinates : null;
-     const latitude = coordinates ? coordinates[1] : null;
-     const longitude = coordinates ? coordinates[0] : null;
+     // Extrai coordenadas - *** LÓGICA CORRIGIDA AQUI ***
+     // Usa as propriedades lat/lng que agora são passadas diretamente pela API
+     const latitude = lat ?? null;
+     const longitude = lng ?? null;
 
      console.log(`Demanda ID ${id}: Lat=${latitude}, Lon=${longitude}`);
 
@@ -163,7 +168,7 @@ import { DemandaType } from "@/types/demanda";
                  </CardContent>
              </Card>
              {/* Modal de Detalhes */}
-             {/* Passa props inteiras, que já inclui id_status */}
+             {/* Passa props inteiras, que já inclui id_status, lat e lng */}
              <DetalhesDemandaModal open={modalOpen} onClose={() => setModalOpen(false)} demanda={props} />
          </div>
      );

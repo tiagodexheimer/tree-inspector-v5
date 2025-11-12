@@ -17,13 +17,15 @@ import DemandasToolbar from "@/components/ui/demandas/DemandasToolbar";
 // ... (Interfaces StatusOption, TipoDemandaOption, DemandaComIdStatus, OptimizedRouteData... permanecem iguais) ...
 interface StatusOption { id: number; nome: string; cor: string; }
 interface TipoDemandaOption { id: number; nome: string; }
+
+// [CORREÇÃO DE TIPAGEM APLICADA AQUI]
 interface DemandaComIdStatus extends DemandaType {
     id_status?: number | null;
     status_nome?: string;
     status_cor?: string;
-    // [NOVO DA AÇÃO 1.2]
-    lat?: number;
-    lng?: number;
+    // [NOVO DA AÇÃO 1.2] - Tipagem corrigida para consistência com o retorno do backend
+    lat: number | null; 
+    lng: number | null;
 }
 interface OptimizedRouteData {
     optimizedDemandas: DemandaComIdStatus[]; // [MODIFICADO] Tipo corrigido
@@ -283,7 +285,7 @@ export default function DemandasPage() {
         setOptimizationError(null);
         setOptimizedRouteData(null); 
         const demandasParaOtimizar = demandas
-            .filter(d => selectedDemandas.includes(d.id!) && d.lat && d.lng) // [MODIFICADO] Usa lat/lng
+            .filter(d => selectedDemandas.includes(d.id!) && d.lat !== null && d.lng !== null) // Filtra se lat/lng não é null
             .map(d => d.id!); 
         if (demandasParaOtimizar.length === 0) {
             setOptimizationError("Nenhuma das demandas selecionadas possui coordenadas válidas para roteirização.");
