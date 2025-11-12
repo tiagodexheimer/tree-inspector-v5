@@ -45,12 +45,16 @@ interface Rota {
     nome: string;
     responsavel: string;
     status: string;
+    data_rota: string;
     created_at: string;
 }
+// [MODIFICADO]: Adicionado lat/lng como campos simples na demanda
 export interface DemandaComOrdem extends DemandaType {
     ordem: number;
     status_nome: string;
     status_cor: string;
+    lat?: number; // Nova propriedade
+    lng?: number; // Nova propriedade
 }
 interface RotaDetalhesResponse {
   rota: Rota;
@@ -98,6 +102,7 @@ export default function PaginaDetalheRota() {
             const data: RotaDetalhesResponse = await response.json();
             
             setRota(data.rota);
+            // [MODIFICADO]: As demandas já vêm com lat/lng como números
             setDemandas(data.demandas);
             setOriginalDemandas(data.demandas); 
             setApiPolyline(data.encodedPolyline);
@@ -127,12 +132,14 @@ export default function PaginaDetalheRota() {
             }
         }
         if (demandas.length === 0) return [];
+        
+        // [MODIFICADO]: Usar .lat e .lng diretamente
         const path: [number, number][] = [
             START_END_POINT,
             ...demandas
-                .filter(d => d.geom?.coordinates) 
+                .filter(d => d.lat !== null && d.lng !== null) 
                 .map(d => 
-                    [d.geom!.coordinates[1], d.geom!.coordinates[0]] as [number, number]
+                    [d.lat!, d.lng!] as [number, number]
             ),
             START_END_POINT
         ];
@@ -398,7 +405,7 @@ export default function PaginaDetalheRota() {
                     </Typography>
                     <Box sx={{ height: '70vh', minHeight: 400, border: '1px solid #ccc', borderRadius: 1, overflow: 'hidden' }}>
                         <RouteMap
-                            demands={demandas} 
+                            demandas={demandas} 
                             path={routePath}    
                         />
                     </Box>

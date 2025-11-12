@@ -2,7 +2,8 @@
 import { NextRequest, NextResponse } from 'next/server'; 
 import db from '@/lib/db';
 import { PoolClient } from 'pg';
-import { DemandaType, GeoJsonPoint } from '@/types/demanda'; 
+// Removida a importação de GeoJsonPoint (já que não vamos usá-la)
+import { DemandaType } from '@/types/demanda'; 
 
 // --- NOVOS ADICIONAIS ---
 // Ponto de partida/chegada (igual ao optimize/route.ts)
@@ -26,13 +27,13 @@ interface RoutesApiResponse {
 
 
 interface DemandaRow extends DemandaType {
-  geom: GeoJsonPoint | null;
+  // [MODIFICADO]: Remoção de GeoJsonPoint | null. Agora esperamos lat/lng
+  lat?: number;
+  lng?: number;
   ordem: number;
   status_nome: string;
   status_cor: string;
-  // Adicionando lat/lng para facilitar
-  lat?: number;
-  lng?: number;
+  geom: unknown; // Mantemos 'geom' como unknown para compatibilidade de tipos no banco, mas não é usado
 }
 
 type ExpectedContext = {
@@ -69,8 +70,8 @@ export async function GET(
          d.id, d.logradouro, d.numero, d.bairro, d.tipo_demanda, d.id_status,
          d.descricao, 
          s.nome as status_nome, s.cor as status_cor,
-         ST_AsGeoJSON(d.geom)::json as geom,
-         ST_Y(d.geom) as lat, ST_X(d.geom) as lng, -- <-- Extrai lat/lng
+         ST_Y(d.geom) as lat, 
+         ST_X(d.geom) as lng, -- [MODIFICADO] Apenas lat/lng como números
          dr.ordem
        FROM rotas_demandas dr 
        JOIN demandas d ON dr.demanda_id = d.id
@@ -80,17 +81,14 @@ export async function GET(
       [id]
     );
 
-    // Converte geom de string para JSON
-    const demandasFormatadas: DemandaRow[] = demandas.rows.map((row: DemandaRow) => ({
-      ...row,
-      geom: row.geom ? (typeof row.geom === 'string' ? JSON.parse(row.geom) : row.geom) : null
-    }));
+    // [MODIFICADO]: Não há mais JSON.parse aqui
+    const demandasFormatadas: DemandaRow[] = demandas.rows as DemandaRow[];
 
 
     // 3. Lógica do Google Maps (Substituindo OSRM)
     let encodedPolyline: string | null = null;
     const demandasComGeom = demandasFormatadas.filter(
-      (d: DemandaRow) => d.lat && d.lng && d.geom
+      (d: DemandaRow) => d.lat && d.lng
     );
 
     if (demandasComGeom.length > 0 && apiKey) {

@@ -2,44 +2,17 @@
 import { NextRequest, NextResponse } from "next/server";
 import pool from "../../../../lib/db";
 
-// --- (As funções auxiliares podem ser movidas para um arquivo 'lib' ou duplicadas) ---
+// --- Funções Auxiliares (Simplificadas ou Removidas) ---
 
-async function geocodeAddress(
-  req: NextRequest,
-  logradouro?: string | null,
-  numero?: string | null,
-  cidade?: string | null,
-  uf?: string | null
-): Promise<[number, number] | null> {
-    // ... (código da função geocodeAddress - copiado da sua API 'import') ...
-  if (logradouro && numero && cidade && uf) {
-    try {
-      const apiBaseUrl = new URL(req.url).origin; 
-      const geocodeUrl = `${apiBaseUrl}/api/geocode`;
-      const response = await fetch(geocodeUrl, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ logradouro, numero, cidade, uf }),
-      });
-      const data = await response.json();
-      if (response.ok && data.coordinates) {
-        const [lat, lon] = data.coordinates; 
-        return [lon, lat]; 
-      }
-    } catch (geoErr) {
-      console.error(`[API /import-row] Error calling geocode API:`, geoErr);
-    }
-  }
-  return null; 
-}
+// Esta função de geocodificação foi movida para o frontend.
+// Aqui, apenas mantemos as funções de apoio ao banco.
 
 async function getStatusId(nomeStatus: string): Promise<number | null> {
-    // ... (código da função getStatusId - copiado da sua API 'import') ...
   try {
     const result = await pool.query(
       "SELECT id FROM demandas_status WHERE nome ILIKE $1 LIMIT 1",
       [nomeStatus]
-    ); 
+    );
     return (result.rowCount ?? 0) > 0 ? result.rows[0].id : null;
   } catch (err) {
     console.error(`Erro ao buscar ID do status "${nomeStatus}":`, err);
@@ -48,12 +21,11 @@ async function getStatusId(nomeStatus: string): Promise<number | null> {
 }
 
 async function checkTipoDemandaExists(nomeTipo: string): Promise<boolean> {
-    // ... (código da função checkTipoDemandaExists - copiado da sua API 'import') ...
   try {
     const result = await pool.query(
       "SELECT 1 FROM demandas_tipos WHERE nome ILIKE $1 LIMIT 1",
       [nomeTipo]
-    ); 
+    );
     return (result.rowCount ?? 0) > 0;
   } catch (err) {
     console.error(`Erro ao verificar tipo de demanda "${nomeTipo}":`, err);
@@ -62,9 +34,9 @@ async function checkTipoDemandaExists(nomeTipo: string): Promise<boolean> {
 }
 
 function parseDate(dateInput: unknown): Date | null {
-    // ... (código da função parseDate - copiado da sua API 'import') ...
   if (!dateInput) return null;
   if (dateInput instanceof Date && !isNaN(dateInput.getTime())) {
+    // Preservar data como UTC
     return new Date(
       Date.UTC(
         dateInput.getFullYear(),
@@ -98,70 +70,51 @@ function parseDate(dateInput: unknown): Date | null {
 }
 // --- Fim das Funções Auxiliares ---
 
-
-// --- Handler POST para UMA LINHA ---
+// --- Handler POST para UMA LINHA PROCESSADA ---
 export async function POST(request: NextRequest) {
+  // Esperamos que o frontend nos envie dados JÁ processados, incluindo coordinates
   const rowData: Record<string, unknown> = await request.json();
-  const rowNumberForLog = rowData["__rowNum__"] || "??"; // O frontend enviará isso
+  const rowNumberForLog = rowData["__rowNum__"] || "??"; 
 
   try {
-    // 1. Validar e extrair dados (lógica de 'import/route.ts')
+    // 1. Extrair dados
     const nome_solicitante = rowData["Nome do Solicitante"]?.toString().trim() ?? "";
     const telefone_solicitante = rowData["Telefone do Solicitante"]?.toString() || null;
     const email_solicitante = rowData["E-mail do Solicitante"]?.toString() || null;
-    let logradouro = rowData["Rua"]?.toString().trim() ?? "";
-    let bairro = rowData["Bairro"]?.toString().trim() ?? "";
-    let cidade = rowData["Cidade"]?.toString().trim() ?? "";
-    let uf = rowData["uf"]?.toString().trim() ?? null;
+    const logradouro = rowData["Rua"]?.toString().trim() || null;
+    const bairro = rowData["Bairro"]?.toString().trim() || null;
+    const cidade = rowData["Cidade"]?.toString().trim() || null;
+    const uf = rowData["uf"]?.toString().trim() || null;
+    const cepRaw = rowData["cep_raw"]?.toString() ?? ""; // Esperamos o CEP limpo
+    const numero = rowData["Número"]?.toString().trim() ?? "";
+    const descricao = rowData["Descrição"]?.toString().trim() ?? "";
+    const complemento = rowData["Complemento"]?.toString() || null;
     
-    const cepOriginal = rowData["cep"]?.toString() ?? ""; 
-    const cepRaw = cepOriginal.trim().replace(/\D/g, "");
-    
-    const numero = rowData["Número"]?.toString().trim() ?? ""; 
-    const descricao = rowData["Descrição"]?.toString().trim() ?? ""; 
-    
-    const tipo_demanda_csv = rowData["tipo_demanda"]?.toString().trim() ?? null;
-    const tipo_demanda = tipo_demanda_csv || "Avaliação"; // Padrão
+    // Coordenadas que VIERAM do frontend
+    const coordinates = rowData["coordinates"] as [number, number] | null; // [lat, lng]
 
-    if (!cepRaw || cepRaw.length !== 8) throw new Error(`Coluna "cep" (${cepOriginal}) obrigatória e deve ter 8 dígitos.`);
+    const tipo_demanda = rowData["tipo_demanda"]?.toString().trim() ?? "Avaliação"; 
+
+    // 2. Validações finais (já assumindo que ViaCEP e Geocodificação foram feitos no frontend)
+    if (!cepRaw || cepRaw.length !== 8) throw new Error(`CEP (${cepRaw}) obrigatório e deve ter 8 dígitos.`);
     if (!numero) throw new Error('Coluna "Número" é obrigatória.');
     if (!descricao) throw new Error('Coluna "Descrição" é obrigatória.');
 
+    // 3. Checagem do Tipo de Demanda (Ainda necessária no backend)
     const tipoExists = await checkTipoDemandaExists(tipo_demanda);
     if (!tipoExists) throw new Error(`Tipo de demanda "${tipo_demanda}" não encontrado. Cadastre-o primeiro.`);
 
-    // 2. Processamento (lógica de 'import/route.ts')
-    const protocolo = `DEM-UPL-${Date.now()}-${rowNumberForLog}`;
-    const complemento = rowData["Complemento"]?.toString() || null; 
-    
+    // 4. Buscar ID do status "Pendente"
     const pendenteStatusId = await getStatusId("Pendente");
     if (!pendenteStatusId) {
         console.warn('[API /import-row] Status "Pendente" não encontrado no banco.');
     }
 
-    // 3. ViaCEP (se necessário)
-    if (!logradouro || !bairro || !cidade || !uf) {
-      try {
-        const cepResponse = await fetch(`https://viacep.com.br/ws/${cepRaw}/json/`);
-        if (cepResponse.ok) {
-          const cepData = await cepResponse.json();
-          if (!cepData.erro) {
-            logradouro = logradouro || cepData.logradouro;
-            bairro = bairro || cepData.bairro;
-            cidade = cidade || cepData.localidade;
-            uf = uf || cepData.uf;
-          }
-        }
-      } catch (cepErr) {
-        console.warn(`[API /import-row] Falha no ViaCEP para ${cepRaw}:`, cepErr);
-      }
-    }
-
-    // 4. Geocodificação
-    const coordinates = await geocodeAddress(request, logradouro, numero, cidade, uf);
-
     // 5. Inserção no Banco
-    const prazoDate = parseDate(rowData["prazo"]); 
+    const prazoDate = parseDate(rowData["prazo"]);
+
+    // ST_MakePoint espera (longitude, latitude). O Google API retorna (latitude, longitude).
+    // O frontend envia [lat, lng], então usamos $16, $15 (lng, lat) no ST_MakePoint.
     const queryText = `
         INSERT INTO demandas (
             protocolo, nome_solicitante, telefone_solicitante, email_solicitante,
@@ -171,30 +124,38 @@ export async function POST(request: NextRequest) {
           coordinates ? "ST_SetSRID(ST_MakePoint($15, $16), 4326)" : "NULL"
         }, $${coordinates ? 17 : 15})
         RETURNING id;`;
+        
     const queryParams = [
-      protocolo, nome_solicitante, telefone_solicitante, email_solicitante,
-      cepRaw, logradouro || null, numero, complemento, bairro || null, cidade || null,
+      `DEM-UPL-${Date.now()}-${rowNumberForLog}`, // Protocolo gerado aqui
+      nome_solicitante, telefone_solicitante, email_solicitante,
+      cepRaw, logradouro, numero, complemento, bairro, cidade,
       uf ? uf.toUpperCase() : null, tipo_demanda, descricao, pendenteStatusId,
-      ...(coordinates ? [coordinates[0], coordinates[1]] : []), 
-      prazoDate, 
+      // Se coordinates existe, adiciona Longitude e Latitude
+      ...(coordinates ? [coordinates[1], coordinates[0]] : []), // [lng, lat]
+      prazoDate,
     ];
     
+    // Corrige o índice do prazo se não houver coordenadas
+    if (!coordinates) {
+        queryParams.splice(14, 0, prazoDate);
+    }
+    
+    // A queryParams final contém [..., id_status, (lng, lat), prazo] ou [..., id_status, prazo]
+
     const result = await pool.query(queryText, queryParams);
 
     if ((result.rowCount ?? 0) > 0) {
-      // Sucesso!
       return NextResponse.json({ success: true, id: result.rows[0].id }, { status: 201 });
     } else {
       throw new Error("Falha ao inserir no banco (query não retornou linha).");
     }
 
   } catch (error) {
-    // Erro!
     console.error(`[API /import-row] Erro ao processar linha ${rowNumberForLog}:`, error);
     const errorMessage = error instanceof Error ? error.message : "Erro desconhecido.";
     return NextResponse.json(
       { success: false, message: errorMessage, data: rowData },
-      { status: 400 } // Retorna 400 (Bad Request) para erros de processamento de linha
+      { status: 400 } 
     );
   }
 }

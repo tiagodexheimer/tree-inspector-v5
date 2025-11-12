@@ -11,8 +11,6 @@ import { DemandaType } from '@/types/demanda';
 // Define o ponto de início/fim
 const START_END_POINT: LatLngExpression = [-29.8608, -51.1789]; // [lat, lng]
 
-// A const 'iconDefault' foi REMOVIDA para corrigir o aviso de 'unused var'.
-
 // Ícone para o Ponto de Partida (mantido)
 const iconStart = new L.Icon({
     iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-green.png',
@@ -34,20 +32,34 @@ const FitBounds: React.FC<{ bounds: LatLngBoundsExpression }> = ({ bounds }) => 
     return null;
 };
 
-// Props do componente principal (mantido)
+// Props do componente principal (MODIFICADO)
 interface RouteMapProps {
-    demands: DemandaType[];       // Demandas na ordem otimizada
+    demandas: DemandaType[];       // Demandas na ordem otimizada (Propriedade renomeada)
     path: [number, number][]; // Array de [lat, lng] da polilinha
 }
 
-const RouteMap: React.FC<RouteMapProps> = ({ demands, path }) => {
+// O componente agora desestrutura "demandas"
+const RouteMap: React.FC<RouteMapProps> = ({ demandas, path }) => {
     
+    // --- CORREÇÃO: Adicionar a guarda para evitar .map() em undefined ---
+    if (!demandas) {
+        console.error("RouteMap recebeu demandas como undefined. Retornando null.");
+        return null;
+    }
+    // --- FIM CORREÇÃO ---
+
+
     // Cria os marcadores para as demandas (paradas)
-    const demandMarkers = demands.map((demanda, index) => {
-        if (!demanda.geom?.coordinates) return null;
+    // Usa "demandas" no lugar de "demands"
+    const demandMarkers = demandas.map((demanda, index) => {
+        // Já que migramos para lat/lng diretos, precisamos verificar as novas props:
+        const lat = (demanda as any).lat;
+        const lng = (demanda as any).lng;
         
-        // geom é [lng, lat], Leaflet usa [lat, lng]
-        const position: LatLngExpression = [demanda.geom.coordinates[1], demanda.geom.coordinates[0]];
+        if (typeof lat !== 'number' || typeof lng !== 'number') return null; // Use as novas props lat/lng
+        
+        // Leaflet usa [lat, lng]
+        const position: LatLngExpression = [lat, lng];
         
         // Criar o ícone de Div numerado
         const numberedIcon = new DivIcon({
@@ -73,7 +85,7 @@ const RouteMap: React.FC<RouteMapProps> = ({ demands, path }) => {
     const bounds: LatLngBoundsExpression = path.length > 0 ? path : [START_END_POINT];
 
     return (
-        <MapContainer style={{ height: '100%', width: '100%', borderRadius: '8px' }} center={START_END_POINT} zoom={13} scrollWheelZoom={true}>
+        <MapContainer center={START_END_POINT} zoom={13} scrollWheelZoom={true} style={{ height: '100%', width: '100%', borderRadius: '8px' }} attributionControl={false}>
             <TileLayer
                 url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
                 attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'

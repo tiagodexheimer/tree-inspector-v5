@@ -11,6 +11,13 @@ import CheckCircleOutlineIcon from '@mui/icons-material/CheckCircleOutline';
 import MyLocationIcon from '@mui/icons-material/MyLocation';
 import { DemandaType } from "@/types/demanda"; 
 
+// --- [NOVO] CACHE LOCAL ---
+// Armazena resultados de CEP (ViaCEP) e Geocoding (Google) para evitar chamadas repetidas
+const cepCache = new Map<string, CepResponse>();
+const geocodeCache = new Map<string, [number, number]>(); // Chave: "Rua, Numero, Cidade, UF" -> Valor: [lat, lng]
+// --- FIM CACHE ---
+
+
 // ... (Interfaces CepResponse, GeocodeApiResponse, TipoDemandaOption, AddDemandaModalProps, FormData permanecem iguais) ...
 interface CepResponse {
     cep: string; logradouro: string; complemento: string; bairro: string;
@@ -39,13 +46,22 @@ interface FormData {
     tipo_demanda: string; descricao: string; prazo: string; 
 }
 
-// ... (Função geocodeAddressViaBackend permanece a mesma) ...
+
+// --- Função Geocodificação ATUALIZADA com cache ---
 async function geocodeAddressViaBackend(logradouro?: string | null, numero?: string | null, cidade?: string | null, uf?: string | null): Promise<[number, number] | null> {
-    console.log(`[FRONTEND /geocode] Tentando geocodificar via backend: ${numero} ${logradouro}, ${cidade}, ${uf}`);
     if (!logradouro || !numero || !cidade || !uf) {
-        console.log('[FRONTEND /geocode] Dados insuficientes para enviar ao backend.');
         return null;
     }
+    
+    const cacheKey = `${logradouro}, ${numero}, ${cidade}, ${uf}`;
+    
+    // 1. Tenta buscar do cache
+    if (geocodeCache.has(cacheKey)) {
+        console.log('[FRONTEND /geocode] Cache hit para:', cacheKey);
+        return geocodeCache.get(cacheKey)!;
+    }
+
+    // 2. Se não estiver no cache, chama o backend
     try {
         const response = await fetch('/api/geocode', {
             method: 'POST',
@@ -53,14 +69,15 @@ async function geocodeAddressViaBackend(logradouro?: string | null, numero?: str
             body: JSON.stringify({ logradouro, numero, cidade, uf }),
         });
         const data: GeocodeApiResponse = await response.json(); 
-        console.log('[FRONTEND /geocode] Resposta do backend:', response.status, data);
+        
         if (!response.ok) { throw new Error(data.message || data.error || `Erro ${response.status} ao chamar API interna.`); }
+        
         if (data.coordinates) {
             const [lat, lon] = data.coordinates;
-            console.log(`[FRONTEND /geocode] Coordenadas recebidas do backend: Lat=${lat}, Lon=${lon}`);
+            // 3. Salva no cache antes de retornar
+            geocodeCache.set(cacheKey, [lat, lon]);
             return [lat, lon]; 
         } else {
-            console.log('[FRONTEND /geocode] Backend não retornou coordenadas.');
             throw new Error(data.message || 'Endereço não localizado.');
         }
     } catch (error) {
@@ -69,11 +86,12 @@ async function geocodeAddressViaBackend(logradouro?: string | null, numero?: str
         else { throw new Error('Erro desconhecido ao chamar backend de geocodificação.'); }
     }
 }
+// --- Fim Função Geocodificação ---
+
 
 export default function AddDemandaModal({ open, onClose, demandaInicial = null, onSuccess, availableTipos }: AddDemandaModalProps) {
     const isEditing = !!demandaInicial; 
 
-    // --- (Estados: isSubmitted, isLoading, etc. permanecem os mesmos) ---
     const [isSubmitted, setIsSubmitted] = useState(false); 
     const [isLoading, setIsLoading] = useState(false); 
     const [cepLoading, setCepLoading] = useState(false);
@@ -86,13 +104,14 @@ export default function AddDemandaModal({ open, onClose, demandaInicial = null, 
         tipo_demanda: '', descricao: '', prazo: '',
     });
     const [addressFieldsDisabled, setAddressFieldsDisabled] = useState(true);
+    // [MODIFICADO] Coordenadas (lat, lng) - Simplificado após Ação 1.2
     const [coordinates, setCoordinates] = useState<[number, number] | null>(null); 
     const [geocodingLoading, setGeocodingLoading] = useState<boolean>(false);
     const [geocodingError, setGeocodingError] = useState<string | null>(null);
 
     const { logradouro, numero, cidade, uf, cep } = formData;
 
-    // --- (useEffect para Preencher/Limpar Formulário permanece o mesmo) ---
+    // --- useEffect para Preencher/Limpar Formulário (mantido) ---
     useEffect(() => {
         if (open) {
             console.log(`[MODAL ${isEditing ? 'EDIT' : 'ADD'}] Modal aberto. Demanda inicial:`, demandaInicial);
@@ -113,7 +132,6 @@ export default function AddDemandaModal({ open, onClose, demandaInicial = null, 
                         const data = new Date(demandaInicial.prazo);
                         const dataLocal = new Date(data.getTime() + data.getTimezoneOffset() * 60000);
                         prazoFormatado = dataLocal.toISOString().split('T')[0]; 
-                        console.log(`[MODAL EDIT] Data original: ${demandaInicial.prazo}, Data formatada: ${prazoFormatado}`);
                     } catch (e) {
                         console.error("[MODAL EDIT] Erro ao formatar data do prazo para edição:", demandaInicial.prazo, e);
                     }
@@ -133,10 +151,17 @@ export default function AddDemandaModal({ open, onClose, demandaInicial = null, 
                     descricao: demandaInicial.descricao || '',
                     prazo: prazoFormatado,
                 });
-                if (demandaInicial.geom?.coordinates) {
+                
+                // [MODIFICADO]: Inicializa coordenadas com lat/lng do objeto demandaInicial
+                const initialLat = (demandaInicial as any).lat;
+                const initialLng = (demandaInicial as any).lng;
+
+                if (typeof initialLat === 'number' && typeof initialLng === 'number') {
+                     setCoordinates([initialLat, initialLng]);
                 } else {
                     setCoordinates(null);
                 }
+                
                 setAddressFieldsDisabled(!(demandaInicial.logradouro || demandaInicial.bairro || demandaInicial.cidade || demandaInicial.uf));
             } else {
                 setFormData({
@@ -150,7 +175,7 @@ export default function AddDemandaModal({ open, onClose, demandaInicial = null, 
         }
     }, [open, isEditing, demandaInicial]);
 
-    // --- (handleChange, handleCepBlur, useEffect de Geocodificação permanecem os mesmos) ---
+    // --- handleChange (mantido) ---
     const handleChange = (event: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement> | SelectChangeEvent) => {
         const { name, value } = event.target;
         setFormData(prev => ({ ...prev, [name]: value }));
@@ -169,20 +194,43 @@ export default function AddDemandaModal({ open, onClose, demandaInicial = null, 
         if (apiError) setApiError(null);
     };
 
+    // --- handleCepBlur ATUALIZADO com cache ---
     const handleCepBlur = async (event: React.FocusEvent<HTMLInputElement>) => {
-        const cep = event.target.value.replace(/\D/g, '');
-        const formattedCep = cep.replace(/^(\d{5})(\d{3})$/, '$1-$2'); 
+        const cepRaw = event.target.value.replace(/\D/g, '');
+        const formattedCep = cepRaw.replace(/^(\d{5})(\d{3})$/, '$1-$2'); 
         setFormData(prev => ({ ...prev, cep: formattedCep })); 
         setCoordinates(null); 
         setGeocodingError(null); 
 
-        if (cep.length === 8) {
+        if (cepRaw.length === 8) {
+            
+            // 1. Tenta buscar do cache
+            if (cepCache.has(cepRaw)) {
+                const data = cepCache.get(cepRaw)!;
+                console.log("[MODAL] ViaCEP Cache hit:", cepRaw);
+                setFormData(prev => ({
+                    ...prev,
+                    logradouro: data.logradouro,
+                    bairro: data.bairro,
+                    cidade: data.localidade,
+                    uf: data.uf
+                }));
+                setCepLoading(false);
+                setAddressFieldsDisabled(false); 
+                return;
+            }
+
+            // 2. Se não está no cache, faz a requisição
             setCepLoading(true); setCepError(null); setAddressFieldsDisabled(true);
             try {
-                const response = await fetch(`https://viacep.com.br/ws/${cep}/json/`);
+                const response = await fetch(`https://viacep.com.br/ws/${cepRaw}/json/`);
                 if (!response.ok) throw new Error('Falha na requisição ao ViaCEP.');
                 const data: CepResponse = await response.json();
                 if (data.erro) throw new Error('CEP não encontrado.');
+                
+                // Salva no cache antes de setar o estado
+                cepCache.set(cepRaw, data);
+                
                 setFormData(prev => ({
                     ...prev,
                     logradouro: data.logradouro,
@@ -199,17 +247,19 @@ export default function AddDemandaModal({ open, onClose, demandaInicial = null, 
             } finally {
                 setCepLoading(false);
             }
-        } else if (cep.length > 0) {
+        } else if (cepRaw.length > 0) {
             setCepError('CEP inválido. Deve conter 8 dígitos.');
             setAddressFieldsDisabled(true); 
-            setFormData(prev => ({ ...prev, logradouro: '', bairro: '', cidade: '', uf: '' })); 
+            setFormData(prev => ({ ...prev, logradouro: '', bairro: '', cidade: '', uf: '' }));
         } else {
             setCepError(null); 
             setAddressFieldsDisabled(true);
             setFormData(prev => ({ ...prev, logradouro: '', bairro: '', cidade: '', uf: '' }));
         }
     };
+    // --- Fim handleCepBlur ---
 
+    // --- useEffect de Geocodificação (usando a função atualizada com cache) ---
     useEffect(() => {
         const attemptGeocode = async () => {
             const cepNumerico = cep.replace(/\D/g, '');
@@ -222,16 +272,19 @@ export default function AddDemandaModal({ open, onClose, demandaInicial = null, 
                     if (result) {
                         setCoordinates(result); 
                     } else {
-                        setGeocodingError('Não foi possível obter coordenadas (dados insuficientes).');
+                        // Se a geocodificação falhar (e.g., ZERO_RESULTS), mostra erro de geocoding
+                        setGeocodingError('Não foi possível obter coordenadas para este endereço.');
                         setCoordinates(null);
                     }
                 } catch (error) {
+                    // Erro na chamada (e.g., API Key inválida, erro de rede)
                     setGeocodingError(error instanceof Error ? error.message : 'Erro ao obter coordenadas.');
                     setCoordinates(null);
                 } finally {
                     setGeocodingLoading(false);
                 }
             } else {
+                // Se algum campo essencial estiver faltando ou houver erro no CEP, limpamos.
                 setCoordinates(null);
                 if (!cepError && !(cepNumerico.length === 8 && (!logradouro || !numero || !cidade || !uf))) {
                     setGeocodingError(null);
@@ -246,26 +299,25 @@ export default function AddDemandaModal({ open, onClose, demandaInicial = null, 
         }, 800); 
         return () => { clearTimeout(handler); }; 
     }, [cep, numero, logradouro, cidade, uf, cepError, open]); 
+    // --- Fim useEffect Geocodificação ---
 
-    // *** ATUALIZAÇÃO: Função de Submit (handleSubmit) ***
+    // --- Função de Submit (handleSubmit) ---
     const handleSubmit = async () => {
         console.log(`[FRONTEND MODAL] Tentando ${isEditing ? 'salvar edição' : 'registrar nova demanda'}...`);
         setIsLoading(true);
         setApiError(null); 
 
-        // ***** INÍCIO DA CORREÇÃO *****
-        // Validações básicas (remove 'nome_solicitante')
-        // if (!formData.nome_solicitante || formData.nome_solicitante.trim() === '') { setApiError('O campo Nome Completo é obrigatório.'); setIsLoading(false); return; } // <-- REMOVIDO
+        // Validações básicas 
         if (!formData.cep || !/^\d{5}-?\d{3}$/.test(formData.cep)) { setApiError('O campo CEP é obrigatório e deve estar no formato 00000-000.'); setIsLoading(false); return; }
         if (!formData.numero || formData.numero.trim() === '') { setApiError('O campo Número é obrigatório.'); setIsLoading(false); return; }
         if (!formData.tipo_demanda) { setApiError('O campo Tipo de Demanda é obrigatório.'); setIsLoading(false); return; } 
         if (!formData.descricao || formData.descricao.trim() === '') { setApiError('O campo Descrição é obrigatório.'); setIsLoading(false); return; }
-        // ***** FIM DA CORREÇÃO *****
 
         try {
             const apiUrl = isEditing ? `/api/demandas/${demandaInicial?.id}` : '/api/demandas';
             const method = isEditing ? 'PUT' : 'POST';
 
+            // Coordinates é [lat, lng]
             const bodyPayload = {
                 ...formData,
                 coordinates: coordinates 
@@ -302,6 +354,7 @@ export default function AddDemandaModal({ open, onClose, demandaInicial = null, 
             setIsLoading(false); 
         }
     };
+    // --- Fim Função de Submit ---
 
     // --- Renderização JSX ---
     return (
@@ -333,10 +386,7 @@ export default function AddDemandaModal({ open, onClose, demandaInicial = null, 
                             {/* --- Dados do Solicitante --- */}
                             <Typography variant="subtitle1" gutterBottom sx={{ fontWeight: 'bold' }}>Dados do Solicitante</Typography>
                             
-                            {/* ***** INÍCIO DA CORREÇÃO ***** */}
-                            {/* Remove o '*' do label e a prop 'required' e a validação de erro */}
                             <TextField label="Nome Completo" name="nome_solicitante" variant="outlined" fullWidth value={formData.nome_solicitante} onChange={handleChange} />
-                            {/* ***** FIM DA CORREÇÃO ***** */}
                             
                             <TextField label="Telefone" name="telefone_solicitante" variant="outlined" fullWidth value={formData.telefone_solicitante} onChange={handleChange} />
                             <TextField label="Email" name="email_solicitante" type="email" variant="outlined" fullWidth value={formData.email_solicitante} onChange={handleChange} />

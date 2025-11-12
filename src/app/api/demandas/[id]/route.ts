@@ -9,7 +9,7 @@ type UpdateDemandaBody = Partial<DemandaType & { prazo: string }>; // Permite ca
 // Defina o tipo de contexto esperado (igual ao DELETE)
 type ExpectedContext = { params: Promise<{ id: string }> };
 
-// --- Handler para PUT (Atualizar Demanda) ---
+// --- Handler para PUT (Atualizar Demanda - SIMPLIFICANDO RETORNO GEOM) ---
 export async function PUT(request: NextRequest, context: ExpectedContext) {
   const params = await context.params;
   const id = params.id;
@@ -67,14 +67,6 @@ export async function PUT(request: NextRequest, context: ExpectedContext) {
       );
     }
 
-    // TODO: Geocodificar novamente SE os campos de endereço mudaram
-    // (Pode ser mais complexo, por enquanto vamos pular ou assumir que não muda)
-    // let coordinates: [number, number] | null = null;
-    // ... lógica de geocodificação aqui ...
-    // Por simplicidade, NÃO vamos atualizar geom neste exemplo inicial.
-    // Para atualizar, você precisaria buscar a demanda atual, comparar endereços,
-    // chamar a API de geocodificação se diferente, e incluir geom na query UPDATE.
-
     // Formata o prazo
     const prazoDate = prazo && prazo.trim() !== "" ? new Date(prazo) : null;
     const prazoValidoParaSQL =
@@ -98,11 +90,10 @@ export async function PUT(request: NextRequest, context: ExpectedContext) {
         tipo_demanda = $11,
         descricao = $12,
         prazo = $13,
-        -- *** INÍCIO DA CORREÇÃO ***
         geom = ST_SetSRID(ST_MakePoint($15, $16), 4326)
-        -- *** FIM DA CORREÇÃO ***
     WHERE id = $14
-    RETURNING id, protocolo, nome_solicitante, status, created_at, updated_at, prazo, ST_AsGeoJSON(geom) as geom;
+    -- [MODIFICADO]: Retorna lat/lng como números (mais rápido)
+    RETURNING id, protocolo, nome_solicitante, id_status, created_at, updated_at, prazo, ST_Y(geom) as lat, ST_X(geom) as lng;
  `;
     // Parâmetros para a query UPDATE
     const queryParams = [
@@ -120,15 +111,11 @@ export async function PUT(request: NextRequest, context: ExpectedContext) {
       descricao, // $12
       prazoValidoParaSQL, // $13
       numericId, // $14 (ID para o WHERE)
-      // *** INÍCIO DA CORREÇÃO ***
-      // ST_MakePoint(Longitude, Latitude)
       coordinates ? coordinates[1] : null, // $15 (Longitude)
       coordinates ? coordinates[0] : null, // $16 (Latitude)
-      // *** FIM DA CORREÇÃO ***
     ];
 
     console.log("[API] Executando query UPDATE:", queryText);
-    // console.log('[API] Com parâmetros:', queryParams); // Cuidado ao logar dados sensíveis
 
     // Executa a Query
     const result = await pool.query(queryText, queryParams);
@@ -145,9 +132,9 @@ export async function PUT(request: NextRequest, context: ExpectedContext) {
 
     // Prepara e Envia a Resposta
     const updatedDemanda = result.rows[0];
-    if (updatedDemanda.geom) {
-      updatedDemanda.geom = JSON.parse(updatedDemanda.geom);
-    }
+    // [REMOVIDO]: Nenhuma necessidade de parsear geom aqui
+    // if (updatedDemanda.geom) { updatedDemanda.geom = JSON.parse(updatedDemanda.geom); }
+
     if (updatedDemanda.prazo) {
       updatedDemanda.prazo = new Date(updatedDemanda.prazo);
     }
