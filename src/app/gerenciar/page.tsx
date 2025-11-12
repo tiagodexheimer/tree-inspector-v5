@@ -5,7 +5,9 @@ import ForestIcon from '@mui/icons-material/Forest';
 import DescriptionIcon from '@mui/icons-material/Description';
 import PlaylistAddCheckIcon from '@mui/icons-material/PlaylistAddCheck';
 import AssignmentIcon from '@mui/icons-material/Assignment';
-import CategoryIcon from '@mui/icons-material/Category'; // Ícone para Tipos
+import CategoryIcon from '@mui/icons-material/Category'; 
+// [NOVO] Importe um ícone para usuários
+import PeopleIcon from '@mui/icons-material/People';
 
 export default function GerenciarPage() {
     return (
@@ -14,6 +16,8 @@ export default function GerenciarPage() {
 
             <div className="flex items-center justify-start p-4 gap-8 flex-wrap">
 
+                {/* ... (Cards de Espécies, Laudos, Demandas, Status, Tipos permanecem iguais) ... */}
+                
                 {/* Card de Espécies */}
                 <Card sx={{ width: 250, height: 150 }} className="p-4 mb-4 flex items-center justify-center hover:shadow-lg transition-shadow">
                     <Link href="/gerenciar/especies" className="flex flex-col items-center gap-2 text-xl font-bold text-[#257e1a] no-underline hover:opacity-80">
@@ -46,13 +50,22 @@ export default function GerenciarPage() {
                     </Link>
                 </Card>
 
-                 {/* ++ NOVO Card de Tipos de Demanda ++ */}
+                 {/* Card de Tipos de Demanda */}
                 <Card sx={{ width: 250, height: 150 }} className="p-4 mb-4 flex items-center justify-center hover:shadow-lg transition-shadow">
                     <Link href="/gerenciar/tipos-demanda" className="flex flex-col items-center gap-2 text-xl font-bold text-[#257e1a] no-underline hover:opacity-80">
                         <CategoryIcon sx={{ fontSize: 60, color: '#257e1a' }} />
                         Gerenciar Tipos
                     </Link>
                 </Card>
+                
+                {/* +++ INÍCIO DO NOVO CARD DE USUÁRIOS +++ */}
+                <Card sx={{ width: 250, height: 150 }} className="p-4 mb-4 flex items-center justify-center hover:shadow-lg transition-shadow">
+                    <Link href="/gerenciar/usuarios" className="flex flex-col items-center gap-2 text-xl font-bold text-[#257e1a] no-underline hover:opacity-80">
+                        <PeopleIcon sx={{ fontSize: 60, color: '#257e1a' }} />
+                        Gerenciar Usuários
+                    </Link>
+                </Card>
+                {/* +++ FIM DO NOVO CARD +++ */}
 
 
             </div>
