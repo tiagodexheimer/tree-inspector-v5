@@ -11,6 +11,9 @@ import AddIcon from '@mui/icons-material/Add';
 import EditIcon from '@mui/icons-material/Edit';
 import DeleteIcon from '@mui/icons-material/Delete';
 import ColorLensIcon from '@mui/icons-material/ColorLens'; // Para o seletor de cor
+// [NOVO] Importações de Autenticação
+import { useSession } from 'next-auth/react';
+import LockIcon from '@mui/icons-material/Lock';
 
 // Interface para o tipo Status
 interface StatusType {
@@ -20,6 +23,11 @@ interface StatusType {
 }
 
 export default function GerenciarStatusPage() {
+    // [NOVO] Verificação de Admin
+    const { data: session, status } = useSession();
+    // Usamos session?.user?.role (safe navigation)
+    const isAdmin = status === 'authenticated' && session?.user?.role === 'admin';
+
     const [statusList, setStatusList] = useState<StatusType[]>([]);
     const [isLoading, setIsLoading] = useState<boolean>(true);
     const [error, setError] = useState<string | null>(null);
@@ -35,8 +43,14 @@ export default function GerenciarStatusPage() {
 
     // --- Busca Inicial ---
     useEffect(() => {
-        fetchStatus();
-    }, []);
+        // [MODIFICADO] Só busca os dados se for admin
+        if (isAdmin) {
+            fetchStatus();
+        } else if (status === 'authenticated') {
+            // Se está logado mas não é admin, para o loading
+            setIsLoading(false);
+        }
+    }, [isAdmin, status]); // Depende de isAdmin e status
 
     // --- Funções API ---
     const fetchStatus = async () => {
@@ -149,13 +163,36 @@ export default function GerenciarStatusPage() {
          setIsDeleting(false);
     };
 
-    // --- Renderização ---
+    // --- [NOVO] Renderização de Segurança ---
+    if (status === 'loading') {
+        return (
+            <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '80vh' }}>
+                <CircularProgress /> <Typography sx={{ ml: 2 }}>Verificando autorização...</Typography>
+            </Box>
+        );
+    }
+
+    // A verificação de !isAdmin já cobre o 'status !== 'authenticated''
+    if (!isAdmin) {
+        return (
+            <Box sx={{ p: 4, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2 }}>
+                <LockIcon color="error" sx={{ fontSize: 60 }} />
+                <Typography variant="h5" color="error">Acesso Negado</Typography>
+                <Typography>Você precisa ser um administrador para acessar esta página.</Typography>
+            </Box>
+        );
+    }
+    // --- [FIM NOVO] ---
+
+
+    // --- Renderização (Se for admin) ---
     return (
         <div className="p-4">
             <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
                 <Typography variant="h4" component="h1" gutterBottom>
                     Gerenciar Status das Demandas
                 </Typography>
+                {/* O botão "Adicionar" só é renderizado se for admin, o que já foi checado */}
                 <Button
                     variant="contained"
                     startIcon={<AddIcon />}
@@ -195,6 +232,7 @@ export default function GerenciarStatusPage() {
                                         </Box>
                                     </TableCell>
                                     <TableCell align="right">
+                                        {/* Ações só renderizam se for admin, o que já foi checado */}
                                         <IconButton onClick={() => handleOpenModal(status)} color="primary" title="Editar Status">
                                             <EditIcon />
                                         </IconButton>
@@ -293,4 +331,4 @@ export default function GerenciarStatusPage() {
             </Dialog>
         </div>
     );
-}   
+}

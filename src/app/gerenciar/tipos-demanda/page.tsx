@@ -10,6 +10,9 @@ import {
 import AddIcon from '@mui/icons-material/Add';
 import EditIcon from '@mui/icons-material/Edit';
 import DeleteIcon from '@mui/icons-material/Delete';
+// [NOVO] Importações de Autenticação
+import { useSession } from 'next-auth/react';
+import LockIcon from '@mui/icons-material/Lock';
 
 // Interface para o tipo de Demanda
 interface TipoDemanda {
@@ -18,6 +21,11 @@ interface TipoDemanda {
 }
 
 export default function GerenciarTiposDemandaPage() {
+    // [NOVO] Verificação de Admin
+    const { data: session, status } = useSession();
+    // Usamos session?.user?.role (safe navigation)
+    const isAdmin = status === 'authenticated' && session?.user?.role === 'admin';
+
     const [tiposList, setTiposList] = useState<TipoDemanda[]>([]);
     const [isLoading, setIsLoading] = useState<boolean>(true);
     const [error, setError] = useState<string | null>(null);
@@ -33,15 +41,21 @@ export default function GerenciarTiposDemandaPage() {
 
     // --- Busca Inicial ---
     useEffect(() => {
-        fetchTipos();
-    }, []);
+        // [MODIFICADO] Só busca se for admin
+        if (isAdmin) {
+            fetchTipos();
+        } else if (status === 'authenticated') {
+            // Se está logado mas não é admin, para o loading
+            setIsLoading(false);
+        }
+    }, [isAdmin, status]);
 
     // --- Funções API ---
     const fetchTipos = async () => {
         setIsLoading(true);
         setError(null);
         try {
-            const response = await fetch('/api/demandas-tipos');
+            const response = await fetch('/api/demandas-tipos'); //
             if (!response.ok) {
                 const errorData = await response.json().catch(() => ({ message: `Erro ${response.status}` }));
                 throw new Error(errorData.message || `Erro HTTP ${response.status}`);
@@ -53,7 +67,7 @@ export default function GerenciarTiposDemandaPage() {
         } finally {
             setIsLoading(false);
         }
-    };
+    }; //
 
     const handleSave = async () => {
         if (!currentTipo?.nome || currentTipo.nome.trim() === '') {
@@ -63,8 +77,8 @@ export default function GerenciarTiposDemandaPage() {
 
         setIsSaving(true);
         setModalError(null);
-        const url = isEditing ? `/api/demandas-tipos/${currentTipo.id}` : '/api/demandas-tipos';
-        const method = isEditing ? 'PUT' : 'POST';
+        const url = isEditing ? `/api/demandas-tipos/${currentTipo.id}` : '/api/demandas-tipos'; //
+        const method = isEditing ? 'PUT' : 'POST'; //
 
         try {
             const response = await fetch(url, {
@@ -83,14 +97,14 @@ export default function GerenciarTiposDemandaPage() {
         } finally {
             setIsSaving(false);
         }
-    };
+    }; //
 
     const handleDeleteConfirm = async () => {
          if (!tipoToDelete) return;
         setIsDeleting(true);
         setDeleteError(null);
         try {
-            const response = await fetch(`/api/demandas-tipos/${tipoToDelete.id}`, { method: 'DELETE' });
+            const response = await fetch(`/api/demandas-tipos/${tipoToDelete.id}`, { method: 'DELETE' }); //
              const result = await response.json().catch(() => ({})); // Pega JSON mesmo se não for OK
             if (!response.ok) {
                 throw new Error(result.message || `Erro ${response.status}`);
@@ -102,7 +116,7 @@ export default function GerenciarTiposDemandaPage() {
         } finally {
              setIsDeleting(false);
         }
-    };
+    }; //
 
 
     // --- Handlers Modal ---
@@ -111,33 +125,53 @@ export default function GerenciarTiposDemandaPage() {
         setCurrentTipo(tipo ? { ...tipo } : { nome: '' });
         setModalError(null);
         setOpenModal(true);
-    };
+    }; //
 
     const handleCloseModal = () => {
         setOpenModal(false);
         setCurrentTipo(null);
         setIsSaving(false); // Garante reset do loading
-    };
+    }; //
 
     const handleModalChange = (event: React.ChangeEvent<HTMLInputElement>) => {
         const { name, value } = event.target;
         setCurrentTipo(prev => prev ? { ...prev, [name]: value } : null);
         if (modalError) setModalError(null); // Limpa erro ao digitar
-    };
+    }; //
 
     // --- Handlers Delete Confirm ---
     const handleOpenDeleteConfirm = (tipo: TipoDemanda) => {
          setTipoToDelete(tipo);
          setDeleteError(null);
          setOpenDeleteConfirm(true);
-    };
+    }; //
     const handleCloseDeleteConfirm = () => {
          setOpenDeleteConfirm(false);
          setTipoToDelete(null);
          setIsDeleting(false);
-    };
+    }; //
 
-    // --- Renderização ---
+    // --- [NOVO] Renderização de Segurança ---
+    if (status === 'loading') {
+        return (
+            <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '80vh' }}>
+                <CircularProgress /> <Typography sx={{ ml: 2 }}>Verificando autorização...</Typography>
+            </Box>
+        );
+    }
+
+    if (status !== 'authenticated' || !isAdmin) {
+        return (
+            <Box sx={{ p: 4, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2 }}>
+                <LockIcon color="error" sx={{ fontSize: 60 }} />
+                <Typography variant="h5" color="error">Acesso Negado</Typography>
+                <Typography>Você precisa ser um administrador para acessar esta página.</Typography>
+            </Box>
+        );
+    }
+    // --- [FIM NOVO] ---
+
+    // --- Renderização (Se for admin) ---
     return (
         <div className="p-4">
             <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>

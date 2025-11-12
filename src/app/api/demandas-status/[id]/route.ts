@@ -1,6 +1,9 @@
 // src/app/api/demandas-status/[id]/route.ts
 import { NextRequest, NextResponse } from 'next/server';
-import pool from '../../../../lib/db'; // Ajuste o caminho
+import pool from '../../../../lib/db';
+// Importações de Autenticação
+import { getServerSession } from "next-auth/next";
+import { authOptions } from "../../auth/[...nextauth]/route";
 
 type ExpectedContext = { params: Promise<{ id: string }> };
 
@@ -11,6 +14,12 @@ interface StatusBody {
 
 // --- Handler para PUT (Atualizar Status) ---
 export async function PUT(request: NextRequest, context: ExpectedContext) {
+    // Verificação de Admin
+    const session = await getServerSession(authOptions);
+    if (session?.user?.role !== 'admin') {
+        return NextResponse.json({ message: "Não autorizado" }, { status: 403 });
+    }
+
     const params = await context.params;
     const id = params.id;
     console.log(`[API] Recebido PUT em /api/demandas-status/${id}`);
@@ -44,21 +53,41 @@ export async function PUT(request: NextRequest, context: ExpectedContext) {
         console.log('[API] Status atualizado com sucesso:', result.rows[0]);
         return NextResponse.json(result.rows[0], { status: 200 });
 
-    } catch (error) {
+    } catch (error) { // <-- INÍCIO DO BLOCO CORRIGIDO
         console.error(`[API] Erro ao atualizar status ${id}:`, error);
-        let errorMessage = error instanceof Error ? error.message : 'Erro desconhecido';
+        let errorMessage = 'Erro desconhecido';
         let status = 500;
-         // Trata erro de nome duplicado (UNIQUE constraint)
-        if (error instanceof Error && 'code' in error && error.code === '23505' && error.message.includes('demandas_status_nome_key')) {
-           status = 409; // Conflict
-           errorMessage = 'Erro: Já existe um status com este nome.';
+
+        // Primeiro, checa se é o erro específico do Postgre (duplicado)
+        if (error && typeof error === 'object' && 'code' in error && error.code === '23505') {
+            
+            // Agora, checamos se 'message' existe e é string antes de usá-la
+            if ('message' in error && typeof error.message === 'string' && error.message.includes('demandas_status_nome_key')) {
+                status = 409; // Conflict
+                errorMessage = 'Erro: Já existe um status com este nome.';
+            } else {
+                // É um erro de constraint duplicada, mas não o que esperávamos
+                status = 409;
+                errorMessage = 'Erro: Valor duplicado.';
+            }
+        } 
+        // Se não for o erro de código 23505, checa se é um Erro padrão
+        else if (error instanceof Error) {
+            errorMessage = error.message;
         }
+
         return NextResponse.json({ message: `Erro interno ao atualizar status ${id}.`, error: errorMessage }, { status });
-    }
+    } // <-- FIM DO BLOCO CORRIGIDO
 }
 
 // --- Handler para DELETE (Deletar Status) ---
 export async function DELETE(request: NextRequest, context: ExpectedContext) {
+    // Verificação de Admin
+    const session = await getServerSession(authOptions);
+    if (session?.user?.role !== 'admin') {
+        return NextResponse.json({ message: "Não autorizado" }, { status: 403 });
+    }
+    
     const params = await context.params;
     const id = params.id;
     console.log(`[API] Recebido DELETE em /api/demandas-status/${id}`);
