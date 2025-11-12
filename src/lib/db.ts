@@ -1,49 +1,60 @@
 // src/lib/db.ts
 import { Pool } from 'pg';
 
-let pool: Pool;
+declare global {
+  var pool: Pool | undefined;
+}
 
-// Vercel e Neon recomendam usar a variável POSTGRES_URL.
-// Usaremos a sua (com pooler) que é a DATABASE_URL ou POSTGRES_URL.
-const connectionString = process.env.POSTGRES_URL;
+// --- CORREÇÃO (Linha 7) ---
+// Removemos a declaração 'let pool: Pool;' daqui.
+// pool será definido com 'const' abaixo.
+let connectionString: string | undefined;
 
-if (connectionString) {
-  // --- Modo de Produção (Vercel/Neon) ---
-  // A string de conexão já inclui sslmode=require
-  console.log('API conectando ao banco de dados de produção (via URL)...');
-  pool = new Pool({
-    connectionString: connectionString,
-  });
+// 1. Tenta pegar a URL de produção primeiro (ex: Vercel, Neon)
+connectionString = process.env.POSTGRES_URL;
 
+// 2. Se não existir, tenta construir a partir das variáveis de dev (docker-compose)
+if (!connectionString) {
+  console.log('API: POSTGRES_URL não encontrada. Tentando construir com variáveis locais...');
+  
+  const user = process.env.DB_USER;
+  const password = process.env.DB_PASSWORD;
+  const host = process.env.DB_HOST;
+  const port = parseInt(process.env.DB_PORT || '5432', 10);
+  const database = process.env.DB_DATABASE;
+
+  // Verifica se as variáveis locais existem
+  if (user && password && host && port && database) {
+    // Para o 'npm run build', o host deve ser 'localhost', não 'db'
+    // pois o build não está rodando dentro do Docker.
+    const buildHost = (host === 'db' && process.env.NODE_ENV === 'production') ? 'localhost' : host;
+    
+    connectionString = `postgresql://${user}:${password}@${buildHost}:${port}/${database}`;
+    console.log('API: String de conexão local construída com sucesso.');
+  } else {
+    console.log('API: Variáveis de banco de dados locais (DB_USER, etc.) também não foram encontradas.');
+  }
 } else {
-  // --- Modo de Desenvolvimento (local/docker-compose) ---
-  // Usa as variáveis de ambiente locais (do seu docker-compose.yml)
-  console.log('API conectando ao banco de dados de desenvolvimento (local)...');
-  pool = new Pool({
-    user: process.env.DB_USER,       // "meuusuario"
-    host: process.env.DB_HOST,       // "db" ou "localhost"
-    database: process.env.DB_DATABASE, // "meubanco_gis"
-    password: process.env.DB_PASSWORD, // "minhasenhasecreta"
-    port: parseInt(process.env.DB_PORT || '5432', 10),
+  console.log('API: Usando POSTGRES_URL (ambiente de produção).');
+}
+
+// 3. Agora, verifica se TEMOS uma string de conexão (de qualquer fonte)
+if (!connectionString) {
+  // Se ainda não temos uma string, o build deve falhar.
+  throw new Error("Não foi possível conectar ao banco de dados. Configure POSTGRES_URL (para produção) ou as variáveis DB_ (para desenvolvimento).");
+}
+
+// 4. Cria o pool (Singleton)
+if (!global.pool) {
+  console.log('API: Criando novo pool de conexão...');
+  global.pool = new Pool({
+    connectionString: connectionString,
   });
 }
 
-// O teste de conexão continua o mesmo
-pool.connect((err, client, release) => {
-    if (err) {
-        return console.error('Erro ao conectar ao banco de dados:', err.stack);
-    }
-    console.log('API conectada ao banco de dados PostgreSQL com PostGIS!');
-    
-    // Verifica a versão do PostGIS
-    client?.query('SELECT postgis_version()', (err, result) => {
-        release(); // Libera o client de volta para o pool
-        if (err) {
-            return console.error('Erro ao verificar PostGIS:', err.stack);
-        }
-        console.log('Versão do PostGIS:', result?.rows[0]);
-    });
-});
+// --- CORREÇÃO (Linha 54) ---
+// Declaramos 'pool' com 'const' e atribuímos o valor de uma vez.
+const pool: Pool = global.pool;
 
 // Exporta o pool configurado
 export default pool;

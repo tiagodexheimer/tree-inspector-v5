@@ -1,6 +1,9 @@
 // src/app/api/demandas-status/route.ts
 import { NextRequest, NextResponse } from 'next/server';
 import pool from '../../../lib/db'; // Ajuste o caminho se necessário
+// [NOVO] Importações de Autenticação
+import { getServerSession } from "next-auth/next";
+import { authOptions } from "../auth/[...nextauth]/route";
 
 interface StatusBody {
     nome?: string;
@@ -8,6 +11,7 @@ interface StatusBody {
 }
 
 // --- Handler para GET (Listar todos os Status) ---
+// (Esta rota permanece pública, pois é usada pelos filtros de demanda)
 export async function GET() {
     console.log('[API /demandas-status] Recebido GET.');
     try {
@@ -23,6 +27,14 @@ export async function GET() {
 // --- Handler para POST (Criar novo Status) ---
 export async function POST(request: NextRequest) {
     console.log('[API /demandas-status] Recebido POST.');
+
+    // [NOVO] Verificação de Admin
+    const session = await getServerSession(authOptions);
+    if (session?.user?.role !== 'admin') {
+        return NextResponse.json({ message: "Não autorizado" }, { status: 403 });
+    }
+    // [FIM NOVO]
+
     try {
         const body = await request.json() as StatusBody;
         const { nome, cor } = body;
@@ -47,15 +59,26 @@ export async function POST(request: NextRequest) {
         console.log('[API /demandas-status] Status criado com sucesso:', result.rows[0]);
         return NextResponse.json(result.rows[0], { status: 201 });
 
-    } catch (error) {
+    } catch (error) { // <-- INÍCIO DO BLOCO CORRIGIDO
         console.error('[API /demandas-status] Erro ao criar status (POST):', error);
-        let errorMessage = error instanceof Error ? error.message : 'Erro desconhecido';
+        let errorMessage = 'Erro desconhecido';
         let status = 500;
-         // Trata erro de nome duplicado (UNIQUE constraint)
-        if (error instanceof Error && 'code' in error && error.code === '23505' && error.message.includes('demandas_status_nome_key')) {
-           status = 409; // Conflict
-           errorMessage = 'Erro: Já existe um status com este nome.';
+        
+        // Lógica de verificação de erro segura para o TypeScript
+        //
+        if (error && typeof error === 'object' && 'code' in error && error.code === '23505') {
+            if ('message' in error && typeof error.message === 'string' && error.message.includes('demandas_status_nome_key')) {
+               status = 409; // Conflict
+               errorMessage = 'Erro: Já existe um status com este nome.';
+            } else {
+               status = 409;
+               errorMessage = 'Erro: Valor duplicado.';
+            }
         }
+        else if (error instanceof Error) {
+            errorMessage = error.message;
+        }
+        
         return NextResponse.json({ message: 'Erro interno ao criar status.', error: errorMessage }, { status });
-    }
+    } // <-- FIM DO BLOCO CORRIGIDO
 }

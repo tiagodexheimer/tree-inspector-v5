@@ -1,12 +1,16 @@
 // src/app/api/demandas-tipos/route.ts
 import { NextRequest, NextResponse } from 'next/server';
 import pool from '../../../lib/db'; // Ajuste o caminho
+// Importações de Autenticação
+import { getServerSession } from "next-auth/next";
+import { authOptions } from "../auth/[...nextauth]/route";
 
 interface TipoBody {
     nome?: string;
 }
 
 // --- Handler para GET (Listar todos os Tipos) ---
+// (Esta rota permanece pública, pois é usada pelos filtros de demanda)
 export async function GET() {
     console.log('[API /demandas-tipos] Recebido GET.');
     try {
@@ -22,6 +26,13 @@ export async function GET() {
 // --- Handler para POST (Criar novo Tipo) ---
 export async function POST(request: NextRequest) {
     console.log('[API /demandas-tipos] Recebido POST.');
+
+    // Verificação de Admin
+    const session = await getServerSession(authOptions);
+    if (session?.user?.role !== 'admin') {
+        return NextResponse.json({ message: "Não autorizado" }, { status: 403 });
+    }
+
     try {
         const body = await request.json() as TipoBody;
         const { nome } = body;
@@ -43,15 +54,26 @@ export async function POST(request: NextRequest) {
         console.log('[API /demandas-tipos] Tipo criado com sucesso:', result.rows[0]);
         return NextResponse.json(result.rows[0], { status: 201 });
 
-    } catch (error) {
+    } catch (error) { // <-- INÍCIO DO BLOCO CORRIGIDO
         console.error('[API /demandas-tipos] Erro ao criar tipo (POST):', error);
-        let errorMessage = error instanceof Error ? error.message : 'Erro desconhecido';
+        let errorMessage = 'Erro desconhecido';
         let status = 500;
-        // Trata erro de nome duplicado (UNIQUE constraint)
-        if (error instanceof Error && 'code' in error && error.code === '23505' && error.message.includes('demandas_tipos_nome_key')) {
-           status = 409; // Conflict
-           errorMessage = 'Erro: Já existe um tipo de demanda com este nome.';
+        
+        // Lógica de verificação de erro segura
+        //
+        if (error && typeof error === 'object' && 'code' in error && error.code === '23505') {
+            if ('message' in error && typeof error.message === 'string' && error.message.includes('demandas_tipos_nome_key')) {
+               status = 409; // Conflict
+               errorMessage = 'Erro: Já existe um tipo de demanda com este nome.';
+            } else {
+               status = 409;
+               errorMessage = 'Erro: Valor duplicado.';
+            }
         }
+        else if (error instanceof Error) {
+            errorMessage = error.message;
+        }
+
         return NextResponse.json({ message: 'Erro interno ao criar tipo de demanda.', error: errorMessage }, { status });
-    }
+    } // <-- FIM DO BLOCO CORRIGIDO
 }

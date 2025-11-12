@@ -106,3 +106,30 @@ INSERT INTO demandas_tipos (nome) VALUES
 ('Supressão'),
 ('Fiscalização')
 ON CONFLICT (nome) DO NOTHING;
+
+-- Tabela de Sessões (Corrigida)
+-- Alteramos user_id de INTEGER para TEXT
+CREATE TABLE IF NOT EXISTS sessions (
+    id TEXT PRIMARY KEY,
+    session_token TEXT UNIQUE NOT NULL,
+    user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE, -- <-- CORRIGIDO
+    expires TIMESTAMPTZ NOT NULL
+);
+
+-- Tabela de Contas (Corrigida)
+-- Alteramos user_id de INTEGER para TEXT
+CREATE TABLE IF NOT EXISTS accounts (
+    id SERIAL PRIMARY KEY,
+    user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE, -- <-- CORRIGIDO
+    type TEXT NOT NULL,
+    provider TEXT NOT NULL,
+    provider_account_id TEXT NOT NULL,
+    refresh_token TEXT,
+    access_token TEXT,
+    expires_at BIGINT,
+    token_type TEXT,
+    scope TEXT,
+    id_token TEXT,
+    session_state TEXT,
+    UNIQUE(provider, provider_account_id)
+);

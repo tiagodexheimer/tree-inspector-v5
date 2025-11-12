@@ -3,12 +3,26 @@ import { NextRequest, NextResponse } from "next/server";
 import pool from "../../../lib/db"; // Ajuste o caminho se necessário
 import { DemandaType } from "@/types/demanda";
 
-// --- Handler para GET (Listar Demandas - SEM ALTERAÇÃO) ---
+// [NOVO] Importações do Auth.js
+import { getServerSession } from "next-auth/next";
+import { authOptions } from "../auth/[...nextauth]/route"; // Importa suas opções de autenticação
+
+// --- Handler para GET (Listar Demandas - ATUALIZADO COM PAPÉIS) ---
 export async function GET() {
   console.log("[API /demandas] Recebido GET.");
+
+  // [NOVO] Verificação de autenticação e papel
+  const session = await getServerSession(authOptions);
+  if (!session || !session.user) {
+    return NextResponse.json({ message: "Não autenticado" }, { status: 401 });
+  }
+  const userRole = session.user.role; // Ex: 'admin', 'paid_user', 'free_user'
+  // [FIM NOVO]
+
   try {
-    const result = await pool.query(
-      `SELECT
+    // [MODIFICADO] Query base
+    let queryText = `
+           SELECT
               d.id, d.protocolo, d.nome_solicitante,
               d.cep, d.logradouro, d.numero, d.complemento, d.bairro, d.cidade, d.uf,
               d.tipo_demanda, d.descricao, d.prazo, d.created_at,
@@ -18,8 +32,17 @@ export async function GET() {
               ST_AsGeoJSON(d.geom) as geom
            FROM demandas d 
            LEFT JOIN demandas_status s ON d.id_status = s.id
-           ORDER BY d.created_at DESC`
-    );
+           ORDER BY d.created_at DESC
+        `; // O ponto e vírgula é removido para permitir adicionar o LIMIT
+
+    // [NOVO] Lógica de Papel: Usuários gratuitos veem apenas 10
+    if (userRole === 'free_user') {
+      console.log("[API /demandas] Usuário 'free_user' detectado, limitando a 10 resultados.");
+      queryText += " LIMIT 10";
+    }
+    // [FIM NOVO]
+
+    const result = await pool.query(queryText); // Executa a query (com ou sem limite)
 
     const demandas = result.rows.map((row) => ({
       ...row,
@@ -39,9 +62,18 @@ export async function GET() {
   }
 }
 
-// --- Handler para POST (Criar Demanda - SEM ALTERAÇÃO) ---
+// --- Handler para POST (Criar Demanda - ATUALIZADO COM AUTENTICAÇÃO) ---
 export async function POST(request: NextRequest) {
   console.log("[API /demandas] Recebido POST.");
+
+  // [NOVO] Verificação de autenticação
+  const session = await getServerSession(authOptions);
+  if (!session || !session.user) {
+    // Usuário precisa estar logado para criar uma demanda
+    return NextResponse.json({ message: "Não autenticado" }, { status: 401 });
+  }
+  // [FIM NOVO]
+
   try {
     const body = (await request.json()) as Partial<
       DemandaType & { prazo: string }
@@ -61,10 +93,10 @@ export async function POST(request: NextRequest) {
       tipo_demanda,
       descricao,
       prazo,
-      coordinates, 
+      coordinates,
     } = body as Partial<
       DemandaType & { prazo: string; coordinates?: [number, number] | null }
-    >; 
+    >;
 
     // Validação Mínima (nome_solicitante não é mais obrigatório)
     if (!cep || !numero || !tipo_demanda || !descricao) {
@@ -86,7 +118,7 @@ export async function POST(request: NextRequest) {
     }
 
     const protocolo = `DEM-${Date.now()}`;
-    
+
     let initialStatusId: number | null = null;
     try {
       const statusResult = await pool.query(
@@ -203,9 +235,22 @@ export async function POST(request: NextRequest) {
   }
 }
 
-// +++ INÍCIO DA NOVA FUNÇÃO DELETE +++
+// --- Handler para DELETE (Excluir Demandas - ATUALIZADO COM AUTORIZAÇÃO) ---
 export async function DELETE(request: NextRequest) {
   console.log("[API /demandas] Recebido DELETE para exclusão em massa.");
+
+  // [NOVO] Verificação de autenticação e autorização
+  const session = await getServerSession(authOptions);
+  if (!session || !session.user) {
+    return NextResponse.json({ message: "Não autenticado" }, { status: 401 });
+  }
+  
+  const userRole = session.user.role;
+  if (userRole !== 'admin') {
+     // Apenas administradores podem deletar
+     return NextResponse.json({ message: "Não autorizado: Apenas administradores podem deletar demandas." }, { status: 403 });
+  }
+  // [FIM NOVO]
 
   const client = await pool.connect();
 
@@ -226,7 +271,6 @@ export async function DELETE(request: NextRequest) {
     await client.query('BEGIN');
     
     // 1. Deletar da tabela 'rotas_demandas' primeiro para evitar erro de FK
-    // (Assumindo que a restrição ON DELETE é RESTRICT ou NO ACTION)
     const deleteRotasQuery = 'DELETE FROM rotas_demandas WHERE demanda_id = ANY($1::int[])';
     await client.query(deleteRotasQuery, [numericIds]);
 
@@ -264,4 +308,3 @@ export async function DELETE(request: NextRequest) {
     client.release();
   }
 }
-// +++ FIM DA NOVA FUNÇÃO DELETE +++
