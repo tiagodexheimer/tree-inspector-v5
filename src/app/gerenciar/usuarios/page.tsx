@@ -5,7 +5,8 @@ import React, { useState, useEffect } from 'react';
 import {
     Box, Button, Dialog, DialogActions, DialogContent, DialogTitle, TextField,
     Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Paper,
-    IconButton, Typography, CircularProgress, Alert, FormControl, InputLabel, Select, MenuItem
+    IconButton, Typography, CircularProgress, Alert, FormControl, InputLabel, Select, MenuItem,
+    SelectChangeEvent // <-- CORREÇÃO: Importar SelectChangeEvent
 } from '@mui/material';
 import AddIcon from '@mui/icons-material/Add';
 import DeleteIcon from '@mui/icons-material/Delete';
@@ -69,7 +70,8 @@ export default function GerenciarUsuariosPage() {
 
     // Roda a busca quando o componente montar (se for admin)
     useEffect(() => {
-        if (status === 'authenticated' && (session?.user as any)?.role === 'admin') {
+        // Correção: removido 'as any'
+        if (status === 'authenticated' && session?.user?.role === 'admin') {
             fetchUsers();
         }
     }, [status, session]);
@@ -105,7 +107,8 @@ export default function GerenciarUsuariosPage() {
         if (!userToDelete) return;
         
         // Proteção: não deixar o admin logado se auto-deletar
-        if ((session?.user as any)?.id === userToDelete.id) {
+        // Correção: removido 'as any'
+        if (session?.user?.id === userToDelete.id) {
             setDeleteError("Você não pode apagar a si mesmo.");
             setIsDeleting(false);
             return;
@@ -143,9 +146,13 @@ export default function GerenciarUsuariosPage() {
         setNewUser(prev => ({ ...prev, [name]: value }));
         if (modalError) setModalError(null);
     };
-    const handleRoleChange = (event: React.ChangeEvent<{ value: unknown }>) => {
+    
+    // +++ INÍCIO DA CORREÇÃO +++
+    // Função corrigida para usar o tipo SelectChangeEvent
+    const handleRoleChange = (event: SelectChangeEvent<NewUserForm['role']>) => {
         setNewUser(prev => ({ ...prev, role: event.target.value as NewUserForm['role'] }));
     };
+    // +++ FIM DA CORREÇÃO +++
 
     const handleOpenDeleteConfirm = (user: User) => {
         setUserToDelete(user);
@@ -167,7 +174,8 @@ export default function GerenciarUsuariosPage() {
         );
     }
 
-    if (status !== 'authenticated' || (session.user as any)?.role !== 'admin') {
+    // Correção: removido 'as any'
+    if (status !== 'authenticated' || session.user.role !== 'admin') {
         return (
             <Box sx={{ p: 4, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2 }}>
                 <LockIcon color="error" sx={{ fontSize: 60 }} />
@@ -222,8 +230,8 @@ export default function GerenciarUsuariosPage() {
                                             onClick={() => handleOpenDeleteConfirm(user)} 
                                             color="error" 
                                             title="Deletar Usuário"
-                                            // Desabilita o botão de deletar para o próprio usuário
-                                            disabled={(session?.user as any)?.id === user.id} 
+                                            // Correção: removido 'as any'
+                                            disabled={session?.user?.id === user.id} 
                                         >
                                             <DeleteIcon />
                                         </IconButton>
@@ -246,7 +254,10 @@ export default function GerenciarUsuariosPage() {
                         <TextField label="Senha" name="password" type="password" value={newUser.password} onChange={handleModalChange} variant="outlined" fullWidth required error={!!modalError && !newUser.password} />
                         <FormControl fullWidth required error={!!modalError && !newUser.role}>
                             <InputLabel>Papel (Role)</InputLabel>
-                            <Select name="role" value={newUser.role} label="Papel (Role)" onChange={handleRoleChange as any}>
+                            {/* +++ INÍCIO DA CORREÇÃO +++ */}
+                            {/* Removido o 'as any' da prop onChange */}
+                            <Select name="role" value={newUser.role} label="Papel (Role)" onChange={handleRoleChange}>
+                            {/* +++ FIM DA CORREÇÃO +++ */}
                                 <MenuItem value="free_user">Usuário Gratuito</MenuItem>
                                 <MenuItem value="paid_user">Usuário Pago</MenuItem>
                                 <MenuItem value="admin">Administrador</MenuItem>

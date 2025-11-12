@@ -1,14 +1,16 @@
 // src/app/api/auth/[...nextauth]/route.ts
 import NextAuth from "next-auth";
 import CredentialsProvider from "next-auth/providers/credentials";
-import PgAdapter from "@auth/pg-adapter"; 
-import pool from "@/lib/db"; // Importe seu pool de DB existente
-import bcrypt from "bcryptjs";
+import PgAdapter from "@auth/pg-adapter";
+import pool from "@/lib/db"; 
+import bcrypt from "bcryptjs"; 
 import { AuthOptions } from "next-auth";
+import { Adapter } from "next-auth/adapters"; // +++ IMPORTE O TIPO 'Adapter' +++
 
 export const authOptions: AuthOptions = {
   // 1. Adaptador para o seu banco de dados Postgre
-  adapter: PgAdapter(pool),
+  //    vvv ADICIONE "as Adapter" AQUI vvv
+  adapter: PgAdapter(pool) as Adapter,
 
   // 2. Provedores (aqui usamos Email/Senha)
   providers: [
@@ -55,7 +57,6 @@ export const authOptions: AuthOptions = {
   ],
 
   // 3. Estratégia de Sessão
-  // JWT é essencial para a API do Android.
   session: {
     strategy: "jwt",
   },
@@ -66,22 +67,21 @@ export const authOptions: AuthOptions = {
     async jwt({ token, user }) {
       if (user) {
         token.id = user.id;
-        token.role = (user as any).role; // (user as any) é necessário aqui
+        token.role = user.role; // Remove 'as any'
       }
       return token;
     },
     // Adiciona o 'role' e 'id' à sessão (para uso no frontend)
     async session({ session, token }) {
       if (session.user) {
-        (session.user as any).id = token.id;
-        (session.user as any).role = token.role;
+        session.user.id = token.id;
+        session.user.role = token.role; // Remove 'as any'
       }
       return session;
     },
   },
 
-  // 5. Chave secreta (MUITO IMPORTANTE)
-  // Crie uma em .env.local (ex: `openssl rand -base64 32`)
+  // 5. Chave secreta
   secret: process.env.NEXTAUTH_SECRET,
 };
 

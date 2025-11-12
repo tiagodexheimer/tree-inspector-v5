@@ -35,7 +35,7 @@ export default function LoginPage() {
         // Erro!
         setError('Email ou senha inválidos.');
       }
-    } catch (err) {
+    } catch (_err) {
       setError('Ocorreu um erro ao tentar fazer login.');
     } finally {
       setIsLoading(false);

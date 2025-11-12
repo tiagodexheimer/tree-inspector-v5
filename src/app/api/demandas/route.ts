@@ -8,7 +8,7 @@ import { getServerSession } from "next-auth/next";
 import { authOptions } from "../auth/[...nextauth]/route"; // Importa suas opções de autenticação
 
 // --- Handler para GET (Listar Demandas - ATUALIZADO COM PAPÉIS) ---
-export async function GET(request: NextRequest) {
+export async function GET() {
   console.log("[API /demandas] Recebido GET.");
 
   // [NOVO] Verificação de autenticação e papel
@@ -16,7 +16,7 @@ export async function GET(request: NextRequest) {
   if (!session || !session.user) {
     return NextResponse.json({ message: "Não autenticado" }, { status: 401 });
   }
-  const userRole = (session.user as any).role; // Ex: 'admin', 'paid_user', 'free_user'
+  const userRole = session.user.role; // Ex: 'admin', 'paid_user', 'free_user'
   // [FIM NOVO]
 
   try {
@@ -245,7 +245,7 @@ export async function DELETE(request: NextRequest) {
     return NextResponse.json({ message: "Não autenticado" }, { status: 401 });
   }
   
-  const userRole = (session.user as any).role;
+  const userRole = session.user.role;
   if (userRole !== 'admin') {
      // Apenas administradores podem deletar
      return NextResponse.json({ message: "Não autorizado: Apenas administradores podem deletar demandas." }, { status: 403 });
