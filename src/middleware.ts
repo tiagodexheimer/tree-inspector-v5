@@ -16,10 +16,11 @@ export const config = {
      * Corresponde a todos os caminhos, EXCETO:
      * - /api (rotas de API)
      * - /login (a própria página de login)
+     * - /signup (+++ NOVO: A nova página de registro +++)
      * - _next/static (arquivos estáticos)
      * - _next/image (arquivos de imagem otimizados)
      * - favicon.ico (o ícone)
      */
-    '/((?!api|login|_next/static|_next/image|favicon.ico).*)',
+    '/((?!api|login|signup|_next/static|_next/image|favicon.ico).*)', // +++ ALTERADO AQUI +++
   ],
 };

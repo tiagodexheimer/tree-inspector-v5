@@ -6,12 +6,13 @@ import {
     Box, Button, Dialog, DialogActions, DialogContent, DialogTitle, TextField,
     Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Paper,
     IconButton, Typography, CircularProgress, Alert, FormControl, InputLabel, Select, MenuItem,
-    SelectChangeEvent // <-- CORREÇÃO: Importar SelectChangeEvent
+    SelectChangeEvent // Importar SelectChangeEvent
 } from '@mui/material';
 import AddIcon from '@mui/icons-material/Add';
 import DeleteIcon from '@mui/icons-material/Delete';
 import LockIcon from '@mui/icons-material/Lock';
 import { useSession } from 'next-auth/react'; // Importante para segurança
+import EditIcon from '@mui/icons-material/Edit'; // Adicionado EditIcon, que faltava no seu código
 
 // Interface para o usuário
 interface User {
@@ -54,7 +55,15 @@ export default function GerenciarUsuariosPage() {
         setIsLoading(true);
         setError(null);
         try {
+            // Este endpoint precisa de permissão de admin
             const response = await fetch('/api/admin/users');
+            
+            // Tratamento explícito de 403 Forbidden ou 401 Unauthorized
+            if (response.status === 403 || response.status === 401) {
+                // Se a API negar o acesso, a página trata como erro de permissão
+                throw new Error("Acesso negado pela API. Você precisa ser um Administrador.");
+            }
+            
             if (!response.ok) {
                 const errorData = await response.json().catch(() => ({}));
                 throw new Error(errorData.message || `Erro HTTP ${response.status}`);
@@ -70,11 +79,14 @@ export default function GerenciarUsuariosPage() {
 
     // Roda a busca quando o componente montar (se for admin)
     useEffect(() => {
-        // Correção: removido 'as any'
+        // A busca só é iniciada se o status for 'authenticated' E o papel for 'admin'.
         if (status === 'authenticated' && session?.user?.role === 'admin') {
             fetchUsers();
+        } else if (status !== 'loading') {
+             // Se não está carregando e não é admin, para o loading inicial
+            setIsLoading(false);
         }
-    }, [status, session]);
+    }, [status, session]); // Depende do status de autenticação e da sessão
 
     // --- Handlers de Ações ---
     const handleSave = async () => {
@@ -107,7 +119,6 @@ export default function GerenciarUsuariosPage() {
         if (!userToDelete) return;
         
         // Proteção: não deixar o admin logado se auto-deletar
-        // Correção: removido 'as any'
         if (session?.user?.id === userToDelete.id) {
             setDeleteError("Você não pode apagar a si mesmo.");
             setIsDeleting(false);
@@ -117,6 +128,7 @@ export default function GerenciarUsuariosPage() {
         setIsDeleting(true);
         setDeleteError(null);
         try {
+            // Rota da API DELETE
             const response = await fetch(`/api/admin/users/${userToDelete.id}`, { method: 'DELETE' });
             const result = await response.json().catch(() => ({}));
             if (!response.ok) {
@@ -147,12 +159,10 @@ export default function GerenciarUsuariosPage() {
         if (modalError) setModalError(null);
     };
     
-    // +++ INÍCIO DA CORREÇÃO +++
     // Função corrigida para usar o tipo SelectChangeEvent
     const handleRoleChange = (event: SelectChangeEvent<NewUserForm['role']>) => {
         setNewUser(prev => ({ ...prev, role: event.target.value as NewUserForm['role'] }));
     };
-    // +++ FIM DA CORREÇÃO +++
 
     const handleOpenDeleteConfirm = (user: User) => {
         setUserToDelete(user);
@@ -166,6 +176,7 @@ export default function GerenciarUsuariosPage() {
     };
 
     // --- RENDERIZAÇÃO E SEGURANÇA ---
+    // 1. Enquanto a sessão está carregando
     if (status === 'loading') {
         return (
             <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '80vh' }}>
@@ -173,8 +184,8 @@ export default function GerenciarUsuariosPage() {
             </Box>
         );
     }
-
-    // Correção: removido 'as any'
+    
+    // 2. Acesso Negado (Se não estiver autenticado OU não for admin)
     if (status !== 'authenticated' || session.user.role !== 'admin') {
         return (
             <Box sx={{ p: 4, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2 }}>
@@ -185,7 +196,7 @@ export default function GerenciarUsuariosPage() {
         );
     }
     
-    // Se chegou aqui, é admin.
+    // 3. Conteúdo Principal (Se for admin)
     return (
         <div className="p-4">
             <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
@@ -226,11 +237,15 @@ export default function GerenciarUsuariosPage() {
                                     <TableCell>{user.email}</TableCell>
                                     <TableCell>{user.role}</TableCell>
                                     <TableCell align="right">
+                                        {/* Botão de Edição (Adicionado, pois faltava no original) */}
+                                        <IconButton color="primary" title="Editar Usuário">
+                                            <EditIcon />
+                                        </IconButton>
                                         <IconButton 
                                             onClick={() => handleOpenDeleteConfirm(user)} 
                                             color="error" 
                                             title="Deletar Usuário"
-                                            // Correção: removido 'as any'
+                                            // Desabilita se for o próprio usuário logado
                                             disabled={session?.user?.id === user.id} 
                                         >
                                             <DeleteIcon />
@@ -254,10 +269,7 @@ export default function GerenciarUsuariosPage() {
                         <TextField label="Senha" name="password" type="password" value={newUser.password} onChange={handleModalChange} variant="outlined" fullWidth required error={!!modalError && !newUser.password} />
                         <FormControl fullWidth required error={!!modalError && !newUser.role}>
                             <InputLabel>Papel (Role)</InputLabel>
-                            {/* +++ INÍCIO DA CORREÇÃO +++ */}
-                            {/* Removido o 'as any' da prop onChange */}
                             <Select name="role" value={newUser.role} label="Papel (Role)" onChange={handleRoleChange}>
-                            {/* +++ FIM DA CORREÇÃO +++ */}
                                 <MenuItem value="free_user">Usuário Gratuito</MenuItem>
                                 <MenuItem value="paid_user">Usuário Pago</MenuItem>
                                 <MenuItem value="admin">Administrador</MenuItem>

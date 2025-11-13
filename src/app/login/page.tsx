@@ -3,10 +3,11 @@
 
 import React, { useState } from 'react';
 import { signIn } from 'next-auth/react';
-import { useRouter } from 'next/navigation'; // Importe o de 'next/navigation'
+import { useRouter } from 'next/navigation';
 import {
   Container, Box, Paper, Typography, TextField, Button, CircularProgress, Alert
 } from '@mui/material';
+import Link from 'next/link'; // Importar Link
 
 export default function LoginPage() {
   const router = useRouter();
@@ -89,6 +90,15 @@ export default function LoginPage() {
           >
             {isLoading ? <CircularProgress size={24} color="inherit" /> : 'Entrar'}
           </Button>
+          
+          <Typography variant="body2" align="center" sx={{ mt: 2 }}>
+            Não tem uma conta?{' '}
+            {/* Link corrigido para a nova página de auto-registro */}
+            <Button component={Link} href="/signup" variant="text" size="small">
+                Criar Conta
+            </Button>
+          </Typography>
+          
         </Box>
       </Paper>
     </Container>

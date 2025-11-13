@@ -86,26 +86,19 @@ BEFORE UPDATE ON demandas
 FOR EACH ROW
 EXECUTE FUNCTION trigger_set_timestamp();
 
--- (Opcional) Trigger para a tabela 'rotas' (se você adicionar um campo 'updated_at' nela)
--- ALTER TABLE rotas ADD COLUMN updated_at TIMESTAMPTZ DEFAULT NOW();
--- CREATE TRIGGER set_rotas_timestamp
--- BEFORE UPDATE ON rotas
--- FOR EACH ROW
--- EXECUTE FUNCTION trigger_set_timestamp();
 
--- Inserção de dados iniciais (opcional, mas recomendado)
-INSERT INTO demandas_status (nome, cor) VALUES
-('Pendente', '#FFA500'),
-('Em Andamento', '#1976D2'),
-('Concluído', '#2E7D32')
-ON CONFLICT (nome) DO NOTHING;
+-- +++ INÍCIO DA CORREÇÃO: TABELA USERS FALTANTE +++
+-- Tabela de Usuários (NextAuth com senha e role)
+CREATE TABLE IF NOT EXISTS users (
+    id TEXT PRIMARY KEY,
+    name TEXT,
+    email TEXT UNIQUE NOT NULL,
+    email_verified TIMESTAMPTZ,
+    hashed_password TEXT NOT NULL, -- <--- COLUNA CORRIGIDA
+    role TEXT NOT NULL DEFAULT 'free_user'
+);
+-- +++ FIM DA CORREÇÃO +++
 
-INSERT INTO demandas_tipos (nome) VALUES
-('Avaliação'),
-('Poda'),
-('Supressão'),
-('Fiscalização')
-ON CONFLICT (nome) DO NOTHING;
 
 -- Tabela de Sessões (Corrigida)
 -- Alteramos user_id de INTEGER para TEXT
@@ -133,3 +126,17 @@ CREATE TABLE IF NOT EXISTS accounts (
     session_state TEXT,
     UNIQUE(provider, provider_account_id)
 );
+
+-- Inserção de dados iniciais (opcional, mas recomendado)
+INSERT INTO demandas_status (nome, cor) VALUES
+('Pendente', '#FFA500'),
+('Em Andamento', '#1976D2'),
+('Concluído', '#2E7D32')
+ON CONFLICT (nome) DO NOTHING;
+
+INSERT INTO demandas_tipos (nome) VALUES
+('Avaliação'),
+('Poda'),
+('Supressão'),
+('Fiscalização')
+ON CONFLICT (nome) DO NOTHING;
