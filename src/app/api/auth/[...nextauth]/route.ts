@@ -1,18 +1,20 @@
 // src/app/api/auth/[...nextauth]/route.ts
-import NextAuth from "next-auth";
+import NextAuth, { AuthOptions, User as NextAuthUser } from "next-auth";
 import CredentialsProvider from "next-auth/providers/credentials";
-import PgAdapter from "@auth/pg-adapter";
-import pool from "@/lib/db"; 
-import bcrypt from "bcryptjs"; 
-import { AuthOptions } from "next-auth";
-import { Adapter } from "next-auth/adapters"; // +++ IMPORTE O TIPO 'Adapter' +++
+import pool from "@/lib/db"; // Importa sua conexão com o banco de dados
+import bcrypt from "bcryptjs"; // Importa o bcrypt para comparação de hash
+import { Adapter } from "next-auth/adapters"; // Importe o tipo 'Adapter'
+import PgAdapter from "@auth/pg-adapter"; // Importe o adaptador
+
 
 export const authOptions: AuthOptions = {
-  // 1. Adaptador para o seu banco de dados Postgre
-  //    vvv ADICIONE "as Adapter" AQUI vvv
+  // O tipo Adapter já lida com o pool, mas requer o cast para evitar erros
   adapter: PgAdapter(pool) as Adapter,
 
-  // 2. Provedores (aqui usamos Email/Senha)
+  session: {
+    strategy: "jwt",
+  },
+  
   providers: [
     CredentialsProvider({
       name: "Credentials",
@@ -25,8 +27,8 @@ export const authOptions: AuthOptions = {
           return null;
         }
 
-        // Encontra o usuário no banco
-        const result = await pool.query("SELECT * FROM users WHERE email = $1", [
+        // 1. Encontra o usuário no banco
+        const result = await pool.query("SELECT id, name, email, role, hashed_password, password FROM users WHERE email = $1", [
           credentials.email,
         ]);
         const user = result.rows[0];
@@ -35,53 +37,59 @@ export const authOptions: AuthOptions = {
           return null;
         }
 
-        // Verifica a senha
+        // 2. Lógica Corrigida de Hash de Senha (Suporta 'hashed_password' ou 'password')
+        const storedHash = user.hashed_password || user.password; 
+        
+        if (!storedHash) {
+             console.error(`[AUTH] Usuário ${user.email} encontrado, mas sem hash de senha armazenado.`);
+             return null;
+        }
+
         const isValidPassword = await bcrypt.compare(
           credentials.password,
-          user.hashed_password
+          storedHash
         );
 
         if (!isValidPassword) {
           return null;
         }
 
-        // Retorna o objeto do usuário (sem a senha)
+        // 3. Retorna o objeto do usuário
         return {
           id: user.id,
           name: user.name,
           email: user.email,
-          role: user.role, // Importante para a Fase 3
-        };
+          role: user.role, 
+        } as NextAuthUser;
       },
     }),
   ],
 
-  // 3. Estratégia de Sessão
-  session: {
-    strategy: "jwt",
-  },
-
-  // 4. Callbacks para adicionar dados ao JWT e à Sessão
   callbacks: {
-    // Adiciona o 'role' e 'id' ao token JWT
+    // Adiciona o 'role' e o 'id' ao token JWT
     async jwt({ token, user }) {
       if (user) {
         token.id = user.id;
-        token.role = user.role; // Remove 'as any'
+        token.role = user.role; 
       }
       return token;
     },
-    // Adiciona o 'role' e 'id' à sessão (para uso no frontend)
+    // Expõe o 'role' na sessão do lado do cliente (useSession)
     async session({ session, token }) {
-      if (session.user) {
-        session.user.id = token.id;
-        session.user.role = token.role; // Remove 'as any'
+      if (token && session.user) {
+        session.user.id = token.id as string;
+        // CORREÇÃO: Forçamos o cast para o tipo de união estrito, resolvendo o erro de tipagem.
+        session.user.role = token.role as ('admin' | 'paid_user' | 'free_user'); // <--- LINHA 86 CORRIGIDA
       }
       return session;
     },
   },
-
-  // 5. Chave secreta
+  
+  pages: {
+    signIn: "/login",
+  },
+  
+  // Chave secreta
   secret: process.env.NEXTAUTH_SECRET,
 };
 

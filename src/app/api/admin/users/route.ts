@@ -5,33 +5,33 @@ import { authOptions } from "../../auth/[...nextauth]/route"; // Importe suas op
 import pool from "@/lib/db";
 import bcrypt from "bcryptjs"; // Importe bcryptjs
 
-// Função HELPER para verificar se o usuário é admin
-// NOTE: Esta função não é mais usada, mas vou mantê-la no código anterior para compatibilidade
-async function isAdminSession() {
-  const session = await getServerSession(authOptions);
-  // Verifica se há sessão E se o papel é 'admin'
-  if (session?.user?.role === 'admin') { 
-    return true;
-  }
-  return false;
-}
-
 
 // --- LISTAR TODOS OS USUÁRIOS (Admin) ---
 export async function GET() {
   
   // 1. Verificação de Autenticação e Autorização (Role)
   const session = await getServerSession(authOptions);
+  
+  // ======================================
+  // LOG DE DIAGNÓSTICO
+  // ======================================
+  if (session?.user) {
+      console.log(`[DIAGNOSE ADMIN] User Email: ${session.user.email} | Role: ${session.user.role}`);
+  } else {
+      console.log("[DIAGNOSE ADMIN] No active session found.");
+  }
+  // ======================================
+
   if (!session || !session.user) {
     return NextResponse.json({ message: "Não autenticado" }, { status: 401 });
   }
   
   // Verifica se o papel do usuário é 'admin'
   if (session.user.role !== 'admin') {
-    console.warn(`[API /admin/users] Tentativa de acesso não autorizado por usuário: ${session.user.email}`);
+    // Adicionei um log explícito para o caso de falha.
+    console.warn(`[DIAGNOSE ADMIN] ACCESS DENIED: Role mismatch. Current Role: ${session.user.role}`);
     return NextResponse.json({ message: "Não autorizado: Acesso restrito a administradores." }, { status: 403 });
   }
-  // FIM da verificação de autorização
   
   try {
     // Seleciona todos os usuários, exceto a senha
