@@ -8,7 +8,11 @@ import PgAdapter from "@auth/pg-adapter";
 
 
 export const authOptions: AuthOptions = {
-  adapter: PgAdapter(pool) as Adapter,
+  // AQUI: Adicionar trustHost: true para resolver problemas de CSRF/Host em produção.
+  trustHost: true,
+
+  // O adaptador não é usado, mas mantemos o código
+  // adapter: PgAdapter(pool) as Adapter, 
 
   session: {
     strategy: "jwt",
@@ -27,7 +31,6 @@ export const authOptions: AuthOptions = {
         }
 
         // 1. Encontra o usuário no banco
-        // CORRIGIDO: Selecionando apenas a coluna 'password' para o hash.
         const result = await pool.query("SELECT id, name, email, role, password FROM users WHERE email = $1", [
           credentials.email,
         ]);
@@ -37,8 +40,7 @@ export const authOptions: AuthOptions = {
           return null;
         }
 
-        // 2. Lógica de Hash de Senha
-        // CORRIGIDO: Usando APENAS a coluna 'user.password'.
+        // 2. Lógica de Hash de Senha (usando a coluna 'password')
         const storedHash = user.password; 
         
         if (!storedHash) {
@@ -75,7 +77,6 @@ export const authOptions: AuthOptions = {
       return token;
     },
     async session({ session, token }) {
-      // Usamos o cast para o tipo de união estrito, resolvendo o erro de tipagem anterior
       type UserRole = 'admin' | 'paid_user' | 'free_user';
 
       if (token && session.user) {
