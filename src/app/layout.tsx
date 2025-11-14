@@ -33,7 +33,6 @@ export default function RootLayout({
   return (
     <html lang="pt-BR">
       <body className={`${geistSans.variable} ${geistMono.variable} antialiased`}>
-        {/* [NOVO] Envolva o ThemeRegistry com o AuthProvider */}
         <AuthProvider>
           <ThemeRegistry>
               <div className="bg-gray-100">
@@ -41,13 +40,16 @@ export default function RootLayout({
                   <Header />
                 </div>
 
-                <div className="fixed top-12 left-0 h-screen z-20">
+                {/* Sidebar com posição vertical e largura fixas (w-56) */}
+                <div className="fixed top-[48px] left-0 h-screen z-20 w-56">
                   <Sidebar />
                 </div>
 
+                {/* pt-12 (48px) e pl-56 (224px) já estão corretos */}
                 <div className="pt-12 pl-56">
                   <div 
-                    className="w-full text-black" 
+                    // ADICIONE max-w-full E overflow-x-auto AQUI
+                    className="w-full text-black max-w-full overflow-x-auto" 
                     style={{ background: "#F5F5DC", minHeight: 'calc(100vh - 48px)' }}
                   >
                     <main>{children}</main>

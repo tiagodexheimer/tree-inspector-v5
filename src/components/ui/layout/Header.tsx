@@ -12,7 +12,7 @@ export default function Header() {
     const { data: session, status } = useSession();
 
     return (
-        <div className='flex w-full justify-between items-center  text-white' style={{ background: '#257e1a' }}>
+        <div className='flex w-full justify-between items-center h-12 text-white' style={{ background: '#257e1a' }}>
             <Toolbar variant="dense" className='w-full flex justify-between shadow-lg'>
             <div>
                 <IconButton edge="start" color="inherit" aria-label="menu">

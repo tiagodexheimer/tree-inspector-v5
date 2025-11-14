@@ -1,21 +1,16 @@
-// hash-password.js
+// test-hash.js
 const bcrypt = require('bcryptjs');
 
-// ------------------------------------
-// 1. MUDE "senha123" para a senha que você quer
-const suaSenha = "1234"; 
-// ------------------------------------
+// 1. O hash do banco de dados (que você forneceu)
+const storedHash = '$2b$10$8kNU8J5ncoRSymRWJ8cxa.fCY9rpDv0BQZyfIG3ypI9gN4Q280T1i';
 
-const saltRounds = 10;
+// 2. A senha que você ACHA que está correta.
+// ATENÇÃO: Digite essa senha exatamente como você digita no app.
+const passwordToTest = '2134'; // <--- Substitua pela senha!
 
-bcrypt.hash(suaSenha, saltRounds, function(err, hash) {
-    if (err) {
-        console.error("Erro ao gerar hash:", err);
-        return;
-    }
+async function testPassword() {
+  const isValid = await bcrypt.compare(passwordToTest, storedHash);
+  console.log(`A senha é válida? ${isValid}`);
+}
 
-    console.log("\nSua senha simples:", suaSenha);
-    console.log("\n--- COPIE O HASH ABAIXO (começa com $2a) ---");
-    console.log(hash);
-    console.log("--- COPIE O HASH ACIMA ---\n");
-});
+testPassword();
