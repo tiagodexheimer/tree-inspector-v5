@@ -3,14 +3,18 @@
 
 import React, { useState } from 'react';
 import { signIn } from 'next-auth/react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation'; // Importado useSearchParams
 import {
   Container, Box, Paper, Typography, TextField, Button, CircularProgress, Alert
 } from '@mui/material';
-import Link from 'next/link'; // Importar Link
+import Link from 'next/link';
 
 export default function LoginPage() {
   const router = useRouter();
+  // LÊ o parâmetro callbackUrl da URL, com fallback para /demandas
+  const searchParams = useSearchParams();
+  const callbackUrl = searchParams.get('callbackUrl') || '/demandas'; 
+  
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
@@ -22,16 +26,15 @@ export default function LoginPage() {
     setError(null);
 
     try {
-      // Isso chama a API que criamos (api/auth/[...nextauth]/route.ts)
       const result = await signIn('credentials', {
-        redirect: false, // Importante: não redireciona a página inteira
+        redirect: false, 
         email: email,
         password: password,
       });
 
       if (result?.ok) {
-        // Sucesso! Redireciona para a página principal
-        router.push('/demandas'); // Ou '/dashboard'
+        // CORREÇÃO: Redireciona para o valor do callbackUrl
+        router.push(callbackUrl); 
       } else {
         // Erro!
         setError('Email ou senha inválidos.');
@@ -93,7 +96,6 @@ export default function LoginPage() {
           
           <Typography variant="body2" align="center" sx={{ mt: 2 }}>
             Não tem uma conta?{' '}
-            {/* Link corrigido para a nova página de auto-registro */}
             <Button component={Link} href="/signup" variant="text" size="small">
                 Criar Conta
             </Button>

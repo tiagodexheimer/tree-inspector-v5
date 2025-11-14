@@ -94,7 +94,7 @@ CREATE TABLE IF NOT EXISTS users (
     name TEXT,
     email TEXT UNIQUE NOT NULL,
     email_verified TIMESTAMPTZ,
-    hashed_password TEXT NOT NULL, -- <--- COLUNA CORRIGIDA
+    password TEXT NOT NULL, -- <--- COLUNA CORRIGIDA
     role TEXT NOT NULL DEFAULT 'free_user'
 );
 -- +++ FIM DA CORREÇÃO +++
