@@ -8,11 +8,8 @@ import PgAdapter from "@auth/pg-adapter";
 
 
 export const authOptions: AuthOptions = {
-  // AQUI: Adicionar trustHost: true para resolver problemas de CSRF/Host em produção.
-  trustHost: true,
-
-  // O adaptador não é usado, mas mantemos o código
-  // adapter: PgAdapter(pool) as Adapter, 
+  // CORRIGIDO: Propriedade 'trustHost: true' foi removida para resolver o erro de compilação.
+  // Ela deve ser configurada via ambiente.
 
   session: {
     strategy: "jwt",
