@@ -1,7 +1,6 @@
 // src/app/api/admin/users/[id]/route.ts
 import { NextResponse, NextRequest } from "next/server"; // Importe NextRequest
-import { getServerSession } from "next-auth/next";
-import { authOptions } from "../../../auth/[...nextauth]/route";
+import { auth } from "@/auth";
 import pool from "@/lib/db";
 
 // Defina o tipo de contexto esperado, exatamente como o Next.js mostrou no erro
@@ -11,7 +10,7 @@ type ExpectedContext = {
 
 // Função HELPER para verificar se o usuário é admin
 async function isAdminSession() {
-  const session = await getServerSession(authOptions);
+  const session = await auth();
   return session?.user?.role === 'admin';
 }
 
@@ -30,7 +29,7 @@ export async function DELETE(request: NextRequest, context: ExpectedContext) {
     return NextResponse.json({ message: "ID inválido" }, { status: 400 });
   }
   
-  const session = await getServerSession(authOptions);
+  const session = await auth();
   
   // Proteção: Impedir que o admin apague a si mesmo
   if (session?.user?.id === id) { 

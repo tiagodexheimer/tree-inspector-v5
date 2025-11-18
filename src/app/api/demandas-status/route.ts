@@ -1,9 +1,6 @@
-// src/app/api/demandas-status/route.ts
 import { NextRequest, NextResponse } from 'next/server';
-import pool from '../../../lib/db'; // Ajuste o caminho se necessário
-// [NOVO] Importações de Autenticação
-import { getServerSession } from "next-auth/next";
-import { authOptions } from "../auth/[...nextauth]/route";
+import pool from '../../../lib/db';
+import { auth } from "@/auth";
 
 interface StatusBody {
     nome?: string;
@@ -29,7 +26,7 @@ export async function POST(request: NextRequest) {
     console.log('[API /demandas-status] Recebido POST.');
 
     // [NOVO] Verificação de Admin
-    const session = await getServerSession(authOptions);
+    const session = await auth();
     if (session?.user?.role !== 'admin') {
         return NextResponse.json({ message: "Não autorizado" }, { status: 403 });
     }

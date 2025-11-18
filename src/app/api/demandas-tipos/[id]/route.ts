@@ -2,8 +2,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import pool from '../../../../lib/db'; // Ajuste o caminho
 // [NOVO] Importações de Autenticação
-import { getServerSession } from "next-auth/next";
-import { authOptions } from "../../auth/[...nextauth]/route";
+import { auth } from "@/auth";
 
 type ExpectedContext = { params: Promise<{ id: string }> };
 
@@ -14,7 +13,7 @@ interface TipoBody {
 // --- Handler para PUT (Atualizar Tipo) ---
 export async function PUT(request: NextRequest, context: ExpectedContext) {
     // [NOVO] Verificação de Admin
-    const session = await getServerSession(authOptions);
+    const session = await auth();
     if (session?.user?.role !== 'admin') {
         return NextResponse.json({ message: "Não autorizado" }, { status: 403 });
     }
@@ -80,7 +79,7 @@ export async function PUT(request: NextRequest, context: ExpectedContext) {
 // --- Handler para DELETE (Deletar Tipo) ---
 export async function DELETE(request: NextRequest, context: ExpectedContext) {
     // [NOVO] Verificação de Admin
-    const session = await getServerSession(authOptions);
+    const session = await auth();
     if (session?.user?.role !== 'admin') {
         return NextResponse.json({ message: "Não autorizado" }, { status: 403 });
     }
