@@ -101,7 +101,7 @@ export async function POST(request: NextRequest) {
         
         if (demandasComGeom.length > 0) {
             let minDistance = Infinity;
-            let closestDemandaId: number | null = null;
+            let closestDemandaId: number | null | undefined = null;
 
             // Encontra a demanda mais próxima da localização do usuário (originCoordinates)
             demandasComGeom.forEach((demanda) => {
