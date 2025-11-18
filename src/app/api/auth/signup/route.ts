@@ -1,44 +1,45 @@
-// src/app/api/signup/route.ts
 import { NextResponse, NextRequest } from "next/server";
-import pool from "@/lib/db";
-import bcrypt from "bcryptjs"; // Importe bcryptjs
+import { userManagementService } from "@/services/user-management-service";
 
-// --- CRIAR UM NOVO USUÁRIO (Público - Auto-registro) ---
+// --- POST: AUTO-CADASTRO (Público) ---
 export async function POST(request: NextRequest) {
-  // ATENÇÃO: Esta rota é pública. Nenhuma verificação de isAdminSession é necessária.
-
   try {
-    const { name, email, password } = await request.json();
+    // 1. Ler o corpo da requisição
+    const body = await request.json();
+    const { name, email, password } = body;
 
+    // 2. Validação de Entrada (Controller Level)
+    // Verificamos se os campos essenciais para a requisição existem
     if (!email || !password) {
-      return NextResponse.json({ message: "Email e senha são obrigatórios." }, { status: 400 });
+      return NextResponse.json(
+        { message: "Email e senha são obrigatórios." }, 
+        { status: 400 }
+      );
     }
 
-    // 1. FORÇAR O PAPEL (ROLE) PARA NÃO ADMINISTRADOR
-    const role = 'free_user'; 
-    // Usamos `name || null` porque o campo `name` na sua API de usuários aceita nulo.
-    const userName = name || null; 
+    // 3. Chamada ao Serviço (Business Logic)
+    // Não passamos 'role' aqui. O serviço sabe que 'registerUser' implica 'free_user'.
+    const newUser = await userManagementService.registerUser({
+        name,
+        email,
+        password
+    });
 
-    // 2. Hash da senha ANTES de salvar
-    const hashedPassword = await bcrypt.hash(password, 10);
-
-    const newUser = await pool.query(
-      "INSERT INTO users (id, name, email, password, role) VALUES (gen_random_uuid(), $1, $2, $3, $4) RETURNING id, name, email, role",
-      [userName, email, hashedPassword, role]
-    );
-
-    return NextResponse.json(newUser.rows[0], { status: 201 });
+    // 4. Resposta
+    return NextResponse.json(newUser, { status: 201 });
 
   } catch (error) { 
-    let errorMessage = "Erro ao criar usuário";
-    let status = 500;
+    console.error("[API SIGNUP]", error);
     
-    // Verifica se é um erro de banco de dados com um código (ex: email duplicado)
-    if (error && typeof error === 'object' && 'code' in error && error.code === '23505') {
-       errorMessage = "Email já cadastrado.";
-       status = 409; // Conflict
-    } else if (error instanceof Error) {
-       errorMessage = error.message;
+    let status = 500;
+    let errorMessage = "Erro ao criar conta.";
+    
+    if (error instanceof Error) {
+        errorMessage = error.message;
+        
+        // Mapeamento de erros de domínio para HTTP
+        if (errorMessage === "Email já cadastrado.") status = 409; // Conflict
+        if (errorMessage.includes("obrigatórios")) status = 400;   // Bad Request
     }
     
     return NextResponse.json({ message: errorMessage }, { status });

@@ -1,40 +1,33 @@
+// src/services/auth-service.ts
 import bcrypt from "bcryptjs";
 import { UserRepository } from "@/repositories/user-repository";
-import { User } from "next-auth"; // Interface padrão do NextAuth
-
-interface LoginCredentials {
-  email?: string;
-  password?: string;
-}
 
 export const AuthService = {
-  /**
-   * Verifica as credenciais e retorna o usuário seguro (sem senha) se válido.
-   */
-  async authenticate(credentials: LoginCredentials | undefined): Promise<User | null> {
-    if (!credentials?.email || !credentials?.password) {
+  async authenticate(credentials: Partial<Record<string, unknown>>) {
+    const email = credentials?.email as string | undefined;
+    const password = credentials?.password as string | undefined;
+
+    // 1. Validação básica de entrada
+    if (!email || !password) {
       return null;
     }
 
-    // 1. Busca no repositório
-    const user = await UserRepository.findByEmail(credentials.email);
+    // 2. Busca o utilizador (delegando para o repositório)
+    const user = await UserRepository.findByEmail(email);
 
     if (!user || !user.password) {
-      // Retornar null é mais seguro que dizer "usuário não encontrado" (evita enumeração)
       return null;
     }
 
-    // 2. Verifica a senha (Regra de Negócio)
-    const isValidPassword = await bcrypt.compare(
-      credentials.password,
-      user.password
-    );
+    // 3. Validação de segurança (bcrypt)
+    const isValidPassword = await bcrypt.compare(password, user.password);
 
     if (!isValidPassword) {
       return null;
     }
 
-    // 3. Retorna apenas os dados necessários para a sessão (DTO)
+    // 4. Sanitização (Remove a senha antes de devolver para o NextAuth)
+    // O NextAuth usará este objeto para criar o token JWT
     return {
       id: user.id,
       name: user.name,

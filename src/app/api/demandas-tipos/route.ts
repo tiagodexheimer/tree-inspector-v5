@@ -1,70 +1,62 @@
-// src/app/api/demandas-tipos/route.ts
 import { NextRequest, NextResponse } from 'next/server';
-import pool from '../../../lib/db';
-// [CORREÇÃO v5] Importar 'auth' em vez de 'getServerSession/authOptions'
 import { auth } from "@/auth";
+import { demandasTiposService } from "@/services/demandas-tipos-service";
 
-interface TipoBody {
-    nome?: string;
+// --- HELPER DE SEGURANÇA ---
+async function checkAdminPermission() {
+  const session = await auth();
+  if (!session?.user) {
+    return { authorized: false, status: 401, message: "Não autenticado" };
+  }
+  if (session.user.role !== 'admin') {
+    return { authorized: false, status: 403, message: "Não autorizado" };
+  }
+  return { authorized: true };
 }
 
-// --- Handler para GET (Listar todos os Tipos) ---
+// --- GET: Listar Tipos ---
 export async function GET() {
-    console.log('[API /demandas-tipos] Recebido GET.');
-    try {
-        const result = await pool.query('SELECT id, nome FROM demandas_tipos ORDER BY nome');
-        return NextResponse.json(result.rows, { status: 200 });
-    } catch (error) {
-        console.error('[API /demandas-tipos] Erro ao buscar tipos (GET):', error);
-        const errorMessage = error instanceof Error ? error.message : 'Erro desconhecido';
-        return NextResponse.json({ message: 'Erro interno ao buscar tipos de demanda', error: errorMessage }, { status: 500 });
-    }
+  try {
+    const tipos = await demandasTiposService.listAll();
+    return NextResponse.json(tipos, { status: 200 });
+  } catch (error) {
+    console.error('[API GET Tipos]', error);
+    return NextResponse.json({ message: 'Erro interno ao buscar tipos de demanda' }, { status: 500 });
+  }
 }
 
-// --- Handler para POST (Criar novo Tipo) ---
+// --- POST: Criar Tipo ---
 export async function POST(request: NextRequest) {
-    console.log('[API /demandas-tipos] Recebido POST.');
+  // 1. Verificação de Permissão
+  const permission = await checkAdminPermission();
+  if (!permission.authorized) {
+    return NextResponse.json({ message: permission.message }, { status: permission.status });
+  }
 
-    // [CORREÇÃO v5] Usar auth()
-    const session = await auth();
+  try {
+    // 2. Obter corpo da requisição
+    const body = await request.json();
+
+    // 3. Delegar regra de negócio para o serviço
+    const newTipo = await demandasTiposService.createTipo({
+      nome: body.nome
+    });
+
+    return NextResponse.json(newTipo, { status: 201 });
+
+  } catch (error) {
+    console.error('[API POST Tipos]', error);
     
-    // Verificação de Admin (agora usamos session.user.role diretamente se tipado, ou verificamos existência)
-    if (session?.user?.role !== 'admin') {
-        return NextResponse.json({ message: "Não autorizado" }, { status: 403 });
+    let status = 500;
+    let message = 'Erro interno ao criar tipo de demanda.';
+
+    // Tratamento de erros de domínio lançados pelo Service
+    if (error instanceof Error) {
+      message = error.message;
+      if (message === "Já existe um tipo de demanda com este nome.") status = 409; // Conflict
+      if (message.includes("obrigatório")) status = 400; // Bad Request
     }
 
-    try {
-        const body = await request.json() as TipoBody;
-        const { nome } = body;
-
-        if (!nome || nome.trim() === '') {
-            return NextResponse.json({ message: 'O nome do tipo de demanda é obrigatório.' }, { status: 400 });
-        }
-
-        const queryText = 'INSERT INTO demandas_tipos (nome) VALUES ($1) RETURNING id, nome';
-        const queryParams = [nome.trim()];
-
-        const result = await pool.query(queryText, queryParams);
-
-        if (result.rows.length === 0) {
-            throw new Error('Falha ao inserir o tipo, nenhum registo retornado.');
-        }
-
-        return NextResponse.json(result.rows[0], { status: 201 });
-
-    } catch (error) {
-        console.error('[API /demandas-tipos] Erro ao criar tipo (POST):', error);
-        let errorMessage = 'Erro desconhecido';
-        let status = 500;
-        
-        if (error && typeof error === 'object' && 'code' in error && error.code === '23505') {
-            status = 409;
-            errorMessage = 'Erro: Já existe um tipo de demanda com este nome.';
-        }
-        else if (error instanceof Error) {
-            errorMessage = error.message;
-        }
-
-        return NextResponse.json({ message: 'Erro interno ao criar tipo de demanda.', error: errorMessage }, { status });
-    }
+    return NextResponse.json({ message, error: message }, { status });
+  }
 }
