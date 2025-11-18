@@ -5,7 +5,7 @@ import pool from '../../../../lib/db';
 import { DemandaType } from '@/types/demanda'; 
 import { decode } from '@googlemaps/polyline-codec';
 
-const START_END_POINT_COORDS = { latitude: -29.8538895, longitude: -51.1783352 };
+const START_END_POINT_COORDS = { latitude: -29.8608, longitude: -51.1789 };
 
 interface OptimizeRequestBody {
     demandaIds: number[];
@@ -96,16 +96,15 @@ export async function POST(request: NextRequest) {
         // --- INÍCIO DA NOVA LÓGICA DE OTIMIZAÇÃO HÍBRIDA (Forçar o mais próximo a ser o primeiro) ---
         
         let closestDemanda: DemandaWithCoords | null = null;
-        let remainingDemandas: DemandaWithCoords[] = [...demandasComGeom];
+        let remainingDemandas: DemandaWithCoords[] = [...demandasComGeom]; 
         let newOriginForApi = originCoordinates; 
         
-        // A otimização só faz sentido se houver pelo menos uma demanda.
         if (demandasComGeom.length > 0) {
             let minDistance = Infinity;
-            let closestIndex = -1;
+            let closestDemandaId: number | null = null;
 
             // Encontra a demanda mais próxima da localização do usuário (originCoordinates)
-            demandasComGeom.forEach((demanda, index) => {
+            demandasComGeom.forEach((demanda) => {
                 const distance = haversine(
                     originCoordinates.latitude, 
                     originCoordinates.longitude, 
@@ -115,36 +114,43 @@ export async function POST(request: NextRequest) {
                 
                 if (distance < minDistance) {
                     minDistance = distance;
-                    closestIndex = index;
+                    closestDemandaId = demanda.id;
                 }
             });
 
-            if (closestIndex !== -1) {
-                // Remove a demanda mais próxima da lista original e define-a como a primeira parada
-                closestDemanda = remainingDemandas.splice(closestIndex, 1)[0];
-                // O ponto de partida para a API do Google será a Demanda mais próxima
-                newOriginForApi = { latitude: closestDemanda.lat, longitude: closestDemanda.lng };
-                console.log(`[API /rotas/optimize] Demanda mais próxima (ID: ${closestDemanda.id}) definida como NOVO PONTO DE ORIGEM para a otimização subsequente.`);
+            if (closestDemandaId !== null) {
+                // 1. Identifica o ponto mais próximo
+                closestDemanda = demandasComGeom.find(d => d.id === closestDemandaId) || null;
+
+                if (closestDemanda) {
+                    // 2. Remove o ponto mais próximo da lista de intermediários a serem otimizados.
+                    // [MODIFICADO]: Usando filter para evitar problemas de índice com splice
+                    remainingDemandas = demandasComGeom.filter(d => d.id !== closestDemandaId);
+                    
+                    // 3. Define a localização do ponto mais próximo como a nova ORIGEM para o Google Routes.
+                    newOriginForApi = { latitude: closestDemanda.lat, longitude: closestDemanda.lng };
+                    console.log(`[API /rotas/optimize] Demanda mais próxima (ID: ${closestDemanda.id}) definida como NOVO PONTO DE ORIGEM para a otimização subsequente.`);
+                }
             }
         }
         
-        // Caso em que há apenas uma demanda (closestDemanda != null e remainingDemandas está vazia)
+        // Caso A: Apenas uma demanda (closestDemanda foi encontrado, mas remainingDemandas está vazio)
         if (remainingDemandas.length === 0 && closestDemanda) {
             console.log("[API /rotas/optimize] Apenas uma demanda, retornando-a.");
-             // Nenhuma rota real para calcular, então apenas retorna a demanda única
+             // Nenhuma rota real para calcular. Retorna a demanda única.
             return NextResponse.json({
                 optimizedDemands: [closestDemanda],
-                routePath: '', // Polilinha vazia, pois não há rota otimizada
+                routePath: '', 
                 startPoint: { lat: originCoordinates.latitude, lng: originCoordinates.longitude } 
             }, { status: 200 });
         }
-
-        // Se o closestDemanda for nulo (não deve acontecer se demandasComGeom.length > 0), voltamos ao comportamento original
+        
+        // Fallback no caso improvável de closestDemanda ser null
         if (!closestDemanda) {
-             // fallback: usa a primeira demanda como closest e remove do restante.
              closestDemanda = demandasComGeom[0];
              remainingDemandas = demandasComGeom.slice(1);
              newOriginForApi = { latitude: closestDemanda.lat, longitude: closestDemanda.lng };
+             console.warn("[API /rotas/optimize] Fallback ativado: closestDemanda não definida. Usando a primeira demanda como início.");
         }
         
         // 3. Montar a requisição para a Google Routes API
@@ -175,7 +181,7 @@ export async function POST(request: NextRequest) {
             intermediates: intermediatesForApi, 
             travelMode: 'DRIVE',
             routingPreference: 'TRAFFIC_AWARE',
-            optimizeWaypointOrder: true
+            optimizeWaypointOrder: true // Otimiza a ordem dos INTERMEDIÁRIOS
         };
 
         console.log(`[API /rotas/optimize] Chamando Google Routes API para otimizar ${remainingDemandas.length} paradas...`);
@@ -209,24 +215,22 @@ export async function POST(request: NextRequest) {
         const optimizedOrder: number[] = route.optimizedIntermediateWaypointIndex;
         const encodedPolyline = route.polyline.encodedPolyline;
 
-        // 5. Reordenar nosso array de demandas restantes (remainingDemandas)
+        // 5. Reordenar nosso array de demandas restantes (remainingDemandas) com os índices otimizados
         const optimizedRemainingDemandasOrdenadas = optimizedOrder.map(index => remainingDemandas[index]);
 
-        // 6. Criar a ordem FINAL: [Demanda Mais Próxima] + [Demandas Otimizadas]
-        // Se closestDemanda for nulo aqui, algo deu errado, mas assumimos que foi definido.
+        // 6. Criar a ordem FINAL: [Demanda Mais Próxima] + [Demandas Otimizadas Restantes]
         const optimizedDemandasOrdenadas = [closestDemanda, ...optimizedRemainingDemandasOrdenadas]; 
         
         // 7. Decodificar a polilinha
-        // O polyline é de closestDemanda -> ... -> base
         const routePath = decode(encodedPolyline);
 
-        console.log(`[API /rotas/optimize] Rota otimizada com sucesso. A primeira parada é a mais próxima.`);
+        console.log(`[API /rotas/optimize] Rota otimizada com sucesso. A primeira parada é a mais próxima, e o restante está otimizado.`);
 
         return NextResponse.json({
             // A ordem agora é: [Mais Próxima] + [Restante Otimizado]
             optimizedDemands: optimizedDemandasOrdenadas, 
             routePath: routePath,             
-            // O ponto de partida registrado é a localização do usuário (real)
+            // O ponto de partida é a localização do usuário (real)
             startPoint: { lat: originCoordinates.latitude, lng: originCoordinates.longitude } 
         }, { status: 200 });
 
