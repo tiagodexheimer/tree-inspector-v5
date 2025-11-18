@@ -1,132 +1,103 @@
-// src/app/api/demandas-tipos/[id]/route.ts
 import { NextRequest, NextResponse } from 'next/server';
-import pool from '../../../../lib/db'; // Ajuste o caminho
-// [NOVO] Importações de Autenticação
 import { auth } from "@/auth";
+// CORREÇÃO: Importar o SERVIÇO (letra minúscula), não o Repositório
+import { demandasTiposService } from "@/services/demandas-tipos-service";
 
-type ExpectedContext = { params: Promise<{ id: string }> };
+// Definição do contexto do Next.js
+type ExpectedContext = {
+    params: Promise<{ id: string }>;
+};
 
-interface TipoBody {
-    nome?: string;
+// Helper de Segurança
+async function checkAdminAccess() {
+  const session = await auth();
+  
+  if (!session || !session.user) {
+    return { 
+      authorized: false, 
+      response: NextResponse.json({ message: "Não autenticado" }, { status: 401 }) 
+    };
+  }
+  
+  if (session.user.role !== 'admin') {
+    return { 
+      authorized: false, 
+      response: NextResponse.json({ message: "Não autorizado" }, { status: 403 }) 
+    };
+  }
+
+  return { authorized: true, response: null };
 }
 
-// --- Handler para PUT (Atualizar Tipo) ---
+// --- PUT: Atualizar Tipo ---
 export async function PUT(request: NextRequest, context: ExpectedContext) {
-    // [NOVO] Verificação de Admin
-    const session = await auth();
-    if (session?.user?.role !== 'admin') {
-        return NextResponse.json({ message: "Não autorizado" }, { status: 403 });
-    }
-    // [FIM NOVO]
-    
+  const access = await checkAdminAccess();
+  if (!access.authorized) {
+    return access.response ?? NextResponse.json({ message: "Forbidden" }, { status: 403 });
+  }
+
+  try {
     const params = await context.params;
-    const id = params.id;
-    console.log(`[API] Recebido PUT em /api/demandas-tipos/${id}`);
+    const id = parseInt(params.id, 10);
 
-    const numericId = parseInt(id, 10);
-    if (isNaN(numericId)) {
-        return NextResponse.json({ message: 'ID do tipo inválido.' }, { status: 400 });
+    if (isNaN(id)) {
+       return NextResponse.json({ message: 'ID inválido.' }, { status: 400 });
     }
 
-    try {
-        const body = await request.json() as TipoBody;
-        const { nome } = body;
+    const body = await request.json();
 
-        // Validação
-        if (!nome || nome.trim() === '') {
-             return NextResponse.json({ message: 'O nome do tipo de demanda é obrigatório.' }, { status: 400 });
-        }
+    // Chamada correta ao serviço
+    const updatedTipo = await demandasTiposService.updateTipo(id, body.nome);
 
-        // --- ATENÇÃO: Atualizar o nome pode quebrar referências ---
-        console.warn(`[API /demandas-tipos] ATENÇÃO: Atualizar o nome do tipo ${id} para "${nome}" pode dessincronizar dados na tabela 'demandas'.`);
+    return NextResponse.json(updatedTipo, { status: 200 });
 
-        const queryText = 'UPDATE demandas_tipos SET nome = $1 WHERE id = $2 RETURNING id, nome';
-        const queryParams = [nome.trim(), numericId];
+  } catch (error) {
+    console.error('[API PUT Tipo]', error);
+    let status = 500;
+    let message = 'Erro interno ao atualizar tipo.';
 
-        const result = await pool.query(queryText, queryParams);
+    if (error instanceof Error) {
+        message = error.message;
+        if (message === "Tipo de demanda não encontrado.") status = 404;
+        if (message === "Já existe um tipo de demanda com este nome.") status = 409;
+        if (message.includes("obrigatório")) status = 400;
+    }
 
-        if (result.rowCount === 0) {
-            return NextResponse.json({ message: `Tipo com ID ${numericId} não encontrado.` }, { status: 404 });
-        }
-
-        console.log('[API] Tipo atualizado com sucesso:', result.rows[0]);
-        return NextResponse.json(result.rows[0], { status: 200 });
-
-    } catch (error) { // <-- INÍCIO DO BLOCO CORRIGIDO
-        console.error(`[API] Erro ao atualizar tipo ${id}:`, error);
-        let errorMessage = 'Erro desconhecido';
-        let status = 500;
-
-        // Lógica de verificação de erro segura
-        ///route.ts]
-        if (error && typeof error === 'object' && 'code' in error && error.code === '23505') {
-            if ('message' in error && typeof error.message === 'string' && error.message.includes('demandas_tipos_nome_key')) {
-               status = 409; // Conflict
-               errorMessage = 'Erro: Já existe um tipo de demanda com este nome.';
-            } else {
-               status = 409;
-               errorMessage = 'Erro: Valor duplicado.';
-            }
-        }
-        else if (error instanceof Error) {
-            errorMessage = error.message;
-        }
-
-        return NextResponse.json({ message: `Erro interno ao atualizar tipo ${id}.`, error: errorMessage }, { status });
-    } // <-- FIM DO BLOCO CORRIGIDO
+    return NextResponse.json({ message, error: message }, { status });
+  }
 }
 
-// --- Handler para DELETE (Deletar Tipo) ---
+// --- DELETE: Deletar Tipo ---
 export async function DELETE(request: NextRequest, context: ExpectedContext) {
-    // [NOVO] Verificação de Admin
-    const session = await auth();
-    if (session?.user?.role !== 'admin') {
-        return NextResponse.json({ message: "Não autorizado" }, { status: 403 });
-    }
-    // [FIM NOVO]
-    
+  const access = await checkAdminAccess();
+  if (!access.authorized) {
+    return access.response ?? NextResponse.json({ message: "Forbidden" }, { status: 403 });
+  }
+
+  try {
     const params = await context.params;
-    const id = params.id;
-    console.log(`[API] Recebido DELETE em /api/demandas-tipos/${id}`);
-
-    const numericId = parseInt(id, 10);
-    if (isNaN(numericId)) {
-        return NextResponse.json({ message: 'ID do tipo inválido.' }, { status: 400 });
+    const id = parseInt(params.id, 10);
+    
+    if (isNaN(id)) {
+       return NextResponse.json({ message: 'ID inválido.' }, { status: 400 });
     }
 
-    let tipoNome = ''; // Para a mensagem de erro
+    // Chamada correta ao serviço
+    await demandasTiposService.deleteTipo(id);
 
-    try {
-        // 1. Buscar o nome do tipo antes de deletar (para verificar o uso)
-        const nameResult = await pool.query('SELECT nome FROM demandas_tipos WHERE id = $1', [numericId]);
-        if (nameResult.rowCount === 0) {
-            return NextResponse.json({ message: `Tipo com ID ${numericId} não encontrado.` }, { status: 404 });
-        }
-        tipoNome = nameResult.rows[0].nome;
+    return NextResponse.json({ message: `Tipo ${id} deletado com sucesso.` }, { status: 200 });
 
-        // 2. Verificar se o tipo (pelo NOME) está sendo usado na tabela 'demandas'
-        const checkUsageQuery = 'SELECT COUNT(*) FROM demandas WHERE tipo_demanda = $1';
-        const usageResult = await pool.query(checkUsageQuery, [tipoNome]);
+  } catch (error) {
+    console.error('[API DELETE Tipo]', error);
+    let status = 500;
+    let message = 'Erro interno ao deletar tipo.';
 
-        if (usageResult.rows[0].count > 0) {
-             return NextResponse.json({ message: `Não é possível deletar o tipo "${tipoNome}" pois ele está associado a ${usageResult.rows[0].count} demanda(s).` }, { status: 409 }); // Conflict
-        }
-
-        // 3. Se não estiver em uso, pode deletar
-        const deleteQueryText = 'DELETE FROM demandas_tipos WHERE id = $1 RETURNING id';
-        const result = await pool.query(deleteQueryText, [numericId]);
-
-        // Verificação redundante, já feita na busca do nome, mas segura
-        if (result.rowCount === 0) {
-            return NextResponse.json({ message: `Tipo com ID ${numericId} não encontrado.` }, { status: 404 });
-        }
-
-        console.log(`[API] Tipo com ID ${numericId} ("${tipoNome}") deletado com sucesso.`);
-        return NextResponse.json({ message: `Tipo ${numericId} ("${tipoNome}") deletado com sucesso.` }, { status: 200 }); // Ou 204 No Content
-
-    } catch (error) {
-        console.error(`[API] Erro ao deletar tipo ${numericId}:`, error);
-        const errorMessage = error instanceof Error ? error.message : 'Erro desconhecido';
-        return NextResponse.json({ message: `Erro interno ao deletar tipo ${numericId}.`, error: errorMessage }, { status: 500 });
+    if (error instanceof Error) {
+        message = error.message;
+        if (message === "Tipo de demanda não encontrado.") status = 404;
+        if (message.includes("associado a")) status = 409; 
     }
+
+    return NextResponse.json({ message, error: message }, { status });
+  }
 }
