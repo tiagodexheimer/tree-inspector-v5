@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
-import { auth } from '@/auth'; // [CORREÇÃO]
+import { auth } from '@/auth'; // Autenticação v5
 import db from '@/lib/db';
+import { CampoDef } from '@/types/formularios'; // [CORREÇÃO] A importação que faltava
 
 // Define a estrutura do corpo da requisição POST
 interface FormularioRequestBody {
@@ -11,49 +12,14 @@ interface FormularioRequestBody {
 }
 
 /**
- * @swagger
- * /api/gerenciar/formularios:
- * post:
- * summary: Cria um novo formulário e o associa a um tipo de demanda.
- * description: Rota protegida para administradores. Cria um formulário e usa ON CONFLICT para associá-lo a um tipo de demanda, substituindo qualquer associação anterior.
- * tags: [Formulários]
- * security:
- * - bearerAuth: []
- * requestBody:
- * required: true
- * content:
- * application/json:
- * schema:
- * type: object
- * properties:
- * nome:
- * type: string
- * descricao:
- * type: string
- * id_tipo_demanda:
- * type: integer
- * definicao_campos:
- * type: array
- * items:
- * $ref: '#/components/schemas/CampoDef'
- * responses:
- * 201:
- * description: Formulário criado e associado com sucesso.
- * 400:
- * description: Dados inválidos.
- * 401:
- * description: Não autorizado.
- * 403:
- * description: Acesso negado (requer admin).
- * 500:
- * description: Erro interno do servidor.
+ * POST: Cria um novo formulário e o associa a um tipo de demanda.
  */
 export async function POST(req: Request) {
   // 1. Autenticação e Autorização (Admin)
   const session = await auth();
 
   if (!session) {
-    return NextResponse.json({ message: 'Não autorizado' }, { status: 401 });
+    return NextResponse.json({ message: 'Não autenticado' }, { status: 401 });
   }
 
   if (session.user?.role !== 'admin') {
@@ -129,23 +95,7 @@ export async function POST(req: Request) {
 }
 
 /**
- * @swagger
- * /api/gerenciar/formularios:
- * get:
- * summary: Lista todos os formulários e suas associações.
- * description: Rota protegida para administradores. Retorna uma lista de todos os formulários e o tipo de demanda ao qual estão associados (se houver).
- * tags: [Formulários]
- * security:
- * - bearerAuth: []
- * responses:
- * 200:
- * description: Lista de formulários.
- * 401:
- * description: Não autorizado.
- * 403:
- * description: Acesso negado (requer admin).
- * 500:
- * description: Erro interno do servidor.
+ * GET: Lista todos os formulários e suas associações.
  */
 export async function GET() {
   // Autenticação (Admin)

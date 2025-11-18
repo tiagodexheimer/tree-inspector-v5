@@ -2,8 +2,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import pool from '../../../../lib/db';
 // Importações de Autenticação
-import { getServerSession } from "next-auth/next";
-import { authOptions } from "../../auth/[...nextauth]/route";
+import { auth } from "@/auth";
 
 type ExpectedContext = { params: Promise<{ id: string }> };
 
@@ -15,7 +14,7 @@ interface StatusBody {
 // --- Handler para PUT (Atualizar Status) ---
 export async function PUT(request: NextRequest, context: ExpectedContext) {
     // Verificação de Admin
-    const session = await getServerSession(authOptions);
+    const session = await auth();
     if (session?.user?.role !== 'admin') {
         return NextResponse.json({ message: "Não autorizado" }, { status: 403 });
     }
@@ -83,7 +82,7 @@ export async function PUT(request: NextRequest, context: ExpectedContext) {
 // --- Handler para DELETE (Deletar Status) ---
 export async function DELETE(request: NextRequest, context: ExpectedContext) {
     // Verificação de Admin
-    const session = await getServerSession(authOptions);
+    const session = await auth();
     if (session?.user?.role !== 'admin') {
         return NextResponse.json({ message: "Não autorizado" }, { status: 403 });
     }
