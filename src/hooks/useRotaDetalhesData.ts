@@ -3,7 +3,7 @@ import { useState, useCallback, useEffect, useMemo } from 'react';
 import { RotaDetalhesClient, DemandaComOrdem } from '@/services/client/rota-detalhes-client';
 import { decode } from '@googlemaps/polyline-codec';
 
-const START_END_POINT: [number, number] = [-29.8608, -51.1789];
+const START_END_POINT: [number, number] = [-29.8533191, -51.1789191];
 
 export function useRotaDetalhesData(id: string) {
   const [rota, setRota] = useState<any | null>(null);

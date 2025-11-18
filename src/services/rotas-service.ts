@@ -8,7 +8,7 @@ interface CreateRotaInput {
   demandas: { id: number }[];
 }
 
-const START_END_POINT_COORDS = { latitude: -29.8608, longitude: -51.1789 };
+const START_END_POINT_COORDS = { latitude: -29.8533191, longitude: -51.1789191 };
 
 export class RotasService {
   

@@ -47,7 +47,7 @@ interface CriarRotaModalProps {
 // Lista de exemplo para os responsáveis (mantida)
 const responsaveisExemplo = ['João Silva', 'Pedro Martins', 'Ana Costa', 'Mariana Dias'];
 
-const START_END_POINT: LatLngExpression = [-29.8608, -51.1789]; 
+const START_END_POINT: LatLngExpression = [-29.8533191, -51.1789191];
 
 // Função auxiliar para formatar endereço curto (mantida)
 const formatEnderecoCurto = (demanda: DemandaType): string => {
