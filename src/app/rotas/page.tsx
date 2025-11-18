@@ -1,15 +1,18 @@
-// src/app/rotas/page.tsx
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import {
     Box, Typography, CircularProgress, Alert, Button,
     Dialog, DialogActions, DialogContent, DialogContentText, DialogTitle
 } from '@mui/material';
 import InfoOutlinedIcon from '@mui/icons-material/InfoOutlined';
-import ListaRotas from '@/components/ui/rotas/ListaRotas'; // Importa o novo componente
+import ListaRotas from '@/components/ui/rotas/ListaRotas';
 
-// Interface (sem alteração)
+// Hooks
+import { useRotasData } from '@/hooks/useRotasData';
+import { useRotasOperations } from '@/hooks/useRotasOperations';
+
+// Se você ainda não moveu a interface para um arquivo de tipos, defina-a aqui para exportação
 export interface RotaComContagem {
     id: number;
     nome: string;
@@ -21,88 +24,47 @@ export interface RotaComContagem {
 }
 
 export default function RotasPage() {
-    const [rotas, setRotas] = useState<RotaComContagem[]>([]);
-    const [isLoading, setIsLoading] = useState<boolean>(true);
-    const [error, setError] = useState<string | null>(null);
+    // 1. Estado de Dados (Hook de Leitura)
+    const { rotas, isLoading, error, refresh, setRotas } = useRotasData();
 
-    // --- ESTADOS DE DELEÇÃO ATUALIZADOS ---
-    const [openDeleteConfirm, setOpenDeleteConfirm] = useState<boolean>(false);
+    // 2. Estado Local de UI (Modais)
+    const [openDeleteConfirm, setOpenDeleteConfirm] = useState(false);
     const [rotaParaDeletar, setRotaParaDeletar] = useState<RotaComContagem | null>(null);
-    const [isDeleting, setIsDeleting] = useState<boolean>(false);
-    const [deleteError, setDeleteError] = useState<string | null>(null);
-    // --- FIM DA ATUALIZAÇÃO ---
 
-    // Função para buscar os dados da API (sem alteração)
-    const fetchRotas = async () => {
-        setIsLoading(true);
-        setError(null);
-        try {
-            const response = await fetch('/api/rotas');
-            if (!response.ok) {
-                const errorData = await response.json().catch(() => ({}));
-                throw new Error(errorData.message || `Erro HTTP ${response.status}`);
-            }
-            const data: RotaComContagem[] = await response.json();
-            setRotas(data);
-        } catch (err) {
-            console.error("[PAGE /rotas] Falha ao buscar rotas:", err);
-            setError(err instanceof Error ? err.message : 'Erro desconhecido ao carregar rotas.');
-        } finally {
-            setIsLoading(false);
-        }
-    };
+    // 3. Estado de Operações (Hook de Escrita)
+    const { deleteRota, isProcessing: isDeleting, opError: deleteError, clearError } = useRotasOperations();
 
-    useEffect(() => {
-        fetchRotas();
-    }, []);
-
-    // --- INÍCIO DA LÓGICA DE DELEÇÃO ---
+    // Handlers de Interface
     const iniciarDelecao = (id: number) => {
         const rota = rotas.find(r => r.id === id) || null;
-        setRotaParaDeletar(rota);
-        setDeleteError(null);
-        setOpenDeleteConfirm(true); // Abre o modal de confirmação
+        if (rota) {
+            setRotaParaDeletar(rota);
+            clearError();
+            setOpenDeleteConfirm(true);
+        }
     };
 
     const handleCloseDeleteConfirm = () => {
         setOpenDeleteConfirm(false);
-        setDeleteError(null);
-        setIsDeleting(false); // Garante que o estado de loading seja resetado
-        // Reseta o item a ser deletado após a animação de fechar
-        setTimeout(() => setRotaParaDeletar(null), 300); 
+        setTimeout(() => {
+            setRotaParaDeletar(null);
+            clearError();
+        }, 300);
     };
 
     const confirmarDelecao = async () => {
         if (!rotaParaDeletar) return;
 
-        setIsDeleting(true);
-        setDeleteError(null);
-
         try {
-            const response = await fetch(`/api/rotas/${rotaParaDeletar.id}`, {
-                method: 'DELETE'
-            });
-
-            const result = await response.json();
-
-            if (!response.ok) {
-                throw new Error(result.message || `Erro ${response.status}`);
-            }
-
-            // Sucesso: remove a rota da lista local
+            await deleteRota(rotaParaDeletar.id);
+            // Atualização otimista ou recarga
             setRotas(prev => prev.filter(r => r.id !== rotaParaDeletar.id));
-            handleCloseDeleteConfirm(); // Fecha o modal
-
-        } catch (err) {
-            console.error(`[PAGE /rotas] Falha ao deletar rota ${rotaParaDeletar.id}:`, err);
-            setDeleteError(err instanceof Error ? err.message : 'Erro desconhecido.');
-            // Mantém o modal aberto para mostrar o erro
-        } finally {
-            setIsDeleting(false);
+            handleCloseDeleteConfirm();
+        } catch (error) {
+            // O erro já está capturado no hook 'deleteError'
+            // Mantemos o modal aberto para exibir o erro
         }
     };
-    // --- FIM DA LÓGICA DE DELEÇÃO ---
-
 
     return (
         <div>
@@ -110,23 +72,24 @@ export default function RotasPage() {
                 Rotas Criadas
             </h1>
 
-            {/* Mensagens de Erro ou Loading (sem alteração) */}
+            {/* Estado de Carregamento */}
             {isLoading && (
                 <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '50vh' }}>
                     <CircularProgress /> <Typography sx={{ ml: 2 }}>Carregando rotas...</Typography>
                 </Box>
             )}
 
+            {/* Estado de Erro de Carregamento */}
             {!isLoading && error && (
                 <Box sx={{ p: 2 }}>
                     <Alert severity="error">
                         Erro ao carregar rotas: {error}
-                        <Button color="inherit" size="small" onClick={fetchRotas}>Tentar Novamente</Button>
+                        <Button color="inherit" size="small" onClick={refresh}>Tentar Novamente</Button>
                     </Alert>
                 </Box>
             )}
 
-            {/* Conteúdo Principal (Lista ou "Nenhum item") (sem alteração) */}
+            {/* Lista de Rotas */}
             {!isLoading && !error && (
                 rotas.length > 0 ? (
                     <Box sx={{ p: 2 }}>
@@ -143,7 +106,7 @@ export default function RotasPage() {
                 )
             )}
 
-            {/* --- NOVO MODAL DE CONFIRMAÇÃO DE DELEÇÃO --- */}
+            {/* Modal de Confirmação de Deleção */}
             <Dialog open={openDeleteConfirm} onClose={handleCloseDeleteConfirm}>
                 <DialogTitle>Confirmar Exclusão</DialogTitle>
                 <DialogContent>
@@ -151,23 +114,23 @@ export default function RotasPage() {
                         Você tem certeza que deseja excluir a rota:
                     </DialogContentText>
                     <Typography variant="h6" sx={{ my: 1, fontWeight: 'bold' }}>
-                        {rotaParaDeletar?.nome || 'Rota desconhecida'} (ID: {rotaParaDeletar?.id})
+                        {rotaParaDeletar?.nome} (ID: {rotaParaDeletar?.id})
                     </Typography>
                     <DialogContentText>
                         Todas as associações de demandas com esta rota serão perdidas.
                         Esta ação não pode ser desfeita.
                     </DialogContentText>
+                    
+                    {/* Exibe erro da operação de deleção, se houver */}
                     {deleteError && <Alert severity="error" sx={{ mt: 2 }}>{deleteError}</Alert>}
                 </DialogContent>
                 <DialogActions>
                     <Button onClick={handleCloseDeleteConfirm} disabled={isDeleting}>Cancelar</Button>
                     <Button onClick={confirmarDelecao} color="error" variant="contained" disabled={isDeleting}>
-                        {isDeleting ? <CircularProgress size={24}/> : 'Excluir'}
+                        {isDeleting ? <CircularProgress size={24} color="inherit" /> : 'Excluir'}
                     </Button>
                 </DialogActions>
             </Dialog>
-            {/* --- FIM DO NOVO MODAL --- */}
-
         </div>
     );
 }
