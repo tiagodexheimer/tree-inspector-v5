@@ -2,39 +2,40 @@
 
 import React, { useState } from 'react';
 import {
-    Box, Typography, CircularProgress, Alert, Button,
+    Box, Typography, Alert, Button,
     Dialog, DialogActions, DialogContent, DialogContentText, DialogTitle
 } from '@mui/material';
 import InfoOutlinedIcon from '@mui/icons-material/InfoOutlined';
-import ListaRotas from '@/components/ui/rotas/ListaRotas';
+// 1. Importar dynamic
+import dynamic from 'next/dynamic';
 
-// Hooks
+// 2. Importar o Skeleton
+import RotasSkeleton from '@/components/ui/rotas/RotasSkeleton';
+
+// Hooks e Tipos
 import { useRotasData } from '@/hooks/useRotasData';
 import { useRotasOperations } from '@/hooks/useRotasOperations';
+import { RotaComContagem } from '@/services/client/rotas-client';
 
-// Se você ainda não moveu a interface para um arquivo de tipos, defina-a aqui para exportação
-export interface RotaComContagem {
-    id: number;
-    nome: string;
-    responsavel: string;
-    status: string;
-    data_rota: string | null;
-    created_at: string;
-    total_demandas: number;
-}
+// 3. Importação Dinâmica do Componente Pesado (DataGrid)
+// O loading aqui serve para quando o bundle JS está sendo baixado, não necessariamente os dados
+const ListaRotas = dynamic(() => import('@/components/ui/rotas/ListaRotas'), {
+    loading: () => <RotasSkeleton />,
+    ssr: false // DataGrid geralmente é client-side only
+});
 
 export default function RotasPage() {
-    // 1. Estado de Dados (Hook de Leitura)
+    // Hooks de Dados e Operações
     const { rotas, isLoading, error, refresh, setRotas } = useRotasData();
-
-    // 2. Estado Local de UI (Modais)
+    
+    // Estado Local de UI (Modais)
     const [openDeleteConfirm, setOpenDeleteConfirm] = useState(false);
     const [rotaParaDeletar, setRotaParaDeletar] = useState<RotaComContagem | null>(null);
 
-    // 3. Estado de Operações (Hook de Escrita)
+    // Estado de Operações (Escrita)
     const { deleteRota, isProcessing: isDeleting, opError: deleteError, clearError } = useRotasOperations();
 
-    // Handlers de Interface
+    // Handlers
     const iniciarDelecao = (id: number) => {
         const rota = rotas.find(r => r.id === id) || null;
         if (rota) {
@@ -57,12 +58,10 @@ export default function RotasPage() {
 
         try {
             await deleteRota(rotaParaDeletar.id);
-            // Atualização otimista ou recarga
             setRotas(prev => prev.filter(r => r.id !== rotaParaDeletar.id));
             handleCloseDeleteConfirm();
         } catch (error) {
-            // O erro já está capturado no hook 'deleteError'
-            // Mantemos o modal aberto para exibir o erro
+            // Erro capturado no hook
         }
     };
 
@@ -72,15 +71,8 @@ export default function RotasPage() {
                 Rotas Criadas
             </h1>
 
-            {/* Estado de Carregamento */}
-            {isLoading && (
-                <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '50vh' }}>
-                    <CircularProgress /> <Typography sx={{ ml: 2 }}>Carregando rotas...</Typography>
-                </Box>
-            )}
-
-            {/* Estado de Erro de Carregamento */}
-            {!isLoading && error && (
+            {/* Tratamento de Erro */}
+            {error && (
                 <Box sx={{ p: 2 }}>
                     <Alert severity="error">
                         Erro ao carregar rotas: {error}
@@ -89,13 +81,21 @@ export default function RotasPage() {
                 </Box>
             )}
 
-            {/* Lista de Rotas */}
-            {!isLoading && !error && (
+            {/* 4. Renderização Condicional Otimizada:
+               Se isLoading -> Skeleton
+               Se não tem dados -> Empty State
+               Se tem dados -> Lista (Carregada dinamicamente)
+            */}
+            {isLoading ? (
+                <Box sx={{ p: 2 }}>
+                    <RotasSkeleton />
+                </Box>
+            ) : (
                 rotas.length > 0 ? (
                     <Box sx={{ p: 2 }}>
                         <ListaRotas rotas={rotas} onDelete={iniciarDelecao} />
                     </Box>
-                ) : (
+                ) : !error && (
                     <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '50vh', color: 'grey.600', mt: 4 }}>
                         <InfoOutlinedIcon sx={{ fontSize: 60, mb: 2 }} />
                         <Typography variant="h6">Nenhuma rota criada ainda.</Typography>
@@ -106,7 +106,7 @@ export default function RotasPage() {
                 )
             )}
 
-            {/* Modal de Confirmação de Deleção */}
+            {/* Modal de Confirmação */}
             <Dialog open={openDeleteConfirm} onClose={handleCloseDeleteConfirm}>
                 <DialogTitle>Confirmar Exclusão</DialogTitle>
                 <DialogContent>
@@ -121,13 +121,12 @@ export default function RotasPage() {
                         Esta ação não pode ser desfeita.
                     </DialogContentText>
                     
-                    {/* Exibe erro da operação de deleção, se houver */}
                     {deleteError && <Alert severity="error" sx={{ mt: 2 }}>{deleteError}</Alert>}
                 </DialogContent>
                 <DialogActions>
                     <Button onClick={handleCloseDeleteConfirm} disabled={isDeleting}>Cancelar</Button>
                     <Button onClick={confirmarDelecao} color="error" variant="contained" disabled={isDeleting}>
-                        {isDeleting ? <CircularProgress size={24} color="inherit" /> : 'Excluir'}
+                        {isDeleting ? <Typography variant="caption">Excluindo...</Typography> : 'Excluir'}
                     </Button>
                 </DialogActions>
             </Dialog>
