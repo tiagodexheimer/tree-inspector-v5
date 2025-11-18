@@ -1,6 +1,6 @@
 import { useState, useCallback, useEffect } from 'react';
-import { RotasClient } from '@/services/client/rotas-client';
-import { RotaComContagem } from '@/app/rotas/page'; // Ajuste o import conforme necessário
+// CORREÇÃO: Importar RotaComContagem do serviço, onde ela foi definida
+import { RotasClient, RotaComContagem } from '@/services/client/rotas-client';
 
 export function useRotasData() {
   const [rotas, setRotas] = useState<RotaComContagem[]>([]);

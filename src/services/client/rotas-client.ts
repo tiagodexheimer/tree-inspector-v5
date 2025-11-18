@@ -1,4 +1,13 @@
-import { RotaComContagem } from "@/app/rotas/page"; // Ou mova a interface para src/types/rotas.ts
+// ADICIONADO 'export' na frente da interface
+export interface RotaComContagem {
+    id: number;
+    nome: string;
+    responsavel: string;
+    status: string;
+    data_rota: string | null;
+    created_at: string;
+    total_demandas: number;
+}
 
 export const RotasClient = {
   async getAll(): Promise<RotaComContagem[]> {

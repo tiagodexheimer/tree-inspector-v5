@@ -1,4 +1,13 @@
-import { DemandaComOrdem } from "@/app/rotas/[id]/page"; // Idealmente mova essa interface para @/types
+import { DemandaType } from "@/types/demanda";
+
+// ADICIONADO 'export' AQUI
+export interface DemandaComOrdem extends DemandaType {
+    ordem: number;
+    status_nome: string;
+    status_cor: string;
+    lat: number | null;
+    lng: number | null;
+}
 
 interface RotaDetalhesResponse {
     rota: any;
@@ -22,7 +31,6 @@ export const RotaDetalhesClient = {
     if (!response.ok) throw new Error("Erro ao salvar ordem.");
   },
 
-  // A exportação retorna um Blob
   async exportXls(id: string): Promise<Blob> {
     const response = await fetch(`/api/rotas/${id}/export`);
     if (!response.ok) throw new Error("Erro ao exportar arquivo.");

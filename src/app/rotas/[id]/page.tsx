@@ -3,7 +3,7 @@
 import React from 'react';
 import { useParams } from 'next/navigation'; 
 import {
-    Box, Typography, Alert, Button, Paper, Chip, Snackbar 
+    Box, Typography, Alert, Button, Paper, Chip, Snackbar, CircularProgress // <--- ADICIONADO AQUI
 } from '@mui/material';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import SaveIcon from '@mui/icons-material/Save'; 
@@ -28,12 +28,11 @@ import { useRotaDetalhesOperations } from '@/hooks/useRotaDetalhesOperations';
 
 // --- Imports Dinâmicos ---
 const RouteMap = dynamic(() => import('@/components/ui/demandas/RouteMap'), {
-    loading: () => <Box sx={{ height: '100%', bgcolor: '#eee' }} />, // Placeholder simples enquanto carrega o JS do mapa
+    loading: () => <Box sx={{ height: '100%', bgcolor: '#eee' }} />,
     ssr: false
 });
 
 const DetalheRotaLista = dynamic(() => import('@/components/ui/rotas/DetalheRotaLista'), {
-    // Não precisamos de loading complexo aqui pois o Skeleton principal já cobre a área
     ssr: false
 });
 
@@ -52,7 +51,7 @@ export default function PaginaDetalheRota() {
     const {
         saveOrder, exportToExcel,
         isSaving, isExporting, opError, saveSuccess, setSaveSuccess, setOpError
-    } = useRotaDetalhesOperations(id, refresh); // refresh após salvar para pegar nova polyline
+    } = useRotaDetalhesOperations(id, refresh);
 
     // 2. Configuração DnD
     const sensors = useSensors(
@@ -152,7 +151,7 @@ export default function PaginaDetalheRota() {
                     variant="contained" color="primary"
                     startIcon={isSaving ? <CircularProgress size={20} color="inherit" /> : <SaveIcon />}
                     onClick={handleSaveClick} 
-                    disabled={isSaving || isExporting || !hasChanges} // Habilita apenas se houver mudanças (opcional, se quiser permitir salvar ordem igual remova !hasChanges)
+                    disabled={isSaving || isExporting || !hasChanges}
                     sx={{ minWidth: 150 }}
                 >
                     {isSaving ? 'Salvando...' : 'Salvar Ordem'}

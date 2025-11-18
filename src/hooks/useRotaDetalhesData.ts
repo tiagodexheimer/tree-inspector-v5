@@ -1,7 +1,7 @@
 import { useState, useCallback, useEffect, useMemo } from 'react';
-import { RotaDetalhesClient } from '@/services/client/rota-detalhes-client';
+// CORREÇÃO: Importar a interface do serviço, não da página
+import { RotaDetalhesClient, DemandaComOrdem } from '@/services/client/rota-detalhes-client';
 import { decode } from '@googlemaps/polyline-codec';
-import { DemandaComOrdem } from '@/app/rotas/[id]/page'; // Ajuste o import da interface
 
 const START_END_POINT: [number, number] = [-29.8608, -51.1789];
 
