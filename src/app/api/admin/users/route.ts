@@ -1,71 +1,74 @@
 import { NextResponse, NextRequest } from "next/server";
-import { auth } from "@/auth"; // [CORREÇÃO]
-import pool from "@/lib/db";
-import bcrypt from "bcryptjs";
+import { auth } from "@/auth";
+import { userManagementService } from "@/services/user-management-service";
 
-
-// --- LISTAR TODOS OS USUÁRIOS (Admin) ---
-export async function GET() {
-  
+// --- AUXILIARES ---
+// Clean Code: Extrair verificação de permissão para função auxiliar
+async function checkAdminPermission() {
   const session = await auth();
   
   if (!session || !session.user) {
-    return NextResponse.json({ message: "Não autenticado" }, { status: 401 });
+    return { authorized: false, status: 401, message: "Não autenticado" };
   }
   
-  // Verifica se o papel do usuário é 'admin'
   if (session.user.role !== 'admin') {
-    return NextResponse.json({ message: "Não autorizado: Acesso restrito a administradores." }, { status: 403 });
+    return { authorized: false, status: 403, message: "Acesso restrito a administradores." };
   }
-  
-  try {
-    // Seleciona todos os usuários, exceto a coluna de senha
-    const result = await pool.query("SELECT id, name, email, role FROM users ORDER BY name");
-    return NextResponse.json(result.rows, { status: 200 });
 
-  } catch (error) { 
-    const errorMessage = error instanceof Error ? error.message : "Erro desconhecido";
-    return NextResponse.json({ message: "Erro ao listar usuários", error: errorMessage }, { status: 500 });
+  return { authorized: true, session };
+}
+
+// --- GET: LISTAR USUÁRIOS ---
+export async function GET() {
+  const permission = await checkAdminPermission();
+  if (!permission.authorized) {
+    return NextResponse.json({ message: permission.message }, { status: permission.status });
+  }
+
+  try {
+    // Clean Architecture: A rota chama o serviço, não o banco de dados.
+    const users = await userManagementService.listAllUsers();
+    return NextResponse.json(users, { status: 200 });
+
+  } catch (error) {
+    console.error("[API GET Users]", error);
+    return NextResponse.json({ message: "Erro ao listar usuários" }, { status: 500 });
   }
 }
 
-
-// --- CRIAR UM NOVO USUÁRIO (Admin) ---
+// --- POST: CRIAR USUÁRIO ---
 export async function POST(request: NextRequest) {
-    const session = await auth();
-    if (!session || !session.user || session.user.role !== 'admin') {
-        return NextResponse.json({ message: "Não autorizado: Acesso restrito a administradores." }, { status: 403 });
+  const permission = await checkAdminPermission();
+  if (!permission.authorized) {
+    return NextResponse.json({ message: permission.message }, { status: permission.status });
+  }
+
+  try {
+    const body = await request.json();
+    
+    // A rota apenas delega o processamento
+    const newUser = await userManagementService.createUser({
+        name: body.name,
+        email: body.email,
+        password: body.password,
+        role: body.role
+    });
+
+    return NextResponse.json(newUser, { status: 201 });
+
+  } catch (error) {
+    console.error("[API POST Users]", error);
+    let status = 500;
+    let message = "Erro interno ao criar usuário";
+
+    // Tratamento de erros de domínio (lançados pelo service)
+    if (error instanceof Error) {
+      message = error.message;
+      // Mapeamento simples de erro de negócio para HTTP Code
+      if (message === "Email já cadastrado.") status = 409;
+      if (message.includes("obrigatórios")) status = 400;
     }
 
-    try {
-        const { name, email, password, role } = await request.json();
-
-        if (!email || !password || !role) {
-            return NextResponse.json({ message: "Email, senha e papel são obrigatórios." }, { status: 400 });
-        }
-
-        // Hash da senha ANTES de salvar
-        const hashedPassword = await bcrypt.hash(password, 10);
-
-        // CORRIGIDO: Mudar de 'hashed_password' para 'password' na instrução INSERT
-        const newUser = await pool.query(
-            "INSERT INTO users (id, name, email, password, role) VALUES (gen_random_uuid(), $1, $2, $3, $4) RETURNING id, name, email, role",
-            [name, email, hashedPassword, role]
-        );
-
-        return NextResponse.json(newUser.rows[0], { status: 201 });
-
-    } catch (error) { 
-        let errorMessage = "Erro ao criar usuário";
-        let status = 500;
-        
-        if (error && typeof error === 'object' && 'code' in error && error.code === '23505') {
-            errorMessage = "Email já cadastrado.";
-            status = 409; 
-        } else if (error instanceof Error) {
-            errorMessage = error.message;
-        }
-        
-        return NextResponse.json({ message: errorMessage }, { status });
-    }
+    return NextResponse.json({ message }, { status });
+  }
 }
