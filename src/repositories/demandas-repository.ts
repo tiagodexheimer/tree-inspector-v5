@@ -1,6 +1,6 @@
 import pool from "@/lib/db";
 
-// DTO para criação
+// (Interfaces CreateDemandaDTO e FindDemandasParams mantidas...)
 export interface CreateDemandaDTO {
   protocolo: string;
   nome_solicitante: string;
@@ -21,7 +21,6 @@ export interface CreateDemandaDTO {
   prazo: Date | null;
 }
 
-// Parâmetros de busca
 export interface FindDemandasParams {
   page: number;
   limit: number;
@@ -30,18 +29,38 @@ export interface FindDemandasParams {
   tipoNomes?: string[];
 }
 
+// DTO para Atualização (parcial ou total)
+export interface UpdateDemandaDTO {
+  nome_solicitante: string;
+  telefone_solicitante: string | null;
+  email_solicitante: string | null;
+  cep: string;
+  logradouro: string | null;
+  numero: string;
+  complemento: string | null;
+  bairro: string | null;
+  cidade: string | null;
+  uf: string | null;
+  tipo_demanda: string;
+  descricao: string;
+  lat: number | null;
+  lng: number | null;
+  prazo: Date | null;
+}
+
 export const DemandasRepository = {
+  // ... (mantenha findAll e create aqui) ...
+  
   // --- LEITURA (findAll com Filtros) ---
   async findAll(params: FindDemandasParams): Promise<{ demandas: any[]; totalCount: number }> {
+    // ... (código existente do findAll)
     const { page, limit, filtro, statusIds, tipoNomes } = params;
     const offset = (page - 1) * limit;
 
-    // Construção Dinâmica do WHERE
     const whereClauses: string[] = [];
     const values: any[] = [];
     let counter = 1;
 
-    // Filtro de Texto (Busca em vários campos)
     if (filtro) {
       whereClauses.push(`(
         d.nome_solicitante ILIKE $${counter} OR 
@@ -52,15 +71,11 @@ export const DemandasRepository = {
       values.push(`%${filtro}%`);
       counter++;
     }
-
-    // Filtro de Status (Array de IDs)
     if (statusIds && statusIds.length > 0) {
       whereClauses.push(`d.id_status = ANY($${counter}::int[])`);
       values.push(statusIds);
       counter++;
     }
-
-    // Filtro de Tipos (Array de Nomes)
     if (tipoNomes && tipoNomes.length > 0) {
       whereClauses.push(`d.tipo_demanda = ANY($${counter}::text[])`);
       values.push(tipoNomes);
@@ -68,13 +83,10 @@ export const DemandasRepository = {
     }
 
     const whereSql = whereClauses.length > 0 ? `WHERE ${whereClauses.join(' AND ')}` : '';
-
-    // 1. Query de Contagem (Total para paginação)
     const countQuery = `SELECT COUNT(d.id) AS count FROM demandas d ${whereSql}`;
     const countResult = await pool.query(countQuery, values);
     const totalCount = parseInt(countResult.rows[0].count, 10);
 
-    // 2. Query de Dados
     const query = `
       SELECT
         d.id, d.protocolo, d.nome_solicitante, d.telefone_solicitante, d.email_solicitante,
@@ -94,16 +106,12 @@ export const DemandasRepository = {
     `;
 
     const result = await pool.query(query, [...values, limit, offset]);
-
-    return { 
-      demandas: result.rows, 
-      totalCount 
-    };
+    return { demandas: result.rows, totalCount };
   },
 
   // --- ESCRITA (Create) ---
   async create(data: CreateDemandaDTO): Promise<any> {
-    try {
+     // ... (código existente do create)
       const query = `
         INSERT INTO demandas (
             protocolo, nome_solicitante, telefone_solicitante, email_solicitante,
@@ -113,16 +121,57 @@ export const DemandasRepository = {
             $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, 
             CASE 
               WHEN $15::float IS NOT NULL AND $16::float IS NOT NULL 
-              THEN ST_SetSRID(ST_MakePoint($16, $15), 4326) -- (Lng, Lat)
+              THEN ST_SetSRID(ST_MakePoint($16, $15), 4326) 
               ELSE NULL 
             END, 
             $17
         )
         RETURNING *, ST_AsGeoJSON(geom) as geom, ST_Y(geom) as lat, ST_X(geom) as lng;
       `;
+      const values = [
+        data.protocolo, data.nome_solicitante, data.telefone_solicitante, data.email_solicitante,
+        data.cep, data.logradouro, data.numero, data.complemento, data.bairro, data.cidade, data.uf,
+        data.tipo_demanda, data.descricao, data.id_status,
+        data.lat, data.lng, data.prazo
+      ];
+      const result = await pool.query(query, values);
+      return result.rows[0];
+  },
+
+  // [NOVO] Buscar por ID (útil para validações)
+  async findById(id: number): Promise<any | null> {
+    const result = await pool.query("SELECT id FROM demandas WHERE id = $1", [id]);
+    return result.rows[0] || null;
+  },
+
+  // [NOVO] Atualizar
+  async update(id: number, data: UpdateDemandaDTO): Promise<any | null> {
+    try {
+      const query = `
+        UPDATE demandas SET
+            nome_solicitante = $1,
+            telefone_solicitante = $2,
+            email_solicitante = $3,
+            cep = $4,
+            logradouro = $5,
+            numero = $6,
+            complemento = $7,
+            bairro = $8,
+            cidade = $9,
+            uf = $10,
+            tipo_demanda = $11,
+            descricao = $12,
+            prazo = $13,
+            geom = CASE 
+              WHEN $15::float IS NOT NULL AND $16::float IS NOT NULL 
+              THEN ST_SetSRID(ST_MakePoint($16, $15), 4326) -- (Lng, Lat)
+              ELSE geom -- Mantém o geom antigo se não vierem coordenadas novas (ou defina NULL se preferir limpar)
+            END
+        WHERE id = $14
+        RETURNING id, protocolo, nome_solicitante, id_status, created_at, updated_at, prazo, ST_Y(geom) as lat, ST_X(geom) as lng;
+      `;
 
       const values = [
-        data.protocolo,
         data.nome_solicitante,
         data.telefone_solicitante,
         data.email_solicitante,
@@ -135,17 +184,45 @@ export const DemandasRepository = {
         data.uf,
         data.tipo_demanda,
         data.descricao,
-        data.id_status,
+        data.prazo,
+        id, // $14
         data.lat, // $15
-        data.lng, // $16
-        data.prazo
+        data.lng  // $16
       ];
 
       const result = await pool.query(query, values);
-      return result.rows[0];
+      return result.rows[0] || null;
     } catch (error) {
-      console.error("Erro no DemandasRepository.create:", error);
-      throw new Error("Falha ao inserir demanda no banco.");
+      console.error("Erro no DemandasRepository.update:", error);
+      throw new Error("Falha ao atualizar demanda.");
+    }
+  },
+
+  // [NOVO] Deletar
+  async delete(id: number): Promise<boolean> {
+    try {
+      const query = "DELETE FROM demandas WHERE id = $1 RETURNING id";
+      const result = await pool.query(query, [id]);
+      return (result.rowCount ?? 0) > 0;
+    } catch (error) {
+      console.error("Erro no DemandasRepository.delete:", error);
+      throw new Error("Falha ao deletar demanda.");
+    }
+  },
+  // [NOVO] Atualizar apenas o Status
+  async updateStatus(id: number, idStatus: number): Promise<boolean> {
+    try {
+      const query = `
+        UPDATE demandas 
+        SET id_status = $1, updated_at = NOW() 
+        WHERE id = $2 
+        RETURNING id
+      `;
+      const result = await pool.query(query, [idStatus, id]);
+      return (result.rowCount ?? 0) > 0;
+    } catch (error) {
+      console.error("Erro no DemandasRepository.updateStatus:", error);
+      throw new Error("Falha ao atualizar status da demanda.");
     }
   }
 };
