@@ -140,3 +140,31 @@ INSERT INTO demandas_tipos (nome) VALUES
 ('Supressão'),
 ('Fiscalização')
 ON CONFLICT (nome) DO NOTHING;
+
+-- Tabela para armazenar as definições dos formulários
+CREATE TABLE IF NOT EXISTS formularios (
+    id SERIAL PRIMARY KEY,
+    nome TEXT NOT NULL,
+    descricao TEXT,
+    
+    -- Coluna principal: armazena o array de CampoDef como JSONB
+    definicao_campos JSONB NOT NULL,
+    
+    created_at TIMESTAMPTZ DEFAULT NOW(), -- <-- CORRIGIDO
+    updated_at TIMESTAMPTZ DEFAULT NOW()  -- <-- CORRIGIDO
+);
+
+-- Tabela de ligação: Associa um formulário a um tipo de demanda
+CREATE TABLE IF NOT EXISTS demandas_tipos_formularios (
+    id_tipo_demanda INT PRIMARY KEY REFERENCES demandas_tipos(id) ON DELETE CASCADE,
+    id_formulario INT NOT NULL REFERENCES formularios(id) ON DELETE RESTRICT,
+    
+    -- Garante que um tipo de demanda só tem um formulário ativo
+    UNIQUE(id_tipo_demanda) 
+);
+
+-- Trigger para atualizar 'updated_at' da nova tabela 'formularios'
+CREATE TRIGGER set_formularios_timestamp
+BEFORE UPDATE ON formularios
+FOR EACH ROW
+EXECUTE FUNCTION trigger_set_timestamp();
