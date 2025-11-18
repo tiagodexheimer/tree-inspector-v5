@@ -1,7 +1,5 @@
-// src/app/api/admin/users/route.ts
 import { NextResponse, NextRequest } from "next/server";
-import { getServerSession } from "next-auth/next";
-import { authOptions } from "../../auth/[...nextauth]/route";
+import { auth } from "@/auth"; // [CORREÇÃO]
 import pool from "@/lib/db";
 import bcrypt from "bcryptjs";
 
@@ -9,7 +7,7 @@ import bcrypt from "bcryptjs";
 // --- LISTAR TODOS OS USUÁRIOS (Admin) ---
 export async function GET() {
   
-  const session = await getServerSession(authOptions);
+  const session = await auth();
   
   if (!session || !session.user) {
     return NextResponse.json({ message: "Não autenticado" }, { status: 401 });
@@ -34,7 +32,7 @@ export async function GET() {
 
 // --- CRIAR UM NOVO USUÁRIO (Admin) ---
 export async function POST(request: NextRequest) {
-    const session = await getServerSession(authOptions);
+    const session = await auth();
     if (!session || !session.user || session.user.role !== 'admin') {
         return NextResponse.json({ message: "Não autorizado: Acesso restrito a administradores." }, { status: 403 });
     }

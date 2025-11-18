@@ -1,8 +1,6 @@
 import { NextResponse } from 'next/server';
-import { getServerSession } from 'next-auth/next';
-import { authOptions } from '@/app/api/auth/[...nextauth]/route';
+import { auth } from '@/auth'; // [CORREÇÃO]
 import db from '@/lib/db';
-import { CampoDef } from '@/types/formularios';
 
 // Define a estrutura do corpo da requisição POST
 interface FormularioRequestBody {
@@ -52,7 +50,7 @@ interface FormularioRequestBody {
  */
 export async function POST(req: Request) {
   // 1. Autenticação e Autorização (Admin)
-  const session = await getServerSession(authOptions);
+  const session = await auth();
 
   if (!session) {
     return NextResponse.json({ message: 'Não autorizado' }, { status: 401 });
@@ -151,7 +149,7 @@ export async function POST(req: Request) {
  */
 export async function GET() {
   // Autenticação (Admin)
-  const session = await getServerSession(authOptions);
+  const session = await auth();
   if (!session || session.user?.role !== 'admin') {
     return NextResponse.json({ message: 'Acesso negado.' }, { status: 403 });
   }
