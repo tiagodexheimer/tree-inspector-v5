@@ -6,8 +6,8 @@ import {
     List, ListItem, ListItemText, Chip, Paper,
     ListItemIcon, IconButton
 } from '@mui/material';
-// Importa a interface já corrigida e atualizada
-import { DemandaComOrdem } from '@/app/rotas/[id]/page'; 
+// CORREÇÃO: Importar a interface do serviço do cliente, não da página
+import { DemandaComOrdem } from '@/services/client/rota-detalhes-client'; 
 import {
     SortableContext,
     useSortable,
@@ -16,9 +16,9 @@ import {
 import { DndContext, DragEndEvent, SensorDescriptor, SensorOptions } from '@dnd-kit/core';
 import { CSS } from '@dnd-kit/utilities';
 import DragIndicatorIcon from '@mui/icons-material/DragIndicator';
-import DeleteIcon from '@mui/icons-material/Delete'; // <-- Importar ícone
+import DeleteIcon from '@mui/icons-material/Delete'; 
 
-// Função auxiliar para formatar endereço curto (mantida)
+// Função auxiliar para formatar endereço curto
 const formatEnderecoCurto = (demanda: DemandaComOrdem): string => {
     const parts = [
         demanda.logradouro,
@@ -28,12 +28,12 @@ const formatEnderecoCurto = (demanda: DemandaComOrdem): string => {
     return parts.filter(Boolean).join('').trim() || 'Endereço não informado';
 };
 
-// --- 'SortableItem' Atualizado ---
+// --- 'SortableItem' ---
 interface SortableItemProps {
     demanda: DemandaComOrdem;
     index: number;
-    onRemove: (id: number) => void; // <-- Nova prop
-    disabled: boolean; // <-- Nova prop
+    onRemove: (id: number) => void; 
+    disabled: boolean; 
 }
 
 function SortableItem({ demanda, index, onRemove, disabled }: SortableItemProps) {
@@ -90,7 +90,7 @@ function SortableItem({ demanda, index, onRemove, disabled }: SortableItemProps)
                     fontWeight: 'bold',
                     minWidth: '90px',
                     ml: 1,
-                    mr: 5 // <-- Adiciona margem para não ficar sobre o botão de deletar
+                    mr: 5 // Margem para não ficar sobre o botão de deletar
                 }}
             />
         </ListItem>
@@ -98,18 +98,17 @@ function SortableItem({ demanda, index, onRemove, disabled }: SortableItemProps)
 }
 
 
-// --- Componente Principal Atualizado ---
+// --- Componente Principal ---
 interface DetalheRotaListaProps {
     demandas: DemandaComOrdem[];
     sensors: SensorDescriptor<SensorOptions>[];
     onDragEnd: (event: DragEndEvent) => void;
-    onRemove: (id: number) => void; // <-- Nova prop
+    onRemove: (id: number) => void; 
     disabled?: boolean;
 }
 
 export default function DetalheRotaLista({ demandas, sensors, onDragEnd, onRemove, disabled = false }: DetalheRotaListaProps) {
     
-    // O id! é seguro aqui, pois demandas na rota devem ter id
     const sortableItemsIds = demandas.map(d => d.id!);
 
     return (
@@ -122,13 +121,13 @@ export default function DetalheRotaLista({ demandas, sensors, onDragEnd, onRemov
                                 key={demanda.id} 
                                 demanda={demanda} 
                                 index={index} 
-                                onRemove={onRemove} // <-- Passa a função
-                                disabled={disabled} // <-- Passa o estado 'disabled'
+                                onRemove={onRemove} 
+                                disabled={disabled} 
                             />
                         ))}
                         {demandas.length === 0 && (
                             <ListItem>
-                                <ListItemText primary="Nenhuma demanda nesta rota. Arraste para adicionar (ainda não implementado) ou clique em 'Cancelar'." />
+                                <ListItemText primary="Nenhuma demanda nesta rota. Adicione demandas ou cancele as alterações." />
                             </ListItem>
                         )}
                     </List>

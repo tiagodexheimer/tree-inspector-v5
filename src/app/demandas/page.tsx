@@ -1,14 +1,13 @@
 'use client';
 import React, { useState, useEffect } from "react";
-import { Box, CircularProgress, Alert, Pagination, Button, Typography } from "@mui/material";
-import InfoOutlinedIcon from '@mui/icons-material/InfoOutlined';
+import { Box, Alert, Pagination, Typography } from "@mui/material";
+import dynamic from 'next/dynamic'; // 1. Importar dynamic do Next.js
 
-// Componentes UI
+// Componentes UI Leves (Carregamento Imediato)
 import ListaCardDemanda from "@/components/ui/demandas/ListaCardDemanda";
 import ListaListDemanda from "@/components/ui/demandas/ListaListDemanda";
 import DemandasToolbar from "@/components/ui/demandas/DemandasToolbar";
-import AddDemandaModal from "@/components/ui/demandas/AddDemandaModal";
-import CriarRotaModal from "@/components/ui/demandas/CriarRotaModal";
+import DemandasSkeleton from "@/components/ui/demandas/DemandasSkeleton"; // 2. Importar Skeleton
 
 // Hooks e Serviços
 import { useDemandasData } from "@/hooks/useDemandasData";
@@ -16,24 +15,30 @@ import { useDemandasOperations } from "@/hooks/useDemandasOperations";
 import { DemandasClient } from "@/services/client/demandas-client";
 import { OptimizedRouteData } from "@/types/demanda";
 
+// 3. Carregamento Preguiçoso (Lazy Loading) dos Modais Pesados
+const AddDemandaModal = dynamic(() => import("@/components/ui/demandas/AddDemandaModal"), {
+  ssr: false // Não precisa renderizar no servidor pois é um modal de interação
+});
+
+const CriarRotaModal = dynamic(() => import("@/components/ui/demandas/CriarRotaModal"), {
+  ssr: false
+});
+
 export default function DemandasPage() {
-    // 1. Estado de UI (Visualização, Modais)
+    // ... (Mantém todo o estado e hooks inalterados) ...
     const [viewMode, setViewMode] = useState<'card' | 'list'>('card');
     const [addModalOpen, setAddModalOpen] = useState(false);
     const [editModalOpen, setEditModalOpen] = useState(false);
     const [demandaParaEditar, setDemandaParaEditar] = useState<any>(null);
     const [selectedDemandas, setSelectedDemandas] = useState<number[]>([]);
     
-    // Estado para Rota (específico desta página)
     const [isOptimizing, setIsOptimizing] = useState(false);
     const [optimizedRouteData, setOptimizedRouteData] = useState<OptimizedRouteData | null>(null);
     const [criarRotaModalOpen, setCriarRotaModalOpen] = useState(false);
 
-    // Dados Auxiliares (Status/Tipos) - Poderia ir para outro hook useAuxData
     const [availableStatus, setAvailableStatus] = useState<any[]>([]);
     const [availableTipos, setAvailableTipos] = useState<any[]>([]);
 
-    // 2. Hooks de Dados e Operações
     const { 
         demandas, totalCount, isLoading, error, page, limit, setPage, filters, refresh 
     } = useDemandasData();
@@ -42,7 +47,7 @@ export default function DemandasPage() {
         handleStatusChange, deleteDemandas, isProcessing: isDeleting, opError 
     } = useDemandasOperations(refresh);
 
-    // Carregar dados auxiliares (Status/Tipos)
+    // ... (Mantém o useEffect de carga de dados auxiliares) ...
     useEffect(() => {
         Promise.all([
             fetch('/api/demandas-status').then(r => r.json()),
@@ -53,7 +58,7 @@ export default function DemandasPage() {
         }).catch(console.error);
     }, []);
 
-    // 3. Handlers de Interface
+    // ... (Mantém os Handlers handleSelectDemanda, handlePrepareRota, etc.) ...
     const handleSelectDemanda = (id: number) => {
          setSelectedDemandas(prev => prev.includes(id) ? prev.filter(i => i !== id) : [...prev, id]);
     };
@@ -67,7 +72,7 @@ export default function DemandasPage() {
             setCriarRotaModalOpen(true);
         } catch (err) {
             console.error(err);
-            // Mostrar erro de rota
+            // Aqui poderia setar um estado de erro de rota para mostrar no alerta
         } finally {
             setIsOptimizing(false);
         }
@@ -79,18 +84,19 @@ export default function DemandasPage() {
         setSelectedDemandas([]);
     };
 
-    // --- Renderização ---
+
     return (
         <div>
             <h1 className="text-2xl font-bold mb-4 p-4">Demandas ({totalCount})</h1>
             
+            {/* A Toolbar é leve e deve aparecer imediatamente */}
             <DemandasToolbar
                 filtro={filters.texto}
                 onFiltroChange={filters.setTexto}
                 filtroStatusIds={filters.status}
                 onFiltroStatusChange={(e) => filters.setStatus(e.target.value as any)}
                 availableStatus={availableStatus}
-                statusError={null} // Tratar erro se necessário
+                statusError={null}
                 filtroTipoNomes={filters.tipos}
                 onFiltroTipoChange={(e) => filters.setTipos(e.target.value as any)}
                 availableTipos={availableTipos}
@@ -99,7 +105,7 @@ export default function DemandasPage() {
                 onViewModeChange={setViewMode}
                 onAddDemandaClick={() => setAddModalOpen(true)}
                 onCreateRotaClick={handlePrepareRota}
-                onDeleteSelectedClick={handleConfirmDelete} // Simplified for example
+                onDeleteSelectedClick={handleConfirmDelete}
                 selectedDemandasCount={selectedDemandas.length}
                 onClearStatusFilter={() => filters.setStatus([])}
                 onClearTipoFilter={() => filters.setTipos([])}
@@ -109,8 +115,9 @@ export default function DemandasPage() {
             {opError && <Box p={2}><Alert severity="error">{opError}</Alert></Box>}
             {error && <Box p={2}><Alert severity="error">{error}</Alert></Box>}
 
+            {/* 4. Substituição: Se isLoading, mostra o Skeleton ao invés do Spinner */}
             {isLoading ? (
-                <Box sx={{ display: 'flex', justifyContent: 'center', p: 4 }}><CircularProgress /></Box>
+                <DemandasSkeleton viewMode={viewMode} />
             ) : (
                 <>
                     {viewMode === 'card' ? (
@@ -135,25 +142,27 @@ export default function DemandasPage() {
                         />
                     )}
                     
-                    {/* Paginação */}
                     <Box sx={{ display: 'flex', justifyContent: 'center', p: 2 }}>
                         <Pagination 
-                            count={Math.ceil(totalCount / limit)} 
+                            count={Math.ceil(totalCount / limit) || 1} 
                             page={page} 
                             onChange={(_, v) => setPage(v)} 
+                            color="primary"
                         />
                     </Box>
                 </>
             )}
 
-            {/* Modais */}
-            <AddDemandaModal 
-                open={addModalOpen} 
-                onClose={() => { setAddModalOpen(false); refresh(); }} 
-                availableTipos={availableTipos} 
-            />
+            {/* 5. Modais carregados sob demanda (só baixam o JS se addModalOpen for true, etc) */}
+            {addModalOpen && (
+                <AddDemandaModal 
+                    open={addModalOpen} 
+                    onClose={() => { setAddModalOpen(false); refresh(); }} 
+                    availableTipos={availableTipos} 
+                />
+            )}
             
-            {demandaParaEditar && (
+            {editModalOpen && demandaParaEditar && (
                 <AddDemandaModal 
                     key={demandaParaEditar.id} 
                     open={editModalOpen} 
@@ -164,12 +173,17 @@ export default function DemandasPage() {
                 />
             )}
 
-            <CriarRotaModal
-                open={criarRotaModalOpen}
-                onClose={() => setCriarRotaModalOpen(false)}
-                routeData={optimizedRouteData}
-                onRotaCriada={(nome, resp) => { /* Lógica de sucesso */ setCriarRotaModalOpen(false); }}
-            />
+            {criarRotaModalOpen && (
+                <CriarRotaModal
+                    open={criarRotaModalOpen}
+                    onClose={() => setCriarRotaModalOpen(false)}
+                    routeData={optimizedRouteData}
+                    onRotaCriada={(nome, resp) => { 
+                        /* Lógica de sucesso simples */ 
+                        setCriarRotaModalOpen(false); 
+                    }}
+                />
+            )}
         </div>
     );
 }
