@@ -1,11 +1,9 @@
-// src/services/user-management-service.ts
 import bcrypt from "bcryptjs";
-// CORREÇÃO: Importamos UserPersistence em vez de UserPublicDTO
 import { UserRepository, UserPersistence } from "@/repositories/user-repository";
 
-// Interface interna para o input deste serviço
+// Ajuste: 'name' agora é opcional (? ou | null) para flexibilidade
 interface CreateUserInput {
-  name: string;
+  name?: string | null; 
   email: string;
   password: string;
   role: string;
@@ -13,11 +11,11 @@ interface CreateUserInput {
 
 export class UserManagementService {
   
-  // Retorna UserPersistence[] compatível com o repositório
   async listAllUsers(): Promise<UserPersistence[]> {
     return await UserRepository.findAll();
   }
 
+  // Método genérico de criação (usado pelo Admin e internamente pelo Register)
   async createUser(input: CreateUserInput): Promise<UserPersistence> {
     // 1. Validação básica
     if (!input.email || !input.password || !input.role) {
@@ -30,19 +28,36 @@ export class UserManagementService {
       throw new Error("Email já cadastrado.");
     }
 
-    // 3. Hashing de senha
+    // 3. Hashing
     const passwordHash = await bcrypt.hash(input.password, 10);
 
     // 4. Persistência
-    // O objeto passado aqui deve corresponder ao CreateUserRepoDTO do repositório
-    const newUser = await UserRepository.create({
-      name: input.name,
+    return await UserRepository.create({
+      name: input.name || "", // Garante string vazia se for nulo, ou ajuste conforme seu DB
       email: input.email,
-      passwordHash: passwordHash, // Note que passamos o hash aqui
+      passwordHash: passwordHash,
       role: input.role
     });
+  }
 
-    return newUser;
+  // --- NOVO MÉTODO: Auto-cadastro (Sign Up) ---
+  // Recebe apenas o necessário, sem permitir escolha de 'role'
+  async registerUser(input: { name?: string; email: string; password: string }): Promise<UserPersistence> {
+    return this.createUser({
+      ...input,
+      role: 'free_user' // Regra de Negócio: Auto-cadastro é sempre 'free_user'
+    });
+  }
+
+  // ... (método deleteUser mantido igual) ...
+  async deleteUser(userIdToDelete: string, currentAdminId: string): Promise<void> {
+     if (userIdToDelete === currentAdminId) {
+       throw new Error("Você não pode apagar a si mesmo.");
+     }
+     const wasDeleted = await UserRepository.delete(userIdToDelete);
+     if (!wasDeleted) {
+       throw new Error("Usuário não encontrado.");
+     }
   }
 }
 

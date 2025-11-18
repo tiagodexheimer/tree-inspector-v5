@@ -39,7 +39,7 @@ export const UserRepository = {
       return null;
     }
   },
-
+  
   // Novo: Listar todos os usuários (apenas dados públicos)
   async findAll(): Promise<UserPersistence[]> {
     try {
@@ -73,6 +73,21 @@ export const UserRepository = {
     } catch (error) {
       console.error("Erro no UserRepository.create:", error);
       throw error; // Lança o erro para ser tratado no Service (ex: duplicidade)
+    }
+  },
+  
+  // Novo método: Deletar usuário pelo ID
+  async delete(id: string): Promise<boolean> {
+    try {
+      // Retorna o ID deletado para confirmar se algo foi removido
+      const query = "DELETE FROM users WHERE id = $1 RETURNING id";
+      const result = await pool.query(query, [id]);
+      
+      // Retorna true se uma linha foi afetada (deletada), false se não encontrou
+      return (result.rowCount ?? 0) > 0;
+    } catch (error) {
+      console.error("Erro no UserRepository.delete:", error);
+      throw new Error("Falha de infraestrutura ao deletar usuário.");
     }
   }
 };

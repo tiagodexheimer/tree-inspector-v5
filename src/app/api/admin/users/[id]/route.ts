@@ -1,50 +1,73 @@
-// src/app/api/admin/users/[id]/route.ts
-import { NextResponse, NextRequest } from "next/server"; // Importe NextRequest
+import { NextResponse, NextRequest } from "next/server";
 import { auth } from "@/auth";
-import pool from "@/lib/db";
+import { userManagementService } from "@/services/user-management-service";
 
-// Defina o tipo de contexto esperado, exatamente como o Next.js mostrou no erro
+// Definição do contexto do Next.js (App Router)
 type ExpectedContext = {
     params: Promise<{ id: string }>;
 };
 
-// Função HELPER para verificar se o usuário é admin
-async function isAdminSession() {
+// Função auxiliar de segurança
+async function checkAdminAccess() {
   const session = await auth();
-  return session?.user?.role === 'admin';
+  
+  if (!session || !session.user) {
+    return { 
+      authorized: false, 
+      session: null,
+      // Garante o tipo NextResponse explicitamente
+      response: NextResponse.json({ message: "Não autenticado" }, { status: 401 }) 
+    };
+  }
+  
+  if (session.user.role !== 'admin') {
+    return { 
+      authorized: false, 
+      session: null,
+      response: NextResponse.json({ message: "Não autorizado" }, { status: 403 }) 
+    };
+  }
+
+  return { authorized: true, session, response: null };
 }
 
-// --- APAGAR UM USUÁRIO (Admin) ---
-// Assinatura da função CORRIGIDA para corresponder ao erro de build
+// --- DELETE: APAGAR USUÁRIO ---
 export async function DELETE(request: NextRequest, context: ExpectedContext) {
-  if (!(await isAdminSession())) {
-    return NextResponse.json({ message: "Não autorizado" }, { status: 403 });
-  }
-
-  // Extração do 'id' CORRIGIDA (precisamos dar 'await' no context.params)
-  const params = await context.params;
-  const id = params.id; // Agora 'id' é extraído da 'context' resolvida
+  // 1. Verificação de Acesso
+  const access = await checkAdminAccess();
   
-  if (!id) {
-    return NextResponse.json({ message: "ID inválido" }, { status: 400 });
-  }
-  
-  const session = await auth();
-  
-  // Proteção: Impedir que o admin apague a si mesmo
-  if (session?.user?.id === id) { 
-     return NextResponse.json({ message: "Não pode apagar a si mesmo." }, { status: 400 });
+  if (!access.authorized || !access.session) {
+    // CORREÇÃO: O operador ?? garante que nunca retornamos null, satisfazendo o TypeScript
+    return access.response ?? NextResponse.json({ message: "Acesso negado" }, { status: 403 });
   }
 
   try {
-    const result = await pool.query("DELETE FROM users WHERE id = $1 RETURNING id", [id]); 
-    if (result.rowCount === 0) {
-      return NextResponse.json({ message: "Usuário não encontrado" }, { status: 404 });
+    // 2. Extração de Parâmetros
+    const params = await context.params;
+    const idToDelete = params.id;
+    
+    if (!idToDelete) {
+      return NextResponse.json({ message: "ID inválido" }, { status: 400 });
     }
-    return NextResponse.json({ message: `Usuário ${id} deletado.` }, { status: 200 });
 
-  } catch (error) { 
-    const errorMessage = error instanceof Error ? error.message : "Erro desconhecido";
-    return NextResponse.json({ message: "Erro ao deletar usuário", error: errorMessage }, { status: 500 });
+    // 3. Delegação para o Serviço
+    await userManagementService.deleteUser(idToDelete, access.session.user.id);
+
+    return NextResponse.json({ message: `Usuário ${idToDelete} deletado com sucesso.` }, { status: 200 });
+
+  } catch (error) {
+    console.error("[API DELETE User]", error);
+    
+    let status = 500;
+    let message = "Erro ao deletar usuário";
+
+    // Tratamento de erros de negócio vindos do serviço
+    if (error instanceof Error) {
+      message = error.message;
+      if (message === "Usuário não encontrado.") status = 404;
+      if (message === "Você não pode apagar a si mesmo.") status = 400;
+    }
+    
+    return NextResponse.json({ message }, { status });
   }
 }
