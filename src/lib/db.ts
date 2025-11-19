@@ -35,7 +35,7 @@ if (!connectionString) {
     console.log('API: Variáveis de banco de dados locais (DB_USER, etc.) também não foram encontradas.');
   }
 } else {
-  console.log('API: Usando POSTGRES_URL (ambiente de produção).');
+  console.log('API: Conectado via POSTGRES_URL.');
 }
 
 // 3. Agora, verifica se TEMOS uma string de conexão (de qualquer fonte)

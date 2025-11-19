@@ -402,14 +402,14 @@ export default function AddDemandaModal({ open, onClose, demandaInicial = null, 
                             <Typography variant="subtitle1" gutterBottom sx={{ fontWeight: 'bold', mt: 2 }}>Endereço</Typography>
                             <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 2 }}>
                                 <TextField
-                                    label="CEP *" name="cep" variant="outlined" required value={formData.cep} onChange={handleChange} onBlur={handleCepBlur}
+                                    label="CEP" name="cep" variant="outlined" required value={formData.cep} onChange={handleChange} onBlur={handleCepBlur}
                                     inputProps={{ maxLength: 9 }} InputProps={{ endAdornment: cepLoading ? <CircularProgress size={20} /> : null }}
                                     error={!!cepError || (!formData.cep && !!apiError)}
                                     sx={{ width: { xs: '100%', sm: 'calc(40% - 8px)' } }}
                                 />
                                 <TextField label="Logradouro" name="logradouro" variant="outlined" fullWidth value={formData.logradouro} onChange={handleChange} disabled={addressFieldsDisabled} InputLabelProps={{ shrink: !!formData.logradouro }} sx={{ width: { xs: '100%', sm: 'calc(60% - 8px)' } }} />
                                 <TextField
-                                    label="Número *" name="numero" variant="outlined" required value={formData.numero} onChange={handleChange}
+                                    label="Número" name="numero" variant="outlined" required value={formData.numero} onChange={handleChange}
                                     error={!formData.numero && !!apiError} 
                                     sx={{ width: { xs: 'calc(40% - 8px)', sm: 'calc(30% - 8px)' } }}
                                 />
@@ -434,10 +434,10 @@ export default function AddDemandaModal({ open, onClose, demandaInicial = null, 
                             {/* --- Detalhes da Demanda --- */}
                             <Typography variant="subtitle1" gutterBottom sx={{ fontWeight: 'bold', mt: 2 }}>Detalhes da Demanda</Typography>
                             <FormControl fullWidth required error={!formData.tipo_demanda && !!apiError}> 
-                                <InputLabel id="tipo-demanda-select-label">Tipo de Demanda *</InputLabel>
+                                <InputLabel id="tipo-demanda-select-label">Tipo de Demanda</InputLabel>
                                 <Select
                                     labelId="tipo-demanda-select-label"
-                                    label="Tipo de Demanda *"
+                                    label="Tipo de Demanda"
                                     name="tipo_demanda"
                                     value={formData.tipo_demanda} 
                                     onChange={handleChange}
@@ -453,7 +453,7 @@ export default function AddDemandaModal({ open, onClose, demandaInicial = null, 
                                 </Select>
                             </FormControl>
                             <TextField
-                                label="Descrição *" name="descricao" variant="outlined" fullWidth multiline rows={4} required value={formData.descricao} onChange={handleChange}
+                                label="Descrição" name="descricao" variant="outlined" fullWidth multiline rows={4} required value={formData.descricao} onChange={handleChange}
                                 error={!formData.descricao && !!apiError} 
                             />
                             <TextField label="Prazo (Opcional)" name="prazo" type="date" variant="outlined" fullWidth value={formData.prazo} onChange={handleChange} InputLabelProps={{ shrink: true }} />
