@@ -40,12 +40,47 @@ export default function DemandasPage() {
     const [availableTipos, setAvailableTipos] = useState<any[]>([]);
 
     const { 
-        demandas, totalCount, isLoading, error, page, limit, setPage, filters, refresh 
+        demandas, setDemandas, totalCount, isLoading, error, page, limit, setPage, filters, refresh 
     } = useDemandasData();
 
     const { 
         handleStatusChange, deleteDemandas, isProcessing: isDeleting, opError 
     } = useDemandasOperations(refresh);
+
+    // --- NOVA FUNÇÃO DE ATUALIZAÇÃO LOCAL ---
+    const handleStatusUpdateLocal = async (demandaId: number, newStatusId: number) => {
+        // 1. Encontra as informações visuais do novo status (cor e nome) para atualizar a UI instantaneamente
+        const statusInfo = availableStatus.find(s => s.id === newStatusId);
+        
+        if (!statusInfo) {
+            console.error("Status não encontrado na lista de disponíveis");
+            return;
+        }
+
+        try {
+            // 2. Chama a API para persistir a mudança
+            await DemandasClient.updateStatus(demandaId, newStatusId);
+
+            // 3. Atualiza o estado localmente sem recarregar a página (Optimistic UI update)
+            setDemandas((prevDemandas) => 
+                prevDemandas.map((demanda) => {
+                    if (demanda.id === demandaId) {
+                        return {
+                            ...demanda,
+                            id_status: newStatusId,
+                            status_nome: statusInfo.nome,
+                            status_cor: statusInfo.cor
+                        };
+                    }
+                    return demanda;
+                })
+            );
+        } catch (err) {
+            console.error("Erro ao atualizar status:", err);
+            alert("Erro ao atualizar o status. Tente novamente.");
+            // Opcional: Chamar refresh() aqui caso queira garantir a consistência em caso de erro
+        }
+    };
 
     // ... (Mantém o useEffect de carga de dados auxiliares) ...
     useEffect(() => {
@@ -127,7 +162,7 @@ export default function DemandasPage() {
                             onSelectDemanda={handleSelectDemanda}
                             onDelete={(id) => deleteDemandas([id])}
                             onEdit={(d) => { setDemandaParaEditar(d); setEditModalOpen(true); }}
-                            onStatusChange={handleStatusChange}
+                            onStatusChange={handleStatusUpdateLocal}
                             availableStatus={availableStatus}
                         />
                     ) : (
@@ -137,7 +172,7 @@ export default function DemandasPage() {
                             onSelectDemanda={handleSelectDemanda}
                             onDelete={(id) => deleteDemandas([id])}
                             onEdit={(d) => { setDemandaParaEditar(d); setEditModalOpen(true); }}
-                            onStatusChange={handleStatusChange}
+                            onStatusChange={handleStatusUpdateLocal}
                             availableStatus={availableStatus}
                         />
                     )}
