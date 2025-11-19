@@ -5,35 +5,43 @@ import React, { useState, useEffect } from 'react';
 import {
     Box, Button, Dialog, DialogActions, DialogContent, DialogTitle, TextField,
     Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Paper,
-    IconButton, Typography, CircularProgress, Alert
+    IconButton, Typography, CircularProgress, Alert,
+    FormControl, InputLabel, Select, MenuItem, SelectChangeEvent
 } from '@mui/material';
 import AddIcon from '@mui/icons-material/Add';
 import EditIcon from '@mui/icons-material/Edit';
 import DeleteIcon from '@mui/icons-material/Delete';
-// [NOVO] Importações de Autenticação
 import { useSession } from 'next-auth/react';
 import LockIcon from '@mui/icons-material/Lock';
 
-// Interface para o tipo de Demanda
 interface TipoDemanda {
+    id: number;
+    nome: string;
+    id_formulario?: number | null; // ID vinculado
+    nome_formulario?: string | null; // Nome para exibir na tabela
+}
+
+interface FormularioOption {
     id: number;
     nome: string;
 }
 
 export default function GerenciarTiposDemandaPage() {
-    // [NOVO] Verificação de Admin
     const { data: session, status } = useSession();
-    // Usamos session?.user?.role (safe navigation)
     const isAdmin = status === 'authenticated' && session?.user?.role === 'admin';
 
     const [tiposList, setTiposList] = useState<TipoDemanda[]>([]);
+    const [formulariosList, setFormulariosList] = useState<FormularioOption[]>([]); // Lista de formulários
+    
     const [isLoading, setIsLoading] = useState<boolean>(true);
     const [error, setError] = useState<string | null>(null);
+    
     const [openModal, setOpenModal] = useState<boolean>(false);
     const [isEditing, setIsEditing] = useState<boolean>(false);
     const [currentTipo, setCurrentTipo] = useState<Partial<TipoDemanda> | null>(null);
     const [modalError, setModalError] = useState<string | null>(null);
     const [isSaving, setIsSaving] = useState<boolean>(false);
+    
     const [openDeleteConfirm, setOpenDeleteConfirm] = useState<boolean>(false);
     const [tipoToDelete, setTipoToDelete] = useState<TipoDemanda | null>(null);
     const [isDeleting, setIsDeleting] = useState<boolean>(false);
@@ -41,33 +49,37 @@ export default function GerenciarTiposDemandaPage() {
 
     // --- Busca Inicial ---
     useEffect(() => {
-        // [MODIFICADO] Só busca se for admin
         if (isAdmin) {
-            fetchTipos();
+            fetchData();
         } else if (status === 'authenticated') {
-            // Se está logado mas não é admin, para o loading
             setIsLoading(false);
         }
     }, [isAdmin, status]);
 
-    // --- Funções API ---
-    const fetchTipos = async () => {
+    const fetchData = async () => {
         setIsLoading(true);
         setError(null);
         try {
-            const response = await fetch('/api/demandas-tipos'); //
-            if (!response.ok) {
-                const errorData = await response.json().catch(() => ({ message: `Erro ${response.status}` }));
-                throw new Error(errorData.message || `Erro HTTP ${response.status}`);
-            }
-            const data: TipoDemanda[] = await response.json();
-            setTiposList(data);
+            // Busca Tipos e Formulários em paralelo
+            const [tiposRes, formsRes] = await Promise.all([
+                fetch('/api/demandas-tipos'),
+                fetch('/api/gerenciar/formularios')
+            ]);
+
+            if (!tiposRes.ok) throw new Error('Erro ao carregar tipos.');
+            if (!formsRes.ok) throw new Error('Erro ao carregar formulários.');
+
+            const tiposData = await tiposRes.json();
+            const formsData = await formsRes.json();
+
+            setTiposList(tiposData);
+            setFormulariosList(formsData);
         } catch (err) {
-            setError(err instanceof Error ? err.message : 'Erro ao carregar tipos de demanda.');
+            setError(err instanceof Error ? err.message : 'Erro ao carregar dados.');
         } finally {
             setIsLoading(false);
         }
-    }; //
+    };
 
     const handleSave = async () => {
         if (!currentTipo?.nome || currentTipo.nome.trim() === '') {
@@ -77,113 +89,90 @@ export default function GerenciarTiposDemandaPage() {
 
         setIsSaving(true);
         setModalError(null);
-        const url = isEditing ? `/api/demandas-tipos/${currentTipo.id}` : '/api/demandas-tipos'; //
-        const method = isEditing ? 'PUT' : 'POST'; //
+        const url = isEditing ? `/api/demandas-tipos/${currentTipo.id}` : '/api/demandas-tipos';
+        const method = isEditing ? 'PUT' : 'POST';
 
         try {
             const response = await fetch(url, {
                 method: method,
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ nome: currentTipo.nome.trim() }),
+                body: JSON.stringify({ 
+                    nome: currentTipo.nome.trim(),
+                    id_formulario: currentTipo.id_formulario // Envia o ID do formulário selecionado
+                }),
             });
             const result = await response.json();
             if (!response.ok) {
                 throw new Error(result.message || result.error || `Erro ${response.status}`);
             }
             handleCloseModal();
-            fetchTipos(); // Recarrega a lista
+            fetchData(); // Recarrega tudo
         } catch (err) {
             setModalError(err instanceof Error ? err.message : `Erro ao ${isEditing ? 'salvar' : 'criar'} tipo.`);
         } finally {
             setIsSaving(false);
         }
-    }; //
+    };
 
     const handleDeleteConfirm = async () => {
          if (!tipoToDelete) return;
         setIsDeleting(true);
         setDeleteError(null);
         try {
-            const response = await fetch(`/api/demandas-tipos/${tipoToDelete.id}`, { method: 'DELETE' }); //
-             const result = await response.json().catch(() => ({})); // Pega JSON mesmo se não for OK
+            const response = await fetch(`/api/demandas-tipos/${tipoToDelete.id}`, { method: 'DELETE' });
+             const result = await response.json().catch(() => ({}));
             if (!response.ok) {
                 throw new Error(result.message || `Erro ${response.status}`);
             }
             handleCloseDeleteConfirm();
-            fetchTipos(); // Recarrega
+            fetchData();
         } catch (err) {
             setDeleteError(err instanceof Error ? err.message : 'Erro ao deletar tipo.');
         } finally {
              setIsDeleting(false);
         }
-    }; //
-
+    };
 
     // --- Handlers Modal ---
     const handleOpenModal = (tipo: Partial<TipoDemanda> | null = null) => {
         setIsEditing(!!tipo);
-        setCurrentTipo(tipo ? { ...tipo } : { nome: '' });
+        // Se for criar, id_formulario começa como vazio ('')
+        setCurrentTipo(tipo ? { ...tipo } : { nome: '', id_formulario: null });
         setModalError(null);
         setOpenModal(true);
-    }; //
+    };
 
     const handleCloseModal = () => {
         setOpenModal(false);
         setCurrentTipo(null);
-        setIsSaving(false); // Garante reset do loading
-    }; //
+        setIsSaving(false);
+    };
 
-    const handleModalChange = (event: React.ChangeEvent<HTMLInputElement>) => {
-        const { name, value } = event.target;
-        setCurrentTipo(prev => prev ? { ...prev, [name]: value } : null);
-        if (modalError) setModalError(null); // Limpa erro ao digitar
-    }; //
+    const handleNameChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+        setCurrentTipo(prev => prev ? { ...prev, nome: event.target.value } : null);
+        if (modalError) setModalError(null);
+    };
 
-    // --- Handlers Delete Confirm ---
-    const handleOpenDeleteConfirm = (tipo: TipoDemanda) => {
-         setTipoToDelete(tipo);
-         setDeleteError(null);
-         setOpenDeleteConfirm(true);
-    }; //
-    const handleCloseDeleteConfirm = () => {
-         setOpenDeleteConfirm(false);
-         setTipoToDelete(null);
-         setIsDeleting(false);
-    }; //
+    const handleFormularioChange = (event: SelectChangeEvent<string | number>) => {
+        const value = event.target.value;
+        // Se valor for string vazia ou 0, consideramos null (sem formulário)
+        const idForm = (value === '' || value === 0) ? null : Number(value);
+        setCurrentTipo(prev => prev ? { ...prev, id_formulario: idForm } : null);
+    };
 
-    // --- [NOVO] Renderização de Segurança ---
-    if (status === 'loading') {
-        return (
-            <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '80vh' }}>
-                <CircularProgress /> <Typography sx={{ ml: 2 }}>Verificando autorização...</Typography>
-            </Box>
-        );
-    }
+    // ... (Handlers Delete Confirm iguais) ...
+    const handleOpenDeleteConfirm = (tipo: TipoDemanda) => { setTipoToDelete(tipo); setDeleteError(null); setOpenDeleteConfirm(true); };
+    const handleCloseDeleteConfirm = () => { setOpenDeleteConfirm(false); setTipoToDelete(null); setIsDeleting(false); };
 
-    if (status !== 'authenticated' || !isAdmin) {
-        return (
-            <Box sx={{ p: 4, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2 }}>
-                <LockIcon color="error" sx={{ fontSize: 60 }} />
-                <Typography variant="h5" color="error">Acesso Negado</Typography>
-                <Typography>Você precisa ser um administrador para acessar esta página.</Typography>
-            </Box>
-        );
-    }
-    // --- [FIM NOVO] ---
 
-    // --- Renderização (Se for admin) ---
+    if (status === 'loading') return <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '80vh' }}><CircularProgress /><Typography sx={{ ml: 2 }}>Verificando...</Typography></Box>;
+    if (status !== 'authenticated' || !isAdmin) return <Box sx={{ p: 4, textAlign: 'center' }}><LockIcon color="error" sx={{ fontSize: 60 }} /><Typography variant="h5" color="error">Acesso Negado</Typography></Box>;
+
     return (
         <div className="p-4">
             <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
-                <Typography variant="h4" component="h1" gutterBottom>
-                    Gerenciar Tipos de Demanda
-                </Typography>
-                <Button
-                    variant="contained"
-                    startIcon={<AddIcon />}
-                    onClick={() => handleOpenModal()}
-                    sx={{ backgroundColor: '#257e1a', '&:hover': { backgroundColor: '#1a5912' } }}
-                >
+                <Typography variant="h4" component="h1" gutterBottom>Gerenciar Tipos de Demanda</Typography>
+                <Button variant="contained" startIcon={<AddIcon />} onClick={() => handleOpenModal()} sx={{ backgroundColor: '#257e1a', '&:hover': { backgroundColor: '#1a5912' } }}>
                     Adicionar Tipo
                 </Button>
             </Box>
@@ -191,9 +180,7 @@ export default function GerenciarTiposDemandaPage() {
             {error && <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>}
 
             {isLoading ? (
-                <Box sx={{ display: 'flex', justifyContent: 'center', p: 4 }}>
-                    <CircularProgress />
-                </Box>
+                <Box sx={{ display: 'flex', justifyContent: 'center', p: 4 }}><CircularProgress /></Box>
             ) : (
                 <TableContainer component={Paper}>
                     <Table>
@@ -201,6 +188,7 @@ export default function GerenciarTiposDemandaPage() {
                             <TableRow>
                                 <TableCell sx={{ fontWeight: 'bold' }}>ID</TableCell>
                                 <TableCell sx={{ fontWeight: 'bold' }}>Nome</TableCell>
+                                <TableCell sx={{ fontWeight: 'bold' }}>Formulário Vinculado</TableCell>
                                 <TableCell sx={{ fontWeight: 'bold' }} align="right">Ações</TableCell>
                             </TableRow>
                         </TableHead>
@@ -209,21 +197,24 @@ export default function GerenciarTiposDemandaPage() {
                                 <TableRow key={tipo.id}>
                                     <TableCell>{tipo.id}</TableCell>
                                     <TableCell>{tipo.nome}</TableCell>
+                                    <TableCell>
+                                        {tipo.nome_formulario ? (
+                                            <Typography variant="body2" color="primary" fontWeight="medium">
+                                                {tipo.nome_formulario}
+                                            </Typography>
+                                        ) : (
+                                            <Typography variant="caption" color="text.secondary">
+                                                - Sem vínculo -
+                                            </Typography>
+                                        )}
+                                    </TableCell>
                                     <TableCell align="right">
-                                        <IconButton onClick={() => handleOpenModal(tipo)} color="primary" title="Editar Tipo">
-                                            <EditIcon />
-                                        </IconButton>
-                                        <IconButton onClick={() => handleOpenDeleteConfirm(tipo)} color="error" title="Deletar Tipo">
-                                            <DeleteIcon />
-                                        </IconButton>
+                                        <IconButton onClick={() => handleOpenModal(tipo)} color="primary"><EditIcon /></IconButton>
+                                        <IconButton onClick={() => handleOpenDeleteConfirm(tipo)} color="error"><DeleteIcon /></IconButton>
                                     </TableCell>
                                 </TableRow>
                             ))}
-                            {tiposList.length === 0 && (
-                                <TableRow>
-                                    <TableCell colSpan={3} align="center">Nenhum tipo de demanda cadastrado.</TableCell>
-                                </TableRow>
-                            )}
+                            {tiposList.length === 0 && <TableRow><TableCell colSpan={4} align="center">Nenhum tipo cadastrado.</TableCell></TableRow>}
                         </TableBody>
                     </Table>
                 </TableContainer>
@@ -231,22 +222,39 @@ export default function GerenciarTiposDemandaPage() {
 
             {/* Modal Adicionar/Editar */}
             <Dialog open={openModal} onClose={handleCloseModal} fullWidth maxWidth="xs">
-                <DialogTitle>{isEditing ? 'Editar Tipo de Demanda' : 'Adicionar Novo Tipo'}</DialogTitle>
+                <DialogTitle>{isEditing ? 'Editar Tipo' : 'Novo Tipo'}</DialogTitle>
                 <DialogContent>
                      {modalError && <Alert severity="error" sx={{ mb: 2 }}>{modalError}</Alert>}
-                    <Box component="form" sx={{ pt: 1 }}>
+                    <Box component="form" sx={{ pt: 1, display: 'flex', flexDirection: 'column', gap: 3 }}>
                         <TextField
                             label="Nome do Tipo"
-                            name="nome"
                             value={currentTipo?.nome || ''}
-                            onChange={handleModalChange}
+                            onChange={handleNameChange}
                             variant="outlined"
                             fullWidth
                             required
-                            error={!!modalError && !currentTipo?.nome?.trim()}
-                            autoFocus // Foca no campo ao abrir
-                            sx={{ mt: 1 }}
+                            autoFocus
                         />
+                        
+                        {/* SELETOR DE FORMULÁRIO */}
+                        <FormControl fullWidth>
+                            <InputLabel id="form-select-label">Vincular Formulário</InputLabel>
+                            <Select
+                                labelId="form-select-label"
+                                value={currentTipo?.id_formulario ?? ''}
+                                label="Vincular Formulário"
+                                onChange={handleFormularioChange}
+                            >
+                                <MenuItem value="">
+                                    <em>Nenhum (Deixar em branco)</em>
+                                </MenuItem>
+                                {formulariosList.map((form) => (
+                                    <MenuItem key={form.id} value={form.id}>
+                                        {form.nome}
+                                    </MenuItem>
+                                ))}
+                            </Select>
+                        </FormControl>
                     </Box>
                 </DialogContent>
                 <DialogActions>
@@ -261,15 +269,12 @@ export default function GerenciarTiposDemandaPage() {
             <Dialog open={openDeleteConfirm} onClose={handleCloseDeleteConfirm}>
                 <DialogTitle>Confirmar Exclusão</DialogTitle>
                 <DialogContent>
-                    <Typography> Tem certeza que deseja excluir o tipo &quot;{tipoToDelete?.nome}&quot;? </Typography>
-                    <Typography variant="caption" color="textSecondary"> Esta ação não pode ser desfeita. </Typography>
+                    <Typography>Tem certeza que deseja excluir &quot;{tipoToDelete?.nome}&quot;?</Typography>
                     {deleteError && <Alert severity="error" sx={{ mt: 2 }}>{deleteError}</Alert>}
                 </DialogContent>
                 <DialogActions>
                     <Button onClick={handleCloseDeleteConfirm} disabled={isDeleting}>Cancelar</Button>
-                    <Button onClick={handleDeleteConfirm} color="error" variant="contained" disabled={isDeleting}>
-                        {isDeleting ? <CircularProgress size={24} color="inherit" /> : 'Excluir'}
-                    </Button>
+                    <Button onClick={handleDeleteConfirm} color="error" variant="contained" disabled={isDeleting}>Excluir</Button>
                 </DialogActions>
             </Dialog>
         </div>

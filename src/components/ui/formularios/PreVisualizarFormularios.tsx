@@ -2,13 +2,13 @@
 import React, { useState } from 'react';
 import {
     Box, Typography, SelectChangeEvent, Paper, AppBar, Toolbar, IconButton,
-    CssBaseline, createTheme, ThemeProvider
+    CssBaseline, createTheme, ThemeProvider, Button
 } from '@mui/material';
-import { Wifi, SignalCellularAlt, BatteryFull, ArrowBack, DragIndicator } from '@mui/icons-material';
+import { Wifi, SignalCellularAlt, BatteryFull, ArrowBack, DragIndicator, Menu as MenuIcon } from '@mui/icons-material';
 import { CampoDef } from '@/types/formularios';
 import CampoFormularios from './CampoFormularios';
 
-// Imports do DND-Kit para arrastar e soltar
+// Imports do DND-Kit
 import {
     DndContext, closestCenter, KeyboardSensor, PointerSensor, useSensor, useSensors, DragEndEvent
 } from '@dnd-kit/core';
@@ -17,33 +17,33 @@ import {
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 
-// Tema simulando Android
 const phoneTheme = createTheme({
     palette: {
         mode: 'light',
-        primary: { main: '#4285F4' },
+        primary: { main: '#1976d2' }, // Azul padrão Android
         secondary: { main: '#EA4335' },
         background: { default: '#f8f8f8', paper: '#ffffff' },
     },
     typography: { fontFamily: 'Roboto, Arial, sans-serif' },
     components: {
-        MuiButton: { styleOverrides: { root: { textTransform: 'none' } } },
+        MuiButton: { styleOverrides: { root: { textTransform: 'none', borderRadius: 8 } } },
         MuiAppBar: { styleOverrides: { root: { boxShadow: 'none' } } },
+        MuiPaper: { styleOverrides: { root: { backgroundImage: 'none' } } }
     },
 });
 
 interface PreviaProps {
     campos: CampoDef[];
-    onReorder: (oldIndex: number, newIndex: number) => void; // Nova prop para comunicar a mudança
+    onReorder?: (oldIndex: number, newIndex: number) => void;
+    readOnly?: boolean; // [NOVO] Modo apenas leitura (sem drag & drop)
+    formName?: string;  // [NOVO] Nome para exibir no cabeçalho do app
 }
 
 type FormDataState = Record<string, string | boolean | number>;
 
-// Componente wrapper para tornar cada campo arrastável
+// Componente de Item Arrastável (usado apenas no modo edição)
 function SortableField({ id, children }: { id: string, children: React.ReactNode }) {
-    const {
-        attributes, listeners, setNodeRef, transform, transition, isDragging
-    } = useSortable({ id });
+    const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id });
 
     const style = {
         transform: CSS.Transform.toString(transform),
@@ -51,41 +51,34 @@ function SortableField({ id, children }: { id: string, children: React.ReactNode
         opacity: isDragging ? 0.5 : 1,
         position: 'relative' as const,
         zIndex: isDragging ? 999 : 'auto',
-        touchAction: 'none', // Importante para mobile/touch
+        touchAction: 'none',
     };
 
     return (
-        <Box ref={setNodeRef} style={style} sx={{ position: 'relative', mb: 1 }}>
-            {/* Manipulador de arrasto (o ícone de 6 pontinhos) */}
+        <Box ref={setNodeRef} style={style} sx={{ position: 'relative', mb: 2 }}>
             <Box
                 {...attributes}
                 {...listeners}
                 sx={{
-                    position: 'absolute',
-                    right: -10,
-                    top: 16, // Ajuste conforme a altura do input
-                    zIndex: 10,
-                    cursor: 'grab',
-                    color: 'action.disabled',
-                    '&:hover': { color: 'primary.main' },
-                    '&:active': { cursor: 'grabbing' }
+                    position: 'absolute', right: -6, top: 12, zIndex: 10, cursor: 'grab',
+                    color: 'action.disabled', '&:hover': { color: 'primary.main' }
                 }}
             >
                 <DragIndicator fontSize="small" />
             </Box>
-            
-            {/* O campo em si (com uma margem direita para não sobrepor o ícone) */}
-            <Box sx={{ pr: 3 }}>
-                {children}
-            </Box>
+            <Box sx={{ pr: 3 }}>{children}</Box>
         </Box>
     );
 }
 
-export default function PreVisualizarFormularios({ campos, onReorder }: PreviaProps) {
+export default function PreVisualizarFormularios({ 
+    campos, 
+    onReorder, 
+    readOnly = false, 
+    formName = "Novo Formulário" 
+}: PreviaProps) {
     const [formData, setFormData] = useState<FormDataState>({});
 
-    // Configuração dos sensores do DndKit
     const sensors = useSensors(
         useSensor(PointerSensor),
         useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
@@ -99,73 +92,114 @@ export default function PreVisualizarFormularios({ campos, onReorder }: PreviaPr
         }
     };
 
-    // Lógica ao soltar o item
     const handleDragEnd = (event: DragEndEvent) => {
         const { active, over } = event;
-        if (over && active.id !== over.id) {
+        if (over && active.id !== over.id && onReorder) {
             const oldIndex = campos.findIndex((c) => c.id === active.id);
             const newIndex = campos.findIndex((c) => c.id === over.id);
-            onReorder(oldIndex, newIndex); // Chama a função do pai
+            onReorder(oldIndex, newIndex);
         }
     };
+
+    // Renderização da lista de campos
+    const renderFields = () => (
+        <form onSubmit={(e) => e.preventDefault()}>
+            {campos.length === 0 && (
+                <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', mt: 8, opacity: 0.6 }}>
+                    <Typography variant="body2">Sem campos</Typography>
+                </Box>
+            )}
+            
+            {campos.map((campo) => (
+                <React.Fragment key={campo.id}>
+                    {readOnly ? (
+                        // Modo Leitura: Renderiza direto, sem wrapper de Drag
+                        <Box sx={{ mb: 2 }}>
+                            <CampoFormularios
+                                campo={campo}
+                                value={formData[campo.name] ?? ((campo.type === 'checkbox' || campo.type === 'switch') ? (campo.defaultValue ?? false) : '')}
+                                onChange={handleFormChange}
+                            />
+                        </Box>
+                    ) : (
+                        // Modo Edição: Usa SortableField
+                        <SortableField id={campo.id}>
+                            <CampoFormularios
+                                campo={campo}
+                                value={formData[campo.name] ?? ((campo.type === 'checkbox' || campo.type === 'switch') ? (campo.defaultValue ?? false) : '')}
+                                onChange={handleFormChange}
+                            />
+                        </SortableField>
+                    )}
+                </React.Fragment>
+            ))}
+
+            {/* Botão Simulado no final (apenas no modo leitura/visualização) */}
+            {readOnly && campos.length > 0 && (
+                <Box sx={{ mt: 4, mb: 2 }}>
+                    <Button variant="contained" fullWidth size="large" disableElevation>
+                        Enviar
+                    </Button>
+                </Box>
+            )}
+        </form>
+    );
 
     return (
         <ThemeProvider theme={phoneTheme}>
             <CssBaseline />
             <Box sx={{ width: '100%', display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100%', py: 2 }}>
+                {/* Moldura do Celular */}
                 <Paper
-                    elevation={4}
+                    elevation={6}
                     sx={{
-                        width: 360, height: 640, borderRadius: 4, overflow: 'hidden',
+                        width: 360, height: 640, borderRadius: 5, overflow: 'hidden',
                         position: 'relative', display: 'flex', flexDirection: 'column',
-                        bgcolor: 'background.default', border: '1px solid #ccc',
+                        bgcolor: '#fff', border: '8px solid #111', // Borda preta simulando o corpo do celular
+                        boxShadow: '0 20px 40px rgba(0,0,0,0.2)'
                     }}
                 >
-                    {/* Barra de Status */}
-                    <AppBar position="static" sx={{ bgcolor: '#333', color: '#fff', minHeight: 25, height: 25 }}>
-                        <Toolbar variant="dense" sx={{ minHeight: 25, px: 1, display: 'flex', justifyContent: 'space-between' }}>
-                            <Typography variant="caption" sx={{ fontSize: '0.65rem' }}>10:00</Typography>
-                            <Box sx={{ display: 'flex', gap: 0.5 }}>
-                                <Wifi sx={{ fontSize: '0.8rem' }} />
-                                <SignalCellularAlt sx={{ fontSize: '0.8rem' }} />
-                                <BatteryFull sx={{ fontSize: '0.8rem' }} />
-                            </Box>
-                        </Toolbar>
-                    </AppBar>
+                    {/* Barra de Status Android */}
+                    <Box sx={{ bgcolor: '#1976d2', color: '#fff', height: 24, px: 2, display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: 10 }}>
+                        <span style={{ fontWeight: 'bold' }}>12:30</span>
+                        <Box sx={{ display: 'flex', gap: 0.5 }}>
+                            <Wifi sx={{ fontSize: 12 }} />
+                            <SignalCellularAlt sx={{ fontSize: 12 }} />
+                            <BatteryFull sx={{ fontSize: 12 }} />
+                        </Box>
+                    </Box>
 
-                    {/* Barra de Título */}
-                    <AppBar position="static" color="primary" sx={{ bgcolor: 'primary.main', minHeight: 56 }}>
-                        <Toolbar sx={{ minHeight: 56 }}>
-                            <IconButton edge="start" color="inherit"><ArrowBack /></IconButton>
-                            <Typography variant="h6" sx={{ flexGrow: 1, ml: 2 }}>
-                                {campos.length > 0 ? "Novo Formulário" : "App"}
+                    {/* Barra de App (Header) */}
+                    <AppBar position="static" sx={{ bgcolor: '#1976d2', height: 56 }}>
+                        <Toolbar sx={{ minHeight: '56px !important', px: 1 }}>
+                            <IconButton edge="start" color="inherit" size="small">
+                                {readOnly ? <MenuIcon /> : <ArrowBack />}
+                            </IconButton>
+                            <Typography variant="h6" sx={{ flexGrow: 1, ml: 2, fontSize: '1.1rem', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                                {formName}
                             </Typography>
                         </Toolbar>
                     </AppBar>
 
-                    {/* Área de Conteúdo (Lista Sortable) */}
-                    <Box sx={{ flexGrow: 1, overflowY: 'auto', p: 2, bgcolor: 'background.paper' }}>
-                        <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
-                            <SortableContext items={campos.map(c => c.id)} strategy={verticalListSortingStrategy}>
-                                <form onSubmit={(e) => e.preventDefault()}>
-                                    {campos.length === 0 && (
-                                        <Typography variant="body2" color="textSecondary" align="center" sx={{ mt: 8 }}>
-                                            Adicione campos para ver o resultado.
-                                        </Typography>
-                                    )}
-                                    
-                                    {campos.map((campo) => (
-                                        <SortableField key={campo.id} id={campo.id}>
-                                            <CampoFormularios
-                                                campo={campo}
-                                                value={formData[campo.name] ?? ((campo.type === 'checkbox' || campo.type === 'switch') ? (campo.defaultValue ?? false) : '')}
-                                                onChange={handleFormChange}
-                                            />
-                                        </SortableField>
-                                    ))}
-                                </form>
-                            </SortableContext>
-                        </DndContext>
+                    {/* Área de Conteúdo com Scroll */}
+                    <Box sx={{ flexGrow: 1, overflowY: 'auto', p: 2, bgcolor: '#fafafa' }}>
+                        {readOnly ? (
+                            renderFields()
+                        ) : (
+                            <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+                                <SortableContext items={campos.map(c => c.id)} strategy={verticalListSortingStrategy}>
+                                    {renderFields()}
+                                </SortableContext>
+                            </DndContext>
+                        )}
+                    </Box>
+
+                    {/* Barra de Navegação Android (Simulada) */}
+                    <Box sx={{ height: 40, bgcolor: '#000', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: 8 }}>
+                         {/* Botões virtuais simples */}
+                         <div style={{ width: 0, height: 0, borderLeft: '6px solid transparent', borderRight: '6px solid transparent', borderBottom: '10px solid #888', transform: 'rotate(-90deg)' }}></div>
+                         <div style={{ width: 10, height: 10, borderRadius: '50%', border: '2px solid #888' }}></div>
+                         <div style={{ width: 10, height: 10, border: '2px solid #888', borderRadius: 2 }}></div>
                     </Box>
                 </Paper>
             </Box>

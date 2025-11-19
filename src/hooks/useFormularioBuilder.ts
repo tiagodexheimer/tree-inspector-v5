@@ -3,125 +3,130 @@ import { useState, useCallback } from 'react';
 import { CampoDef, CampoTipo } from '@/types/formularios';
 import { arrayMove } from '@dnd-kit/sortable';
 
-// Objeto que representa o formulário sendo criado (compatível com seu DB)
 export interface FormularioDraft {
+    id?: number; // [NOVO] ID opcional para edição
     nome: string;
     descricao: string;
-    tipoDemanda: string;
+    idTipoDemanda: number | ''; 
     campos: CampoDef[];
 }
 
 const INITIAL_STATE: FormularioDraft = {
     nome: '',
     descricao: '',
-    tipoDemanda: '',
+    idTipoDemanda: '', 
     campos: []
 };
 
 export function useFormularioBuilder() {
-    // Estado centralizado em um objeto único
     const [formulario, setFormulario] = useState<FormularioDraft>(INITIAL_STATE);
+    const [dialogs, setDialogs] = useState({ isSaveOpen: false, isSuccessOpen: false });
+    const [isLoading, setIsLoading] = useState(false); // [NOVO] Estado de carregamento
 
-    // Estado dos Diálogos (UI)
-    const [dialogs, setDialogs] = useState({
-        isSaveOpen: false,
-        isSuccessOpen: false
-    });
+    // ... (Setters existentes: setNome, setDescricao, setIdTipoDemanda mantêm-se iguais)
+    const setNome = (nome: string) => setFormulario(prev => ({ ...prev, nome }));
+    const setDescricao = (descricao: string) => setFormulario(prev => ({ ...prev, descricao }));
+    const setIdTipoDemanda = (id: number) => setFormulario(prev => ({ ...prev, idTipoDemanda: id }));
 
-    // --- Actions de Manipulação do Objeto ---
-
-    const setNome = (nome: string) => 
-        setFormulario(prev => ({ ...prev, nome }));
-
-    const setTipoDemanda = (tipoDemanda: string) => 
-        setFormulario(prev => ({ ...prev, tipoDemanda }));
-
+    // ... (addField, updateCampos, removeField, moveFields mantêm-se iguais)
     const addField = useCallback((tipo: CampoTipo) => {
         const novoId = `campo_${Date.now()}`;
-        
-        // Factory de campos
-        let novoCampo: CampoDef;
         const base = { id: novoId, name: novoId, label: `Novo ${tipo}` };
-
+        let novoCampo: CampoDef;
         switch (tipo) {
             case 'text': novoCampo = { ...base, type: 'text', placeholder: '...' }; break;
             case 'textarea': novoCampo = { ...base, type: 'textarea', rows: 3 }; break;
             case 'checkbox': novoCampo = { ...base, type: 'checkbox', defaultValue: false }; break;
             case 'switch': novoCampo = { ...base, type: 'switch', defaultValue: false }; break;
-            case 'select': 
-            case 'radio': 
-                novoCampo = { 
-                    ...base, 
-                    type: tipo, 
-                    options: [{ id: `opt_${Date.now()}`, value: 'op1', label: 'Opção 1' }] 
-                }; 
-                break;
+            case 'select': case 'radio': novoCampo = { ...base, type: tipo, options: [{ id: `opt_${Date.now()}`, value: 'op1', label: 'Opção 1' }] }; break;
             default: return;
         }
-
-        setFormulario(prev => ({
-            ...prev,
-            campos: [...prev.campos, novoCampo]
-        }));
+        setFormulario(prev => ({ ...prev, campos: [...prev.campos, novoCampo] }));
     }, []);
 
     const updateCampos = useCallback((newCampos: CampoDef[] | ((prev: CampoDef[]) => CampoDef[])) => {
-        setFormulario(prev => ({
-            ...prev,
-            campos: typeof newCampos === 'function' ? newCampos(prev.campos) : newCampos
-        }));
+        setFormulario(prev => ({ ...prev, campos: typeof newCampos === 'function' ? newCampos(prev.campos) : newCampos }));
     }, []);
 
     const removeField = useCallback((id: string) => {
-        setFormulario(prev => ({
-            ...prev,
-            campos: prev.campos.filter(c => c.id !== id)
-        }));
+        setFormulario(prev => ({ ...prev, campos: prev.campos.filter(c => c.id !== id) }));
     }, []);
 
-    // --- Função de Reordenação ---
     const moveFields = useCallback((oldIndex: number, newIndex: number) => {
-        setFormulario(prev => ({
-            ...prev,
-            campos: arrayMove(prev.campos, oldIndex, newIndex)
-        }));
+        setFormulario(prev => ({ ...prev, campos: arrayMove(prev.campos, oldIndex, newIndex) }));
     }, []);
 
-    // --- Lógica de Salvar ---
-    const openSaveDialog = () => setDialogs(prev => ({ ...prev, isSaveOpen: true }));
-    const closeSaveDialog = () => setDialogs(prev => ({ ...prev, isSaveOpen: false }));
 
-    const confirmSave = async () => {
-        if (!formulario.nome.trim() || !formulario.tipoDemanda) {
-            throw new Error('Preencha os campos obrigatórios.');
+    // [NOVO] Função para carregar dados de um formulário existente
+    const loadForm = useCallback(async (id: number) => {
+        setIsLoading(true);
+        try {
+            const res = await fetch(`/api/gerenciar/formularios/${id}`);
+            if (!res.ok) throw new Error("Erro ao buscar formulário");
+            
+            const data = await res.json();
+            
+            // Popula o estado com os dados do banco
+            setFormulario({
+                id: data.id,
+                nome: data.nome,
+                descricao: data.descricao || '',
+                idTipoDemanda: data.id_tipo_demanda || '',
+                campos: data.definicao_campos || [] // O banco retorna o JSON pronto
+            });
+        } catch (error) {
+            console.error(error);
+            alert("Erro ao carregar dados do formulário.");
+        } finally {
+            setIsLoading(false);
         }
-        console.log("Salvando objeto completo:", formulario);
-        setDialogs({ isSaveOpen: false, isSuccessOpen: true });
+    }, []);
+
+    // [ATUALIZADO] Lógica de Salvar (POST ou PUT)
+    const confirmSave = async () => {
+        if (!formulario.nome.trim() || !formulario.idTipoDemanda) {
+            throw new Error('Preencha o nome e selecione o tipo de demanda.');
+        }
+
+        const isEditing = !!formulario.id;
+        const url = isEditing ? `/api/gerenciar/formularios/${formulario.id}` : '/api/gerenciar/formularios';
+        const method = isEditing ? 'PUT' : 'POST';
+
+        try {
+            const response = await fetch(url, {
+                method: method,
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    nome: formulario.nome,
+                    descricao: formulario.descricao,
+                    definicao_campos: formulario.campos,
+                    id_tipo_demanda: formulario.idTipoDemanda 
+                }),
+            });
+
+            if (!response.ok) throw new Error('Erro ao salvar formulário');
+            
+            setDialogs({ isSaveOpen: false, isSuccessOpen: true });
+        } catch (error) {
+            console.error(error);
+            alert('Erro ao salvar.');
+            throw error;
+        }
     };
 
-    // CORREÇÃO AQUI: Renomeado de 'resetForm' para 'resetAndClose'
     const resetAndClose = () => {
         setFormulario(INITIAL_STATE);
         setDialogs(prev => ({ ...prev, isSuccessOpen: false }));
     };
 
+    const openSaveDialog = () => setDialogs(prev => ({ ...prev, isSaveOpen: true }));
+    const closeSaveDialog = () => setDialogs(prev => ({ ...prev, isSaveOpen: false }));
+
     return {
-        // O Objeto Completo
-        formulario, 
-        // Propriedades individuais para conveniência
-        campos: formulario.campos,
-        // Estados de UI
-        ...dialogs,
-        // Ações
-        setNome,
-        setTipoDemanda,
-        setCampos: updateCampos,
-        addField,
-        removeField,
-        moveFields, 
-        openSaveDialog,
-        closeSaveDialog,
-        confirmSave,
-        resetAndClose // Agora a variável existe e corresponde à função acima
+        formulario, campos: formulario.campos, ...dialogs, isLoading,
+        setNome, setDescricao, setIdTipoDemanda, setCampos: updateCampos,
+        addField, removeField, moveFields, 
+        openSaveDialog, closeSaveDialog, confirmSave, resetAndClose,
+        loadForm // [NOVO] Exposta para o componente usar
     };
 }
