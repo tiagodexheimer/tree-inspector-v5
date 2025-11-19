@@ -26,7 +26,8 @@ function TabPanel(props: TabPanelProps) {
         >
             {value === index && (
                 <Box sx={{ p: 3 }}>
-                    <Typography>{children}</Typography>
+                    {/* CORREÇÃO AQUI: Adicionado component="div" para evitar erro de hidratação */}
+                    <Typography component="div">{children}</Typography>
                 </Box>
             )}
         </div>
@@ -50,7 +51,7 @@ export default function FormulariosPage() {
     return (
         <div className='p-4'>
             <Box
-                sx={{ flexGrow: 1, bgcolor: 'background.paper', display: 'flex', height: '100vh)', padding: 2}}
+                sx={{ flexGrow: 1, bgcolor: 'background.paper', display: 'flex', height: '100vh', padding: 2}}
             >
                 <Tabs
                     orientation="vertical"

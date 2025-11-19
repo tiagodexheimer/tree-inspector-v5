@@ -1,11 +1,12 @@
 // src/types/formularios.ts
+import { UniqueIdentifier } from "@dnd-kit/core";
+
 export interface CampoOpcao {
   id: string;
   value: string;
   label: string;
 }
 
-// Ensure ALL these types are present
 export type CampoTipo =
   | 'text'
   | 'textarea'
@@ -13,18 +14,59 @@ export type CampoTipo =
   | 'select'
   | 'radio'
   | 'switch'
-  | 'password' // Make sure this is here
-  | 'email'    // Make sure this is here
-  | 'number'   // Make sure this is here
-  | 'date';    // Make sure this is here
+  | 'password'
+  | 'email'
+  | 'number'
+  | 'date';
 
-export interface CampoDef {
+// Propriedades comuns a todos os campos
+interface CampoBase {
   id: string;
-  type: CampoTipo;
   name: string;
   label: string;
+  type: CampoTipo;
   placeholder?: string;
-  options?: CampoOpcao[];
-  defaultValue?: string | boolean;
-  rows?: number;
+  required?: boolean;
 }
+
+// Definições Específicas (Segregação de Interface)
+
+interface CampoTexto extends CampoBase {
+  type: 'text' | 'password' | 'email' | 'date' | 'number';
+}
+
+interface CampoTextArea extends CampoBase {
+  type: 'textarea';
+  rows?: number; // Específico de textarea
+}
+
+interface CampoComOpcoes extends CampoBase {
+  type: 'select' | 'radio';
+  options: CampoOpcao[]; // Obrigatório para estes tipos
+}
+
+interface CampoBooleano extends CampoBase {
+  type: 'checkbox' | 'switch';
+  defaultValue?: boolean; // Específico para toggles
+}
+
+// União Discriminada: O tipo final é uma união dessas interfaces
+// Isso permite que o TypeScript infira quais props existem baseado no 'type'
+export type CampoDef = CampoTexto | CampoTextArea | CampoComOpcoes | CampoBooleano;
+
+// Trazendo os tipos que estavam perdidos em demanda.ts para cá (Contexto correto)
+export type FormField = {
+  id: UniqueIdentifier;
+  type: "input" | "checkbox" | "select" | "switch";
+  label: string;
+  placeholder: string;
+  options?: string[];
+};
+
+export type LaudoForm = {
+  id: string;
+  nome: string;
+  tipoDemandaVinculada: string;
+  campos: FormField[]; // Ou CampoDef[], dependendo da unificação
+  dataCriacao: string;
+};

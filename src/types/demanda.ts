@@ -1,54 +1,55 @@
 // src/types/demanda.ts
 import { UniqueIdentifier } from "@dnd-kit/core";
+import { GeoJsonPoint } from "./common"; // Reuso
 
 export type Status = "Pendente" | "Em andamento" | "Concluído";
 
-// Interface para representar a geometria (simplificada)
-export interface GeoJsonPoint {
-  type: 'Point';
-  coordinates: [number, number]; // [longitude, latitude]
-}
-
-// Tipo atualizado para refletir o formulário e a geometria
+// Entidade de Domínio Pura
 export interface DemandaType {
   id?: number;
   protocolo?: string;
+  
+  // Dados do Solicitante
   nome_solicitante: string;
   telefone_solicitante?: string | null;
   email_solicitante?: string | null;
 
-  // --- Campos de Endereço Atualizados ---
-  // endereco: string; // Remover esta linha
-  cep: string; // Obrigatório
-  logradouro?: string | null; // Preenchido via CEP
-  numero: string; // Obrigatório
-  complemento?: string | null; // Opcional
-  bairro?: string | null; // Preenchido via CEP
-  cidade?: string | null; // Preenchido via CEP
-  uf?: string | null; // Preenchido via CEP (UF)
-  // ------------------------------------
+  // Endereço
+  cep: string;
+  logradouro?: string | null;
+  numero: string;
+  complemento?: string | null;
+  bairro?: string | null;
+  cidade?: string | null;
+  uf?: string | null;
 
+  // Detalhes
   tipo_demanda: string;
   descricao: string;
   prazo?: Date | null;
   status?: Status;
   responsavel?: string | null;
+  
+  // Geografia
   geom?: GeoJsonPoint | null;
 
-  // Manter 'contato' se ainda for usado, mas pode ser redundante
+  // Legado (considerar remover se não usado)
   contato?: {
     nome: string;
     telefone: string;
     email: string;
-    endereco: string; // Este campo 'endereco' dentro de 'contato' agora é provavelmente obsoleto
+    endereco: string; 
   };
 }
 
-// --- NOVAS INTERFACES COMPARTILHADAS ---
+// --- DTOs (Data Transfer Objects) e ViewModels ---
+// Usados para comunicação com API e Componentes UI
+
 export interface DemandaComIdStatus extends DemandaType {
     id_status?: number | null;
     status_nome?: string;
     status_cor?: string;
+    // Atalhos de coordenadas para facilitar uso em mapas (Leaflet/Google)
     lat: number | null; 
     lng: number | null;
 }
@@ -58,22 +59,3 @@ export interface OptimizedRouteData {
     routePath: [number, number][];
     startPoint: { lat: number, lng: number };
 }
-// --- FIM NOVAS INTERFACES COMPARTILHADAS ---
-
-
-export type FormField = {
-  id: UniqueIdentifier;
-  // A CORREÇÃO ESTÁ AQUI: Adicionamos o novo tipo 'switch'
-  type: "input" | "checkbox" | "select" | "switch";
-  label: string;
-  placeholder: string;
-  options?: string[];
-};
-
-export type LaudoForm = {
-  id: string;
-  nome: string;
-  tipoDemandaVinculada: string;
-  campos: FormField[];
-  dataCriacao: string;
-};
