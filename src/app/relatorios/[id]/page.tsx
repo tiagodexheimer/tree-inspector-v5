@@ -3,9 +3,9 @@
 
 import React, { useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
-import { 
-    Box, Typography, Paper, Divider, Grid, Button, CircularProgress, 
-    Table, TableBody, TableCell, TableContainer, TableHead, TableRow 
+import {
+    Box, Typography, Paper, Divider, Grid, Button, CircularProgress,
+    Table, TableBody, TableCell, TableContainer, TableHead, TableRow
 } from '@mui/material';
 import PrintIcon from '@mui/icons-material/Print';
 
@@ -42,16 +42,16 @@ export default function DetalheRelatorioPage() {
     // Para exibir o "Label" da pergunta e não o ID técnico
     const renderRespostas = () => {
         if (!data.respostas) return null;
-        
+
         // Se tivermos a definição dos campos, usamos para pegar o Label correto
         const camposDefinidos = data.definicaoCampos || [];
-        
+
         // Mapeia as respostas
         return Object.entries(data.respostas).map(([key, value]) => {
             // Tenta encontrar a definição do campo pelo 'name'
             const campoDef = camposDefinidos.find((c: any) => c.name === key);
             const label = campoDef ? campoDef.label : key; // Se não achar, usa a chave (fallback)
-            
+
             // Formatação do valor
             let valorFormatado = String(value);
             if (typeof value === 'boolean') valorFormatado = value ? 'Sim' : 'Não';
@@ -69,14 +69,14 @@ export default function DetalheRelatorioPage() {
     return (
         <Box sx={{ bgcolor: '#eee', minHeight: '100vh', py: 4, display: 'flex', justifyContent: 'center' }}>
             <style>{printStyles}</style>
-            
+
             {/* Container A4 Simulado */}
-            <Paper 
+            <Paper
                 className="page-container"
-                sx={{ 
+                sx={{
                     width: '210mm', // Largura A4
                     minHeight: '297mm', // Altura A4
-                    p: 5, 
+                    p: 5,
                     bgcolor: 'white',
                     position: 'relative'
                 }}
@@ -98,14 +98,27 @@ export default function DetalheRelatorioPage() {
                 {/* Dados da Demanda */}
                 <Box sx={{ mb: 4 }}>
                     <Typography variant="h6" sx={{ bgcolor: '#f0f0f0', p: 1, mb: 2, fontWeight: 'bold' }}>1. DADOS DA SOLICITAÇÃO</Typography>
-                    <Grid container spacing={2}>
-                        <Grid item xs={6}><Typography><strong>Protocolo:</strong> {data.protocolo}</Typography></Grid>
-                        <Grid item xs={6}><Typography><strong>Data Vistoria:</strong> {new Date(data.data_realizacao).toLocaleDateString()}</Typography></Grid>
-                        <Grid item xs={12}><Typography><strong>Endereço:</strong> {data.logradouro}, {data.numero} - {data.bairro}</Typography></Grid>
-                        <Grid item xs={6}><Typography><strong>Cidade:</strong> {data.cidade}/{data.uf}</Typography></Grid>
-                        <Grid item xs={6}><Typography><strong>CEP:</strong> {data.cep}</Typography></Grid>
-                        <Grid item xs={12}><Typography><strong>Solicitante:</strong> {data.nome_solicitante || 'Não informado'}</Typography></Grid>
-                    </Grid>
+                    <div className="grid grid-cols-12 gap-4 p-2">
+                        {/* xs={6} -> col-span-6 */}
+                        <div className="col-span-6">
+                            <Typography><strong>Protocolo:</strong> {data.protocolo}</Typography>
+                        </div>
+
+                        {/* xs={6} -> col-span-6 */}
+                        <div className="col-span-6">
+                            <Typography><strong>Data Vistoria:</strong> {new Date(data.data_realizacao).toLocaleDateString()}</Typography>
+                        </div>
+
+                        {/* xs={12} -> col-span-12 */}
+                        <div className="col-span-12">
+                            <Typography><strong>Endereço:</strong> {data.logradouro}, {data.numero} - {data.bairro}</Typography>
+                        </div>
+
+                        {/* xs={6} -> col-span-6 */}
+                        <div className="col-span-6">
+                            <Typography><strong>Cidade:</strong> {data.cidade}/{data.uf}</Typography>
+                        </div>
+                    </div>
                 </Box>
 
                 {/* Descrição Original */}
