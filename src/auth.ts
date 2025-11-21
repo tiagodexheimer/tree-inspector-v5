@@ -41,6 +41,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
       return session;
     },
     authorized({ auth, request: { nextUrl } }) {
+      console.log(`[Middleware] Acessando: ${nextUrl.pathname}. Usuário logado? ${auth?.user?.email}`);
       const isLoggedIn = !!auth?.user;
       const isOnDashboard = nextUrl.pathname.startsWith('/demandas') || 
                             nextUrl.pathname.startsWith('/rotas') || 
