@@ -168,3 +168,13 @@ CREATE TRIGGER set_formularios_timestamp
 BEFORE UPDATE ON formularios
 FOR EACH ROW
 EXECUTE FUNCTION trigger_set_timestamp();
+
+-- Tabela para armazenar os resultados das vistorias (Laudos)
+CREATE TABLE IF NOT EXISTS vistorias_realizadas (
+    id SERIAL PRIMARY KEY,
+    demanda_id INT NOT NULL REFERENCES demandas(id) ON DELETE CASCADE,
+    respostas JSONB NOT NULL, -- Aqui ficam os dados do formulário dinâmico
+    data_realizacao TIMESTAMPTZ DEFAULT NOW(),
+    
+    UNIQUE(demanda_id) -- Uma demanda só pode ter uma vistoria final
+);

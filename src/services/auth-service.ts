@@ -1,38 +1,29 @@
 // src/services/auth-service.ts
-import bcrypt from "bcryptjs";
-import { UserRepository } from "@/repositories/user-repository";
+import { userManagementService } from "@/services/user-management-service";
+import { compare } from "bcryptjs";
 
 export const AuthService = {
-  async authenticate(credentials: Partial<Record<string, unknown>>) {
-    const email = credentials?.email as string | undefined;
-    const password = credentials?.password as string | undefined;
+  async authenticate(credentials: Partial<Record<"email" | "password", unknown>>) {
+    const email = credentials?.email as string;
+    const password = credentials?.password as string;
 
-    // 1. Validação básica de entrada
-    if (!email || !password) {
-      return null;
-    }
+    if (!email || !password) return null;
 
-    // 2. Busca o utilizador (delegando para o repositório)
-    const user = await UserRepository.findByEmail(email);
+    // Busca usuário
+    const user = await userManagementService.getUserByEmail(email);
+    if (!user || !user.password) return null;
 
-    if (!user || !user.password) {
-      return null;
-    }
+    // Valida senha
+    const isValid = await compare(password, user.password);
+    if (!isValid) return null;
 
-    // 3. Validação de segurança (bcrypt)
-    const isValidPassword = await bcrypt.compare(password, user.password);
-
-    if (!isValidPassword) {
-      return null;
-    }
-
-    // 4. Sanitização (Remove a senha antes de devolver para o NextAuth)
-    // O NextAuth usará este objeto para criar o token JWT
+    // Retorna o objeto usuário limpo (sem a senha)
     return {
       id: user.id,
       name: user.name,
       email: user.email,
       role: user.role,
+      image: null, // ou user.image se tiver
     };
   }
 };
