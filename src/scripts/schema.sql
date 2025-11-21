@@ -178,3 +178,4 @@ CREATE TABLE IF NOT EXISTS vistorias_realizadas (
     
     UNIQUE(demanda_id) -- Uma demanda só pode ter uma vistoria final
 );
+
