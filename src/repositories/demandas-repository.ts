@@ -224,5 +224,21 @@ export const DemandasRepository = {
       console.error("Erro no DemandasRepository.updateStatus:", error);
       throw new Error("Falha ao atualizar status da demanda.");
     }
-  }
+  },
+  // Adicione dentro do objeto DemandasRepository
+  
+async deleteMany(ids: number[]): Promise<void> {
+    try {
+      const query = `DELETE FROM demandas WHERE id = ANY($1)`;
+      await pool.query(query, [ids]);
+    } catch (error: any) {
+      // Tratamento específico para erro de chave estrangeira (código 23503)
+      if (error.code === '23503') {
+         throw new Error("Não é possível excluir uma ou mais demandas pois elas estão vinculadas a rotas ativas. Remova-as das rotas antes de excluir.");
+      }
+      
+      console.error("Erro no DemandasRepository.deleteMany:", error);
+      throw new Error("Falha ao deletar demandas no banco de dados.");
+    }
+  },
 };

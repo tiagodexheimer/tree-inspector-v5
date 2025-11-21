@@ -9,7 +9,7 @@ import L, { LatLngExpression, LatLngBoundsExpression, DivIcon } from 'leaflet';
 import { DemandaType } from '@/types/demanda';
 
 // Define o ponto de início/fim
-const START_END_POINT: LatLngExpression = [-29.8608, -51.1789]; // [lat, lng]
+const START_END_POINT: LatLngExpression = [-29.8533191, -51.1789191]; // [lat, lng]
 
 // [NOVO] Componente para forçar o Leaflet a recalcular o tamanho quando o modal abre
 const InvalidateSize: React.FC<{ trigger: boolean }> = ({ trigger }) => {

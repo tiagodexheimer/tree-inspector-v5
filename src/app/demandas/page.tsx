@@ -1,13 +1,16 @@
 'use client';
 import React, { useState, useEffect } from "react";
-import { Box, Alert, Pagination, Typography } from "@mui/material";
-import dynamic from 'next/dynamic'; // 1. Importar dynamic do Next.js
+import { 
+    Box, Alert, Pagination, Typography, 
+    Dialog, DialogTitle, DialogContent, DialogContentText, DialogActions, Button 
+} from "@mui/material";
+import dynamic from 'next/dynamic';
 
-// Componentes UI Leves (Carregamento Imediato)
+// Componentes UI Leves
 import ListaCardDemanda from "@/components/ui/demandas/ListaCardDemanda";
 import ListaListDemanda from "@/components/ui/demandas/ListaListDemanda";
 import DemandasToolbar from "@/components/ui/demandas/DemandasToolbar";
-import DemandasSkeleton from "@/components/ui/demandas/DemandasSkeleton"; // 2. Importar Skeleton
+import DemandasSkeleton from "@/components/ui/demandas/DemandasSkeleton";
 
 // Hooks e Serviços
 import { useDemandasData } from "@/hooks/useDemandasData";
@@ -15,17 +18,11 @@ import { useDemandasOperations } from "@/hooks/useDemandasOperations";
 import { DemandasClient } from "@/services/client/demandas-client";
 import { OptimizedRouteData } from "@/types/demanda";
 
-// 3. Carregamento Preguiçoso (Lazy Loading) dos Modais Pesados
-const AddDemandaModal = dynamic(() => import("@/components/ui/demandas/AddDemandaModal"), {
-  ssr: false // Não precisa renderizar no servidor pois é um modal de interação
-});
-
-const CriarRotaModal = dynamic(() => import("@/components/ui/demandas/CriarRotaModal"), {
-  ssr: false
-});
+// Modais Pesados
+const AddDemandaModal = dynamic(() => import("@/components/ui/demandas/AddDemandaModal"), { ssr: false });
+const CriarRotaModal = dynamic(() => import("@/components/ui/demandas/CriarRotaModal"), { ssr: false });
 
 export default function DemandasPage() {
-    // ... (Mantém todo o estado e hooks inalterados) ...
     const [viewMode, setViewMode] = useState<'card' | 'list'>('card');
     const [addModalOpen, setAddModalOpen] = useState(false);
     const [editModalOpen, setEditModalOpen] = useState(false);
@@ -36,6 +33,10 @@ export default function DemandasPage() {
     const [optimizedRouteData, setOptimizedRouteData] = useState<OptimizedRouteData | null>(null);
     const [criarRotaModalOpen, setCriarRotaModalOpen] = useState(false);
 
+    // --- NOVO ESTADO PARA CONFIRMAÇÃO ---
+    const [deleteConfirmationOpen, setDeleteConfirmationOpen] = useState(false);
+    const [itemToDelete, setItemToDelete] = useState<number | null>(null); // Caso seja deleção unitária
+
     const [availableStatus, setAvailableStatus] = useState<any[]>([]);
     const [availableTipos, setAvailableTipos] = useState<any[]>([]);
 
@@ -44,45 +45,58 @@ export default function DemandasPage() {
     } = useDemandasData();
 
     const { 
-        handleStatusChange, deleteDemandas, isProcessing: isDeleting, opError 
+        deleteDemandas, isProcessing: isDeleting, opError, clearError 
     } = useDemandasOperations(refresh);
 
-    // --- NOVA FUNÇÃO DE ATUALIZAÇÃO LOCAL ---
-    const handleStatusUpdateLocal = async (demandaId: number, newStatusId: number) => {
-        // 1. Encontra as informações visuais do novo status (cor e nome) para atualizar a UI instantaneamente
-        const statusInfo = availableStatus.find(s => s.id === newStatusId);
+    // --- HANDLERS DE DELEÇÃO ---
+
+    // 1. Acionado pelo botão "Lixeira" na Toolbar (Lote)
+    const handleRequestDeleteSelected = () => {
+        if (selectedDemandas.length === 0) return;
+        setItemToDelete(null); // Indica que é lote
+        setDeleteConfirmationOpen(true);
+    };
+
+    // 2. Acionado pelo botão "Lixeira" no Card/Linha (Individual)
+    const handleRequestDeleteSingle = (id: number) => {
+        setItemToDelete(id);
+        setDeleteConfirmationOpen(true);
+    };
+
+    // 3. Executa a exclusão real após confirmação
+    const executeDelete = async () => {
+        setDeleteConfirmationOpen(false);
         
-        if (!statusInfo) {
-            console.error("Status não encontrado na lista de disponíveis");
-            return;
-        }
+        const idsToDelete = itemToDelete ? [itemToDelete] : selectedDemandas;
+        
+        if (idsToDelete.length === 0) return;
+
+        await deleteDemandas(idsToDelete);
+        
+        // Limpa seleção se foi sucesso (opcional, o refresh já deve cuidar)
+        setSelectedDemandas([]);
+        setItemToDelete(null);
+    };
+
+    // --- OUTROS HANDLERS ---
+    const handleStatusUpdateLocal = async (demandaId: number, newStatusId: number) => {
+        const statusInfo = availableStatus.find(s => s.id === newStatusId);
+        if (!statusInfo) return;
 
         try {
-            // 2. Chama a API para persistir a mudança
             await DemandasClient.updateStatus(demandaId, newStatusId);
-
-            // 3. Atualiza o estado localmente sem recarregar a página (Optimistic UI update)
-            setDemandas((prevDemandas) => 
-                prevDemandas.map((demanda) => {
-                    if (demanda.id === demandaId) {
-                        return {
-                            ...demanda,
-                            id_status: newStatusId,
-                            status_nome: statusInfo.nome,
-                            status_cor: statusInfo.cor
-                        };
-                    }
-                    return demanda;
-                })
-            );
+            setDemandas((prev) => prev.map((d) => {
+                if (d.id === demandaId) {
+                    return { ...d, id_status: newStatusId, status_nome: statusInfo.nome, status_cor: statusInfo.cor };
+                }
+                return d;
+            }));
         } catch (err) {
-            console.error("Erro ao atualizar status:", err);
-            alert("Erro ao atualizar o status. Tente novamente.");
-            // Opcional: Chamar refresh() aqui caso queira garantir a consistência em caso de erro
+            console.error("Erro status:", err);
+            alert("Erro ao atualizar status.");
         }
     };
 
-    // ... (Mantém o useEffect de carga de dados auxiliares) ...
     useEffect(() => {
         Promise.all([
             fetch('/api/demandas-status').then(r => r.json()),
@@ -93,7 +107,6 @@ export default function DemandasPage() {
         }).catch(console.error);
     }, []);
 
-    // ... (Mantém os Handlers handleSelectDemanda, handlePrepareRota, etc.) ...
     const handleSelectDemanda = (id: number) => {
          setSelectedDemandas(prev => prev.includes(id) ? prev.filter(i => i !== id) : [...prev, id]);
     };
@@ -105,26 +118,14 @@ export default function DemandasPage() {
             const data = await DemandasClient.optimizeRoute(selectedDemandas);
             setOptimizedRouteData(data);
             setCriarRotaModalOpen(true);
-        } catch (err) {
-            console.error(err);
-            // Aqui poderia setar um estado de erro de rota para mostrar no alerta
-        } finally {
-            setIsOptimizing(false);
-        }
+        } catch (err) { console.error(err); } 
+        finally { setIsOptimizing(false); }
     };
-    
-    const handleConfirmDelete = async () => {
-        if (selectedDemandas.length === 0) return;
-        await deleteDemandas(selectedDemandas);
-        setSelectedDemandas([]);
-    };
-
 
     return (
         <div>
             <h1 className="text-2xl font-bold mb-4 p-4">Demandas ({totalCount})</h1>
             
-            {/* A Toolbar é leve e deve aparecer imediatamente */}
             <DemandasToolbar
                 filtro={filters.texto}
                 onFiltroChange={filters.setTexto}
@@ -140,17 +141,22 @@ export default function DemandasPage() {
                 onViewModeChange={setViewMode}
                 onAddDemandaClick={() => setAddModalOpen(true)}
                 onCreateRotaClick={handlePrepareRota}
-                onDeleteSelectedClick={handleConfirmDelete}
+                onDeleteSelectedClick={handleRequestDeleteSelected} // Alterado aqui
                 selectedDemandasCount={selectedDemandas.length}
                 onClearStatusFilter={() => filters.setStatus([])}
                 onClearTipoFilter={() => filters.setTipos([])}
                 isOptimizing={isOptimizing}
             />
 
-            {opError && <Box p={2}><Alert severity="error">{opError}</Alert></Box>}
+            {/* Mostra erro de operação (ex: bloqueio de rota) */}
+            {opError && (
+                <Box p={2}>
+                    <Alert severity="error" onClose={clearError}>{opError}</Alert>
+                </Box>
+            )}
+            
             {error && <Box p={2}><Alert severity="error">{error}</Alert></Box>}
 
-            {/* 4. Substituição: Se isLoading, mostra o Skeleton ao invés do Spinner */}
             {isLoading ? (
                 <DemandasSkeleton viewMode={viewMode} />
             ) : (
@@ -160,7 +166,7 @@ export default function DemandasPage() {
                             demandas={demandas}
                             selectedDemandas={selectedDemandas}
                             onSelectDemanda={handleSelectDemanda}
-                            onDelete={(id) => deleteDemandas([id])}
+                            onDelete={handleRequestDeleteSingle} // Alterado aqui
                             onEdit={(d) => { setDemandaParaEditar(d); setEditModalOpen(true); }}
                             onStatusChange={handleStatusUpdateLocal}
                             availableStatus={availableStatus}
@@ -170,7 +176,7 @@ export default function DemandasPage() {
                             demandas={demandas}
                             selectedDemandas={selectedDemandas}
                             onSelectDemanda={handleSelectDemanda}
-                            onDelete={(id) => deleteDemandas([id])}
+                            onDelete={handleRequestDeleteSingle} // Alterado aqui
                             onEdit={(d) => { setDemandaParaEditar(d); setEditModalOpen(true); }}
                             onStatusChange={handleStatusUpdateLocal}
                             availableStatus={availableStatus}
@@ -188,7 +194,31 @@ export default function DemandasPage() {
                 </>
             )}
 
-            {/* 5. Modais carregados sob demanda (só baixam o JS se addModalOpen for true, etc) */}
+            {/* --- DIALOG DE CONFIRMAÇÃO --- */}
+            <Dialog
+                open={deleteConfirmationOpen}
+                onClose={() => setDeleteConfirmationOpen(false)}
+            >
+                <DialogTitle>Confirmar Exclusão</DialogTitle>
+                <DialogContent>
+                    <DialogContentText>
+                        {itemToDelete 
+                            ? "Tem certeza que deseja excluir esta demanda? Esta ação não pode ser desfeita."
+                            : `Tem certeza que deseja excluir ${selectedDemandas.length} demanda(s) selecionada(s)?`
+                        }
+                    </DialogContentText>
+                </DialogContent>
+                <DialogActions>
+                    <Button onClick={() => setDeleteConfirmationOpen(false)} color="primary">
+                        Cancelar
+                    </Button>
+                    <Button onClick={executeDelete} color="error" variant="contained" autoFocus>
+                        Excluir
+                    </Button>
+                </DialogActions>
+            </Dialog>
+
+            {/* Modais existentes */}
             {addModalOpen && (
                 <AddDemandaModal 
                     open={addModalOpen} 
@@ -213,10 +243,7 @@ export default function DemandasPage() {
                     open={criarRotaModalOpen}
                     onClose={() => setCriarRotaModalOpen(false)}
                     routeData={optimizedRouteData}
-                    onRotaCriada={(nome, resp) => { 
-                        /* Lógica de sucesso simples */ 
-                        setCriarRotaModalOpen(false); 
-                    }}
+                    onRotaCriada={() => setCriarRotaModalOpen(false)}
                 />
             )}
         </div>
