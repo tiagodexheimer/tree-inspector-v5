@@ -9,7 +9,8 @@ import {
     Card, CardMedia
 } from '@mui/material';
 import PrintIcon from '@mui/icons-material/Print';
-import Grid from '@mui/material/Grid';
+
+// (Removida a importação de Grid que estava causando erro)
 
 // --- CSS DE IMPRESSÃO ROBUSTO ---
 const printStyles = `
@@ -90,7 +91,7 @@ export default function DetalheRelatorioPage() {
         if (imgStr.startsWith('http')) return imgStr;
         if (imgStr.startsWith('data:image')) return imgStr;
         if (imgStr.length > 200 && !imgStr.includes('/')) {
-            return `data:image/jpeg;base64,${imgStr}`;
+             return `data:image/jpeg;base64,${imgStr}`;
         }
         return imgStr;
     };
@@ -115,29 +116,26 @@ export default function DetalheRelatorioPage() {
                             <Typography variant="subtitle2" sx={{ fontWeight: 'bold', mb: 2, color: '#333' }}>
                                 📸 {label}
                             </Typography>
-                            <Box
-                                sx={{
-                                    display: 'grid',
-                                    // xs={6} significa 50% (2 por linha). sm={4} significa 33% (3 por linha).
-                                    gridTemplateColumns: {
-                                        xs: 'repeat(2, 1fr)', // Mobile: 2 colunas
-                                        sm: 'repeat(3, 1fr)'  // Tablet/Desktop: 3 colunas
-                                    },
-                                    gap: 2, // Espaçamento (spacing={2})
-                                    width: '100%'
-                                }}
-                            >
+                            
+                            {/* AJUSTE AQUI: Mudei para fixar 2 colunas sempre */}
+                            <Box sx={{ 
+                                display: 'grid',
+                                gridTemplateColumns: '1fr 1fr', // <-- Força 2 colunas grandes (50% cada)
+                                gap: 2,
+                                width: '100%'
+                            }}>
                                 {images.map((imgStr, idx) => (
-                                    // A key fica aqui no elemento pai direto do map
                                     <Box key={idx} sx={{ breakInside: 'avoid', pageBreakInside: 'avoid' }}>
                                         <Card variant="outlined">
                                             <CardMedia
                                                 component="img"
-                                                image={imgStr} // Certifique-se de que imgStr é a URL/Base64
+                                                height="350" // <-- AUMENTEI A ALTURA (antes era 200) para a foto ficar grande
+                                                image={getImageSrc(imgStr)}
                                                 alt={`Foto ${idx + 1}`}
-                                                sx={{
-                                                    height: 200, // Defina uma altura fixa ou ajustável para não quebrar o layout
-                                                    objectFit: 'cover'
+                                                sx={{ objectFit: 'cover' }}
+                                                onError={(e: any) => {
+                                                    e.target.onerror = null; 
+                                                    e.target.src = 'https://via.placeholder.com/350?text=Err+Carregar';
                                                 }}
                                             />
                                         </Card>
@@ -182,10 +180,10 @@ export default function DetalheRelatorioPage() {
             >
                 {/* Botão de Imprimir (Classe no-print esconde ele na impressão) */}
                 <Box sx={{ position: 'absolute', top: 20, right: 20 }} className="no-print">
-                    <Button
-                        variant="contained"
-                        color="primary"
-                        startIcon={<PrintIcon />}
+                    <Button 
+                        variant="contained" 
+                        color="primary" 
+                        startIcon={<PrintIcon />} 
                         onClick={() => window.print()}
                     >
                         Imprimir / PDF
@@ -201,36 +199,24 @@ export default function DetalheRelatorioPage() {
                     <Divider sx={{ mt: 2, borderBottomWidth: 2, borderColor: '#000' }} />
                 </Box>
 
-                {/* Seção 1 */}
-                <Box sx={{
-                    display: 'grid',
-                    gridTemplateColumns: '1fr 1fr', // Cria 2 colunas de 50% cada
-                    gap: 2,
-                    px: 1
-                }}>
-
-                    {/* Item: Protocolo (Ocupa 1 coluna) */}
-                    <Box>
-                        <Typography><strong>Protocolo:</strong> {data.protocolo}</Typography>
+                {/* Seção 1 - SUBSTITUIÇÃO DO GRID POR BOX/CSS GRID */}
+                <Box sx={{ mb: 4 }}>
+                    <Typography variant="h6" sx={{ bgcolor: '#eee', p: 1, pl: 2, mb: 2, fontWeight: 'bold', borderRadius: 1 }}>
+                        1. DADOS DA SOLICITAÇÃO
+                    </Typography>
+                    
+                    <Box sx={{ 
+                        display: 'grid', 
+                        gridTemplateColumns: '1fr 1fr', // Duas colunas iguais
+                        gap: 2, 
+                        px: 1 
+                    }}>
+                        <Box><Typography><strong>Protocolo:</strong> {data.protocolo}</Typography></Box>
+                        <Box><Typography><strong>Data Vistoria:</strong> {new Date(data.data_realizacao).toLocaleDateString()}</Typography></Box>
+                        {/* gridColumn: 'span 2' faz o item ocupar a linha toda (como xs={12}) */}
+                        <Box sx={{ gridColumn: 'span 2' }}><Typography><strong>Endereço:</strong> {data.logradouro}, {data.numero} - {data.bairro}</Typography></Box>
+                        <Box><Typography><strong>Cidade:</strong> {data.cidade}/{data.uf}</Typography></Box>
                     </Box>
-
-                    {/* Item: Data Vistoria (Ocupa 1 coluna) */}
-                    <Box>
-                        <Typography><strong>Data Vistoria:</strong> {new Date(data.data_realizacao).toLocaleDateString()}</Typography>
-                    </Box>
-
-                    {/* Item: Endereço (Ocupa as 2 colunas - span 2) - Equivalente ao xs={12} */}
-                    <Box sx={{ gridColumn: 'span 2' }}>
-                        <Typography><strong>Endereço:</strong> {data.logradouro}, {data.numero} - {data.bairro}</Typography>
-                    </Box>
-
-                    {/* Item: Cidade (Ocupa 1 coluna) */}
-                    <Box>
-                        <Typography><strong>Cidade:</strong> {data.cidade}/{data.uf}</Typography>
-                    </Box>
-
-                    {/* Se houver mais itens abaixo que precisem ocupar a linha toda, use sx={{ gridColumn: 'span 2' }} neles também */}
-
                 </Box>
 
                 {/* Seção 2 */}
