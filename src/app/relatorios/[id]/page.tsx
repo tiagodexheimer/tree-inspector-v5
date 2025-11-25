@@ -4,18 +4,63 @@
 import React, { useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
 import {
-    Box, Typography, Paper, Divider, Grid, Button, CircularProgress,
-    Table, TableBody, TableCell, TableContainer, TableHead, TableRow
+    Box, Typography, Paper, Divider, Button, CircularProgress,
+    Table, TableBody, TableCell, TableContainer, TableHead, TableRow,
+    Card, CardMedia
 } from '@mui/material';
 import PrintIcon from '@mui/icons-material/Print';
 
-// Estilos para impressão (esconde botões, ajusta margens)
+// (Removida a importação de Grid que estava causando erro)
+
+// --- CSS DE IMPRESSÃO ROBUSTO ---
 const printStyles = `
   @media print {
-    body { padding: 0; background: white; }
-    .no-print { display: none !important; }
-    .page-container { box-shadow: none !important; border: none !important; width: 100% !important; margin: 0 !important; }
-    @page { margin: 2cm; }
+    /* 1. Esconde TUDO no site inicialmente */
+    body * {
+      visibility: hidden;
+    }
+
+    /* 2. Zera margens do navegador */
+    @page { 
+      margin: 0;
+      size: auto; 
+    }
+
+    /* 3. Configura o Body */
+    body {
+      margin: 0;
+      padding: 0;
+      background: white;
+    }
+
+    /* 4. Torna VISÍVEL apenas o nosso container de papel (e seus filhos) */
+    .page-container, .page-container * {
+      visibility: visible !important;
+    }
+
+    /* 5. Posiciona o papel absolutamente sobre todo o resto */
+    .page-container {
+      position: absolute !important;
+      left: 0 !important;
+      top: 0 !important;
+      width: 100% !important;
+      margin: 0 !important;
+      padding: 2cm !important; /* Margem interna do papel */
+      box-shadow: none !important;
+      border: none !important;
+      background: white !important;
+      z-index: 9999; /* Garante que fique por cima de tudo */
+    }
+
+    /* 6. Esconde botões que não devem sair na impressão */
+    .no-print {
+      display: none !important;
+    }
+
+    /* 7. Evita quebras indesejadas */
+    .image-container, tr, td {
+      page-break-inside: avoid;
+    }
   }
 `;
 
@@ -38,108 +83,159 @@ export default function DetalheRelatorioPage() {
     if (loading) return <Box sx={{ display: 'flex', justifyContent: 'center', mt: 10 }}><CircularProgress /></Box>;
     if (!data) return <Typography>Relatório não encontrado.</Typography>;
 
-    // Cruzamento: Respostas (JSON) vs Definição (Schema do Form)
-    // Para exibir o "Label" da pergunta e não o ID técnico
+    const isImageList = (value: any) => {
+        return Array.isArray(value) && value.length > 0 && typeof value[0] === 'string';
+    };
+
+    const getImageSrc = (imgStr: string) => {
+        if (imgStr.startsWith('http')) return imgStr;
+        if (imgStr.startsWith('data:image')) return imgStr;
+        if (imgStr.length > 200 && !imgStr.includes('/')) {
+             return `data:image/jpeg;base64,${imgStr}`;
+        }
+        return imgStr;
+    };
+
     const renderRespostas = () => {
         if (!data.respostas) return null;
 
-        // Se tivermos a definição dos campos, usamos para pegar o Label correto
         const camposDefinidos = data.definicaoCampos || [];
 
-        // Mapeia as respostas
         return Object.entries(data.respostas).map(([key, value]) => {
-            // Tenta encontrar a definição do campo pelo 'name'
-            const campoDef = camposDefinidos.find((c: any) => c.name === key);
-            const label = campoDef ? campoDef.label : key; // Se não achar, usa a chave (fallback)
+            if (value === null || value === undefined) return null;
 
-            // Formatação do valor
+            const campoDef = camposDefinidos.find((c: any) => c.name === key);
+            const label = key === 'fotos_evidencia' ? 'Evidências Fotográficas' : (campoDef ? campoDef.label : key);
+
+            // RENDERIZAÇÃO DE IMAGENS
+            if (isImageList(value)) {
+                const images = value as string[];
+                return (
+                    <TableRow key={key} className="image-container">
+                        <TableCell colSpan={2} sx={{ py: 3, borderBottom: 'none' }}>
+                            <Typography variant="subtitle2" sx={{ fontWeight: 'bold', mb: 2, color: '#333' }}>
+                                📸 {label}
+                            </Typography>
+                            
+                            {/* AJUSTE AQUI: Mudei para fixar 2 colunas sempre */}
+                            <Box sx={{ 
+                                display: 'grid',
+                                gridTemplateColumns: '1fr 1fr', // <-- Força 2 colunas grandes (50% cada)
+                                gap: 2,
+                                width: '100%'
+                            }}>
+                                {images.map((imgStr, idx) => (
+                                    <Box key={idx} sx={{ breakInside: 'avoid', pageBreakInside: 'avoid' }}>
+                                        <Card variant="outlined">
+                                            <CardMedia
+                                                component="img"
+                                                height="350" // <-- AUMENTEI A ALTURA (antes era 200) para a foto ficar grande
+                                                image={getImageSrc(imgStr)}
+                                                alt={`Foto ${idx + 1}`}
+                                                sx={{ objectFit: 'cover' }}
+                                                onError={(e: any) => {
+                                                    e.target.onerror = null; 
+                                                    e.target.src = 'https://via.placeholder.com/350?text=Err+Carregar';
+                                                }}
+                                            />
+                                        </Card>
+                                    </Box>
+                                ))}
+                            </Box>
+                        </TableCell>
+                    </TableRow>
+                );
+            }
+
+            // RENDERIZAÇÃO DE TEXTO/BOOLEAN
             let valorFormatado = String(value);
             if (typeof value === 'boolean') valorFormatado = value ? 'Sim' : 'Não';
             if (value === '') valorFormatado = '-';
 
             return (
                 <TableRow key={key}>
-                    <TableCell sx={{ fontWeight: 'bold', width: '40%' }}>{label}</TableCell>
-                    <TableCell>{valorFormatado}</TableCell>
+                    <TableCell sx={{ fontWeight: 'bold', width: '30%', verticalAlign: 'top', borderBottom: '1px solid #eee' }}>{label}</TableCell>
+                    <TableCell sx={{ borderBottom: '1px solid #eee' }}>{valorFormatado}</TableCell>
                 </TableRow>
             );
         });
     };
 
     return (
-        <Box sx={{ bgcolor: '#eee', minHeight: '100vh', py: 4, display: 'flex', justifyContent: 'center' }}>
-            <style>{printStyles}</style>
+        <Box sx={{ bgcolor: '#f5f5f5', minHeight: '100vh', py: 4, display: 'flex', justifyContent: 'center' }}>
+            {/* Injeta os estilos globais de impressão apenas nesta página */}
+            <style jsx global>{printStyles}</style>
 
-            {/* Container A4 Simulado */}
             <Paper
                 className="page-container"
+                elevation={3}
                 sx={{
-                    width: '210mm', // Largura A4
-                    minHeight: '297mm', // Altura A4
+                    width: '210mm',
+                    minHeight: '297mm',
                     p: 5,
                     bgcolor: 'white',
-                    position: 'relative'
+                    position: 'relative',
+                    mx: 'auto'
                 }}
             >
-                {/* Botão Flutuante de Imprimir */}
+                {/* Botão de Imprimir (Classe no-print esconde ele na impressão) */}
                 <Box sx={{ position: 'absolute', top: 20, right: 20 }} className="no-print">
-                    <Button variant="contained" startIcon={<PrintIcon />} onClick={() => window.print()}>
-                        Imprimir / Salvar PDF
+                    <Button 
+                        variant="contained" 
+                        color="primary" 
+                        startIcon={<PrintIcon />} 
+                        onClick={() => window.print()}
+                    >
+                        Imprimir / PDF
                     </Button>
                 </Box>
 
-                {/* Cabeçalho do Laudo */}
+                {/* Cabeçalho */}
                 <Box sx={{ textAlign: 'center', mb: 4 }}>
-                    <Typography variant="h4" fontWeight="bold" gutterBottom>LAUDO DE VISTORIA TÉCNICA</Typography>
-                    <Typography variant="subtitle1">Tree Inspector - Gestão de Arborização</Typography>
-                    <Divider sx={{ mt: 2, borderBottomWidth: 2, borderColor: 'black' }} />
+                    <Typography variant="h5" fontWeight="900" gutterBottom sx={{ textTransform: 'uppercase' }}>
+                        Laudo de Vistoria Técnica
+                    </Typography>
+                    <Typography variant="subtitle1" color="text.secondary">Tree Inspector - Gestão de Arborização</Typography>
+                    <Divider sx={{ mt: 2, borderBottomWidth: 2, borderColor: '#000' }} />
                 </Box>
 
-                {/* Dados da Demanda */}
+                {/* Seção 1 - SUBSTITUIÇÃO DO GRID POR BOX/CSS GRID */}
                 <Box sx={{ mb: 4 }}>
-                    <Typography variant="h6" sx={{ bgcolor: '#f0f0f0', p: 1, mb: 2, fontWeight: 'bold' }}>1. DADOS DA SOLICITAÇÃO</Typography>
-                    <div className="grid grid-cols-12 gap-4 p-2">
-                        {/* xs={6} -> col-span-6 */}
-                        <div className="col-span-6">
-                            <Typography><strong>Protocolo:</strong> {data.protocolo}</Typography>
-                        </div>
-
-                        {/* xs={6} -> col-span-6 */}
-                        <div className="col-span-6">
-                            <Typography><strong>Data Vistoria:</strong> {new Date(data.data_realizacao).toLocaleDateString()}</Typography>
-                        </div>
-
-                        {/* xs={12} -> col-span-12 */}
-                        <div className="col-span-12">
-                            <Typography><strong>Endereço:</strong> {data.logradouro}, {data.numero} - {data.bairro}</Typography>
-                        </div>
-
-                        {/* xs={6} -> col-span-6 */}
-                        <div className="col-span-6">
-                            <Typography><strong>Cidade:</strong> {data.cidade}/{data.uf}</Typography>
-                        </div>
-                    </div>
+                    <Typography variant="h6" sx={{ bgcolor: '#eee', p: 1, pl: 2, mb: 2, fontWeight: 'bold', borderRadius: 1 }}>
+                        1. DADOS DA SOLICITAÇÃO
+                    </Typography>
+                    
+                    <Box sx={{ 
+                        display: 'grid', 
+                        gridTemplateColumns: '1fr 1fr', // Duas colunas iguais
+                        gap: 2, 
+                        px: 1 
+                    }}>
+                        <Box><Typography><strong>Protocolo:</strong> {data.protocolo}</Typography></Box>
+                        <Box><Typography><strong>Data Vistoria:</strong> {new Date(data.data_realizacao).toLocaleDateString()}</Typography></Box>
+                        {/* gridColumn: 'span 2' faz o item ocupar a linha toda (como xs={12}) */}
+                        <Box sx={{ gridColumn: 'span 2' }}><Typography><strong>Endereço:</strong> {data.logradouro}, {data.numero} - {data.bairro}</Typography></Box>
+                        <Box><Typography><strong>Cidade:</strong> {data.cidade}/{data.uf}</Typography></Box>
+                    </Box>
                 </Box>
 
-                {/* Descrição Original */}
+                {/* Seção 2 */}
                 <Box sx={{ mb: 4 }}>
-                    <Typography variant="h6" sx={{ bgcolor: '#f0f0f0', p: 1, mb: 2, fontWeight: 'bold' }}>2. MOTIVO DA SOLICITAÇÃO</Typography>
-                    <Typography paragraph sx={{ textAlign: 'justify' }}>
+                    <Typography variant="h6" sx={{ bgcolor: '#eee', p: 1, pl: 2, mb: 2, fontWeight: 'bold', borderRadius: 1 }}>
+                        2. DESCRIÇÃO DA DEMANDA
+                    </Typography>
+                    <Typography paragraph sx={{ textAlign: 'justify', px: 1 }}>
                         {data.descricao_demanda}
                     </Typography>
                 </Box>
 
-                {/* Respostas do Formulário (Laudo Técnico) */}
+                {/* Seção 3 */}
                 <Box sx={{ mb: 4 }}>
-                    <Typography variant="h6" sx={{ bgcolor: '#f0f0f0', p: 1, mb: 0, fontWeight: 'bold' }}>3. PARECER TÉCNICO</Typography>
+                    <Typography variant="h6" sx={{ bgcolor: '#eee', p: 1, pl: 2, mb: 1, fontWeight: 'bold', borderRadius: 1 }}>
+                        3. PARECER TÉCNICO E EVIDÊNCIAS
+                    </Typography>
                     <TableContainer>
                         <Table size="small">
-                            <TableHead>
-                                <TableRow>
-                                    <TableCell sx={{ fontWeight: 'bold' }}>Item Avaliado</TableCell>
-                                    <TableCell sx={{ fontWeight: 'bold' }}>Resultado / Observação</TableCell>
-                                </TableRow>
-                            </TableHead>
                             <TableBody>
                                 {renderRespostas()}
                             </TableBody>
@@ -147,13 +243,13 @@ export default function DetalheRelatorioPage() {
                     </TableContainer>
                 </Box>
 
-                {/* Assinatura */}
-                <Box sx={{ mt: 10, textAlign: 'center', pageBreakInside: 'avoid' }}>
-                    <Divider sx={{ width: '50%', mx: 'auto', mb: 1, borderColor: 'black' }} />
+                {/* Rodapé / Assinatura */}
+                <Box sx={{ mt: 8, textAlign: 'center', pageBreakInside: 'avoid' }}>
+                    <Box sx={{ height: 50 }} /> {/* Espaço para assinatura */}
+                    <Divider sx={{ width: '60%', mx: 'auto', mb: 1, borderColor: '#000' }} />
                     <Typography fontWeight="bold">Responsável Técnico</Typography>
-                    <Typography variant="caption">Gerado eletronicamente em {new Date().toLocaleString()}</Typography>
+                    <Typography variant="caption" display="block">Documento gerado eletronicamente em {new Date().toLocaleString()}</Typography>
                 </Box>
-
             </Paper>
         </Box>
     );
