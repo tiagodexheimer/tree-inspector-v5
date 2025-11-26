@@ -31,6 +31,7 @@ jobs:
     - name: Install dependencies
       # Use a flag --legacy-peer-deps para evitar o erro de ERESOLVE
       run: npm install --legacy-peer-deps
+      working-directory: .
     - name: Install Playwright Browsers
       run: npx playwright install --with-deps
     # O Playwright já inicia o servidor web (webServer) com a conexão correta
