@@ -27,11 +27,11 @@ jobs:
     # +++ FIM DO BLOCO DE SERVIÇOS +++
 
     steps:
+    - uses: actions/checkout@v4
     # ... (o restante das suas etapas) ...
     - name: Install dependencies
       # Use a flag --legacy-peer-deps para evitar o erro de ERESOLVE
       run: npm install --legacy-peer-deps  
-      working-directory: . 
       # -----------------------------------------------------
     - name: Install Playwright Browsers
       run: npx playwright install --with-deps
