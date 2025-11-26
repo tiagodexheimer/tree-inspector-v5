@@ -16,7 +16,7 @@ function LoginContent() {
     const router = useRouter();
     // AQUI USAMOS O HOOK CLIENT-SIDE
     const searchParams = useSearchParams(); 
-    const callbackUrl = searchParams.get('callbackUrl') || '/demandas'; 
+    const callbackUrl = searchParams.get('callbackUrl') || '/dashboard';
     
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
@@ -37,7 +37,7 @@ function LoginContent() {
 
             if (result?.ok) {
                 // Redireciona para o callbackUrl
-                router.push(callbackUrl); 
+                router.push('/dashboard'); 
             } else {
                 setError('Email ou senha inválidos.');
             }

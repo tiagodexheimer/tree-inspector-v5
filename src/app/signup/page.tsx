@@ -43,7 +43,7 @@ export default function SignUpPage() {
         });
         
         if (loginResult?.ok) {
-            router.push('/demandas'); // Redireciona para a página principal
+            router.push('/dashboard'); // Redireciona para a página principal
         } else {
              // Se o login automático falhar (o que não deveria), redireciona para a página de login
             router.push('/login?message=registration_success');
