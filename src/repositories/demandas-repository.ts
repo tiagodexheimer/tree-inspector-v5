@@ -50,9 +50,11 @@ export interface UpdateDemandaDTO {
 
 export const DemandasRepository = {
   // ... (mantenha findAll e create aqui) ...
-  
+
   // --- LEITURA (findAll com Filtros) ---
-  async findAll(params: FindDemandasParams): Promise<{ demandas: any[]; totalCount: number }> {
+  async findAll(
+    params: FindDemandasParams
+  ): Promise<{ demandas: any[]; totalCount: number }> {
     // ... (código existente do findAll)
     const { page, limit, filtro, statusIds, tipoNomes } = params;
     const offset = (page - 1) * limit;
@@ -82,7 +84,8 @@ export const DemandasRepository = {
       counter++;
     }
 
-    const whereSql = whereClauses.length > 0 ? `WHERE ${whereClauses.join(' AND ')}` : '';
+    const whereSql =
+      whereClauses.length > 0 ? `WHERE ${whereClauses.join(" AND ")}` : "";
     const countQuery = `SELECT COUNT(d.id) AS count FROM demandas d ${whereSql}`;
     const countResult = await pool.query(countQuery, values);
     const totalCount = parseInt(countResult.rows[0].count, 10);
@@ -111,8 +114,8 @@ export const DemandasRepository = {
 
   // --- ESCRITA (Create) ---
   async create(data: CreateDemandaDTO): Promise<any> {
-     // ... (código existente do create)
-      const query = `
+    // ... (código existente do create)
+    const query = `
         INSERT INTO demandas (
             protocolo, nome_solicitante, telefone_solicitante, email_solicitante,
             cep, logradouro, numero, complemento, bairro, cidade, uf,
@@ -128,19 +131,34 @@ export const DemandasRepository = {
         )
         RETURNING *, ST_AsGeoJSON(geom) as geom, ST_Y(geom) as lat, ST_X(geom) as lng;
       `;
-      const values = [
-        data.protocolo, data.nome_solicitante, data.telefone_solicitante, data.email_solicitante,
-        data.cep, data.logradouro, data.numero, data.complemento, data.bairro, data.cidade, data.uf,
-        data.tipo_demanda, data.descricao, data.id_status,
-        data.lat, data.lng, data.prazo
-      ];
-      const result = await pool.query(query, values);
-      return result.rows[0];
+    const values = [
+      data.protocolo,
+      data.nome_solicitante,
+      data.telefone_solicitante,
+      data.email_solicitante,
+      data.cep,
+      data.logradouro,
+      data.numero,
+      data.complemento,
+      data.bairro,
+      data.cidade,
+      data.uf,
+      data.tipo_demanda,
+      data.descricao,
+      data.id_status,
+      data.lat,
+      data.lng,
+      data.prazo,
+    ];
+    const result = await pool.query(query, values);
+    return result.rows[0];
   },
 
   // [NOVO] Buscar por ID (útil para validações)
   async findById(id: number): Promise<any | null> {
-    const result = await pool.query("SELECT id FROM demandas WHERE id = $1", [id]);
+    const result = await pool.query("SELECT id FROM demandas WHERE id = $1", [
+      id,
+    ]);
     return result.rows[0] || null;
   },
 
@@ -168,7 +186,7 @@ export const DemandasRepository = {
               ELSE geom -- Mantém o geom antigo se não vierem coordenadas novas (ou defina NULL se preferir limpar)
             END
         WHERE id = $14
-        RETURNING id, protocolo, nome_solicitante, id_status, created_at, updated_at, prazo, ST_Y(geom) as lat, ST_X(geom) as lng;
+        RETURNING *, ST_Y(geom) as lat, ST_X(geom) as lng;
       `;
 
       const values = [
@@ -187,7 +205,7 @@ export const DemandasRepository = {
         data.prazo,
         id, // $14
         data.lat, // $15
-        data.lng  // $16
+        data.lng, // $16
       ];
 
       const result = await pool.query(query, values);
@@ -226,17 +244,19 @@ export const DemandasRepository = {
     }
   },
   // Adicione dentro do objeto DemandasRepository
-  
-async deleteMany(ids: number[]): Promise<void> {
+
+  async deleteMany(ids: number[]): Promise<void> {
     try {
       const query = `DELETE FROM demandas WHERE id = ANY($1)`;
       await pool.query(query, [ids]);
     } catch (error: any) {
       // Tratamento específico para erro de chave estrangeira (código 23503)
-      if (error.code === '23503') {
-         throw new Error("Não é possível excluir uma ou mais demandas pois elas estão vinculadas a rotas ativas. Remova-as das rotas antes de excluir.");
+      if (error.code === "23503") {
+        throw new Error(
+          "Não é possível excluir uma ou mais demandas pois elas estão vinculadas a rotas ativas. Remova-as das rotas antes de excluir."
+        );
       }
-      
+
       console.error("Erro no DemandasRepository.deleteMany:", error);
       throw new Error("Falha ao deletar demandas no banco de dados.");
     }
