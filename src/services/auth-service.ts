@@ -1,6 +1,6 @@
 // src/services/auth-service.ts
 import { userManagementService } from "@/services/user-management-service";
-import { compare } from "bcryptjs";
+import { compare } from "bcrypt";
 
 export const AuthService = {
   async authenticate(credentials: Partial<Record<"email" | "password", unknown>>) {

@@ -1,17 +1,19 @@
 // Arquivo: src/services/user-management-service.ts
 
-import bcrypt from "bcryptjs";
-import { UserRepository, UserPersistence } from "@/repositories/user-repository";
+import { hash } from "bcrypt";
+import {
+  UserRepository,
+  UserPersistence,
+} from "@/repositories/user-repository";
 
 interface CreateUserInput {
-  name?: string | null; 
+  name?: string | null;
   email: string;
   password: string;
   role: string;
 }
 
 export class UserManagementService {
-  
   async listAllUsers(): Promise<UserPersistence[]> {
     return await UserRepository.findAll();
   }
@@ -33,32 +35,39 @@ export class UserManagementService {
       throw new Error("Email já cadastrado.");
     }
 
-    const passwordHash = await bcrypt.hash(input.password, 10);
+    const passwordHash = await hash(input.password, 10);
 
     return await UserRepository.create({
-      name: input.name || "", 
+      name: input.name || "",
       email: input.email,
       passwordHash: passwordHash,
-      role: input.role
+      role: input.role,
     });
   }
 
-  async registerUser(input: { name?: string; email: string; password: string }): Promise<UserPersistence> {
+  async registerUser(input: {
+    name?: string;
+    email: string;
+    password: string;
+  }): Promise<UserPersistence> {
     return this.createUser({
       ...input,
-      role: 'free_user'
+      role: "free_user",
     });
   }
 
-  async deleteUser(userIdToDelete: string, currentAdminId: string): Promise<void> {
-     // ... (mantenha o código existente do deleteUser)
-     if (userIdToDelete === currentAdminId) {
-       throw new Error("Você não pode apagar a si mesmo.");
-     }
-     const wasDeleted = await UserRepository.delete(userIdToDelete);
-     if (!wasDeleted) {
-       throw new Error("Usuário não encontrado.");
-     }
+  async deleteUser(
+    userIdToDelete: string,
+    currentAdminId: string
+  ): Promise<void> {
+    // ... (mantenha o código existente do deleteUser)
+    if (userIdToDelete === currentAdminId) {
+      throw new Error("Você não pode apagar a si mesmo.");
+    }
+    const wasDeleted = await UserRepository.delete(userIdToDelete);
+    if (!wasDeleted) {
+      throw new Error("Usuário não encontrado.");
+    }
   }
 }
 

@@ -9,7 +9,9 @@
     "lint": "eslint",
     "test": "jest",
     "test:watch": "jest --watch",
-    "test:coverage": "jest --coverage"
+    "test:coverage": "jest --coverage",
+    "perf:server": "cross-env POSTGRES_URL=postgresql://test_user:test_password@localhost:5433/test_db next dev -p 3001",
+    "setup:db:test": "cross-env POSTGRES_URL=postgresql://test_user:test_password@localhost:5433/test_db node setup-test-db-robust.js"
   },
   "dependencies": {
     "@auth/pg-adapter": "^1.11.1",
@@ -52,6 +54,7 @@
     "@types/pg": "^8.15.5",
     "@types/react": "19.2.6",
     "@types/react-dom": "19.2.3",
+    "cross-env": "^10.1.0",
     "eslint": "^9",
     "eslint-config-next": "16.0.3",
     "jest": "^30.2.0",

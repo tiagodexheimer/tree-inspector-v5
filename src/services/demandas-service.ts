@@ -56,7 +56,7 @@ export class DemandasService {
         "Campos obrigatórios ausentes: CEP, Número, Tipo e Descrição."
       );
     }
-    const protocolo = `DEM-${Date.now()}`;
+    const protocolo = `DEM-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
     const statusPendente = await StatusRepository.findByName("Pendente");
     const initialStatusId = statusPendente?.id || null;
     const prazoDate =
