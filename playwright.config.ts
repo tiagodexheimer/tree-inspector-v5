@@ -16,16 +16,18 @@ export default defineConfig({
   },
 
   // Configura o servidor de desenvolvimento para subir antes dos testes
-  webServer: {
+ webServer: {
     command: 'npm run dev',
     url: 'http://localhost:3000',
     reuseExistingServer: !process.env.CI,
     timeout: 120 * 1000,
-    // [CORREÇÃO PARA WINDOWS]
-    // Definimos as variáveis de ambiente aqui dentro, em vez de na string de comando.
-    // Isso garante que o servidor de teste suba conectado ao banco da porta 5433.
     env: {
+      // Já existia:
       POSTGRES_URL: 'postgresql://test_user:test_password@localhost:5433/test_db',
+      // +++ CORREÇÕES +++
+      NEXTAUTH_SECRET: 'segredo-de-teste-ci', // Resolve MissingSecret
+      // Adicione outras chaves de API se forem essenciais para a inicialização:
+      GOOGLE_MAPS_API_KEY: 'test-api-key-playwright', 
     },
   },
 

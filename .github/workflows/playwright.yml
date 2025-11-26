@@ -8,15 +8,32 @@ jobs:
   test:
     timeout-minutes: 60
     runs-on: ubuntu-latest
+
+    # +++ INÍCIO DO BLOCO DE SERVIÇOS (Copiado de ci.yml) +++
+    services:
+      postgres:
+        image: postgis/postgis:16-3.4
+        env:
+          POSTGRES_USER: test_user
+          POSTGRES_PASSWORD: test_password
+          POSTGRES_DB: test_db
+        ports:
+          - 5433:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    # +++ FIM DO BLOCO DE SERVIÇOS +++
+
     steps:
-    - uses: actions/checkout@v4
-    - uses: actions/setup-node@v4
-      with:
-        node-version: lts/*
+    # ... (o restante das suas etapas) ...
     - name: Install dependencies
+      # Use a flag --legacy-peer-deps para evitar o erro de ERESOLVE
       run: npm ci --legacy-peer-deps
     - name: Install Playwright Browsers
       run: npx playwright install --with-deps
+    # O Playwright já inicia o servidor web (webServer) com a conexão correta
     - name: Run Playwright tests
       run: npx playwright test
     - uses: actions/upload-artifact@v4
