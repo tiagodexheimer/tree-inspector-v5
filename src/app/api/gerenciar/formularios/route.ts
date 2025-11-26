@@ -105,20 +105,24 @@ export async function GET() {
   }
 
   try {
-    // Query para listar todos os formulários e o tipo de demanda associado (se houver)
+    // Query modificada para usar STRING_AGG e GROUP BY
     const query = `
       SELECT 
         f.id, 
         f.nome, 
         f.descricao, 
         f.updated_at,
-        dt.nome AS tipo_demanda_associada
+        -- MODIFICAÇÃO: Concatena todos os tipos de demanda associados em uma única string
+        STRING_AGG(dt.nome, ', ') AS tipo_demanda_associada
       FROM 
         formularios f
       LEFT JOIN 
         demandas_tipos_formularios dtf ON f.id = dtf.id_formulario
       LEFT JOIN 
         demandas_tipos dt ON dtf.id_tipo_demanda = dt.id
+      -- OBRIGATÓRIO: Agrupa pelo ID e por todas as colunas que não são agregadas
+      GROUP BY
+        f.id, f.nome, f.descricao, f.updated_at 
       ORDER BY
         f.updated_at DESC;
     `;
