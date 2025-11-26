@@ -1,8 +1,8 @@
+// Arquivo: jest.config.ts
 import type { Config } from 'jest'
 import nextJest from 'next/jest.js'
 
 const createJestConfig = nextJest({
-  // Provide the path to your Next.js app to load next.config.js and .env files in your test environment
   dir: './',
 })
 
@@ -10,6 +10,11 @@ const createJestConfig = nextJest({
 const config: Config = {
   coverageProvider: 'v8',
   testEnvironment: 'jsdom',
+  // Adiciona a exclusão da pasta 'tests/'
+  testPathIgnorePatterns: [
+    "/node_modules/",
+    "/tests/" 
+  ],
   // Add more setup options before each test is run
   setupFilesAfterEnv: ['<rootDir>/jest.setup.ts'],
   moduleNameMapper: {

@@ -18,7 +18,8 @@ interface FormularioRow {
     nome: string;
     descricao: string | null;
     updated_at: string;
-    tipo_demanda_associada: string | null;
+    // 💡 IMPORTANTE: Este campo virá com os tipos agrupados por STRING_AGG do backend
+    tipo_demanda_associada: string | null; 
 }
 
 interface Props {
@@ -58,7 +59,7 @@ export default function VisualizarFormularios({ onEdit, onDelete, refreshTrigger
         fetchFormularios();
     }, [refreshTrigger]);
 
-    // [NOVO] Função para buscar detalhes e abrir o "celular"
+    // Função para buscar detalhes e abrir o "celular"
     const handleVisualize = async (id: number) => {
         setPreviewLoading(true);
         setPreviewOpen(true); // Abre o modal imediatamente com loading
@@ -88,11 +89,36 @@ export default function VisualizarFormularios({ onEdit, onDelete, refreshTrigger
         { field: 'nome', headerName: 'Nome', flex: 1, minWidth: 150 },
         { field: 'descricao', headerName: 'Descrição', flex: 1.5, minWidth: 200, valueFormatter: (value: string | null) => value || '-' },
         { 
-            field: 'tipo_demanda_associada', headerName: 'Tipo de Demanda', width: 200,
-            renderCell: (params) => (
-                params.value ? <Typography variant="body2" sx={{ fontWeight: 'bold', color: 'primary.main' }}>{params.value}</Typography>
-                             : <Typography variant="caption" color="text.secondary">Sem vínculo</Typography>
-            )
+            field: 'tipo_demanda_associada', 
+            headerName: 'Tipo de Demanda', 
+            // 💡 CORREÇÃO 1: Usar flex e minWidth para garantir mais espaço
+            flex: 1.5, 
+            minWidth: 220, 
+            renderCell: (params) => {
+                const content = params.value;
+                if (!content) {
+                    return <Typography variant="caption" color="text.secondary">Sem vínculo</Typography>;
+                }
+                return (
+                    <Box 
+                       // 💡 CORREÇÃO 2: Permite a quebra de linha (que resolve o corte)
+                       sx={{ 
+                           whiteSpace: 'normal', 
+                           lineHeight: '1.4', 
+                           height: '100%', 
+                           overflow: 'visible',
+                           pt: 0.5 
+                        }}
+                    >
+                        <Typography 
+                           variant="body2" 
+                           sx={{ fontWeight: 'bold', color: 'primary.main' }}
+                        >
+                           {content}
+                        </Typography>
+                    </Box>
+                );
+            }
         },
         { field: 'updated_at', headerName: 'Atualizado em', width: 150, valueFormatter: (value: string) => value ? new Date(value).toLocaleDateString('pt-BR') : '-' },
         {
@@ -100,7 +126,7 @@ export default function VisualizarFormularios({ onEdit, onDelete, refreshTrigger
             getActions: (params) => [
                 <GridActionsCellItem
                     key="view" icon={<VisibilityIcon />} label="Visualizar"
-                    onClick={() => handleVisualize(Number(params.id))} // [ATUALIZADO]
+                    onClick={() => handleVisualize(Number(params.id))}
                 />,
                 <GridActionsCellItem
                     key="edit" icon={<CreateIcon />} label="Editar"
@@ -128,7 +154,10 @@ export default function VisualizarFormularios({ onEdit, onDelete, refreshTrigger
                     <DataGrid 
                         rows={rows} columns={columns} 
                         initialState={{ pagination: { paginationModel: { page: 0, pageSize: 10 } } }}
-                        pageSizeOptions={[5, 10, 25]} disableRowSelectionOnClick sx={{ border: 0 }} 
+                        pageSizeOptions={[5, 10, 25]} disableRowSelectionOnClick 
+                        // Permite que o DataGrid ajuste a altura das linhas para acomodar o texto quebrado
+                        getRowHeight={() => 'auto'}
+                        sx={{ border: 0 }} 
                     />
                 )}
             </Box>
@@ -137,11 +166,11 @@ export default function VisualizarFormularios({ onEdit, onDelete, refreshTrigger
             <Dialog 
                 open={previewOpen} 
                 onClose={handleClosePreview}
-                maxWidth="sm" // Largura adequada para o celular
+                maxWidth="sm" 
                 fullWidth
                 PaperProps={{
                     sx: { 
-                        bgcolor: 'transparent', // Fundo transparente para destacar o celular
+                        bgcolor: 'transparent', 
                         boxShadow: 'none',
                         overflow: 'hidden' 
                     }

@@ -1,14 +1,14 @@
 // test-hash.js
-const bcrypt = require('bcryptjs');
+const bcrypt = require('bcryptjs'); 
 
-// 1. O hash do banco de dados (que você forneceu)
-const storedHash = '$2b$10$8kNU8J5ncoRSymRWJ8cxa.fCY9rpDv0BQZyfIG3ypI9gN4Q280T1i';
+// 1. O hash do banco de dados (COLE AQUI O HASH DO PASSO 1)
+const storedHash = '$2b$10$37fHI9.LCc13OokfwFfim.MAsxq0z22.cRHkPjwVmjFGKmSQjsGt.'; 
 
-// 2. A senha que você ACHA que está correta.
-// ATENÇÃO: Digite essa senha exatamente como você digita no app.
-const passwordToTest = '2134'; // <--- Substitua pela senha!
+// 2. A senha que você ACHA que está correta (TEXTO PURO)
+const passwordToTest = 'senha'; // <--- Substitua pela senha!
 
 async function testPassword() {
+  // Use bcryptjs.compare, pois sua aplicação usa bcrypt para a comparação
   const isValid = await bcrypt.compare(passwordToTest, storedHash);
   console.log(`A senha é válida? ${isValid}`);
 }

@@ -1,31 +1,58 @@
-// src/auth.ts
-import NextAuth from "next-auth";
-import Credentials from "next-auth/providers/credentials";
-import { AuthService } from "@/services/auth-service";
+import NextAuth, { type NextAuthConfig } from 'next-auth';
+import CredentialsProvider from 'next-auth/providers/credentials';
+import { NextResponse, type NextRequest } from 'next/server';
+// 💡 CORREÇÃO DE ERRO: Importa o objeto AuthService completo.
+import { AuthService } from '@/services/auth-service'; 
 
-export const { handlers, signIn, signOut, auth } = NextAuth({
+// Caminhos que não requerem autenticação (incluindo as APIs de autenticação)
+const publicRoutes = ['/login', '/signup', '/api/auth/signup', '/api/mobile-login'];
+
+// Caminhos que requerem role 'admin'
+const adminRoutes = ['/gerenciar', '/api/admin', '/api/gerenciar'];
+
+export const authConfig: NextAuthConfig = {
+  // Configurações de Sessão e Páginas
   session: {
-    strategy: "jwt",
+    strategy: 'jwt', 
   },
   pages: {
-    signIn: "/login",
+    signIn: '/login', // Redireciona para esta página se não estiver logado
   },
+  
+  // Provedores (Credentials para autenticação por email/senha)
   providers: [
-    Credentials({
-      name: "Credentials",
+    CredentialsProvider({
+      name: 'Credentials',
       credentials: {
-        email: { label: "Email", type: "text" },
-        password: { label: "Password", type: "password" },
+        email: { label: 'Email', type: 'email' },
+        password: { label: 'Password', type: 'password' },
       },
-      authorize: async (credentials) => {
-        // Delega a autenticação para o serviço dedicado
-        const user = await AuthService.authenticate(credentials);
-        return user;
+      async authorize(credentials) {
+        if (!credentials?.email || !credentials?.password) {
+          return null;
+        }
+
+        try {
+          // 💡 CORREÇÃO DE ERRO: Chama o método authenticate dentro do objeto AuthService.
+          const user = await AuthService.authenticate(credentials); 
+          
+          if (user) {
+            return user;
+          }
+          return null;
+        } catch (error) {
+          console.error('Falha na autenticação:', error);
+          throw new Error('Credenciais inválidas.');
+        }
       },
     }),
   ],
+
+  // Callbacks: Essenciais para a propagação correta do ROLE e proteção de rotas
   callbacks: {
-    // 1. JWT Callback: Adiciona ID e Role ao token quando o user loga
+    /**
+     * 1. JWT Callback: Adiciona 'id' e 'role' do objeto 'user' (vindo do authorize) ao token JWT.
+     */
     async jwt({ token, user }) {
       if (user) {
         token.id = user.id;
@@ -33,7 +60,10 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
       }
       return token;
     },
-    // 2. Session Callback: Passa os dados do token para a sessão do cliente
+    
+    /**
+     * 2. Session Callback: Lê 'id' e 'role' do token JWT e injeta esses dados no objeto 'session.user'.
+     */
     async session({ session, token }) {
       if (token && session.user) {
         session.user.id = token.id as string;
@@ -41,33 +71,53 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
       }
       return session;
     },
-    // 3. Middleware de Autorização
-    authorized({ auth, request: { nextUrl } }) {
+    
+    /**
+     * 3. Authorized Callback (Middleware de Proteção de Rotas)
+     * 💡 CORREÇÃO DE ERRO: Lógica aprimorada para evitar loops de redirecionamento.
+     */
+    authorized({ auth, request: { nextUrl } }: { auth: any, request: NextRequest }) {
       const isLoggedIn = !!auth?.user;
+      const pathname = nextUrl.pathname;
+
+      // A) TRATAMENTO DA ROTA RAIZ (/)
+      if (pathname === '/') {
+          if (isLoggedIn) {
+              // Se logado, vai para /dashboard
+              return NextResponse.redirect(new URL('/dashboard', nextUrl));
+          }
+          // Se não estiver logado, vai para /login
+          return NextResponse.redirect(new URL('/login', nextUrl)); 
+      }
       
-      // Rotas Protegidas (Adicionamos /dashboard aqui)
-      const isOnDashboard = nextUrl.pathname.startsWith('/demandas') || 
-                            nextUrl.pathname.startsWith('/rotas') || 
-                            nextUrl.pathname.startsWith('/gerenciar') ||
-                            nextUrl.pathname.startsWith('/dashboard');
-
-      // Rotas de Autenticação (Login/Signup)
-      const isOnAuth = nextUrl.pathname.startsWith('/login') || nextUrl.pathname.startsWith('/signup');
-
-      if (isOnDashboard) {
-        // Se tentar acessar área logada sem estar logado -> Bloqueia (vai para login)
-        if (isLoggedIn) return true;
-        return false; 
-      } else if (isOnAuth) {
-        // Se tentar acessar login já estando logado -> Redireciona para o Dashboard
-        if (isLoggedIn) {
-           return Response.redirect(new URL('/dashboard', nextUrl));
+      // B) ROTAS PÚBLICAS
+      if (publicRoutes.some(route => pathname.startsWith(route))) {
+        // Se estiver em uma rota de login/signup e já estiver logado, redireciona para o dashboard
+        if (isLoggedIn && (pathname.startsWith('/login') || pathname.startsWith('/signup'))) {
+            return NextResponse.redirect(new URL('/dashboard', nextUrl));
         }
         return true;
       }
+
+      // C) ROTAS PROTEGIDAS POR ADMIN
+      const isAdminRoute = adminRoutes.some(route => pathname.startsWith(route));
+      if (isAdminRoute) {
+        if (auth?.user?.role !== 'admin') {
+          // Acesso negado, redireciona para o dashboard
+          return NextResponse.redirect(new URL('/dashboard', nextUrl)); 
+        }
+      }
       
-      // Outras rotas (ex: API, public assets) -> Permite
+      // D) ROTAS GERAIS PROTEGIDAS (Ex: /dashboard, /demandas, /rotas)
+      if (!isLoggedIn) {
+        // Redireciona para /login (retorna false para que o NextAuth faça o redirecionamento configurado)
+        return false; 
+      }
+
+      // Se logado e tudo mais checado, permite o acesso.
       return true;
     },
   },
-});
+};
+
+export const { handlers, signIn, signOut, auth } = NextAuth(authConfig);
