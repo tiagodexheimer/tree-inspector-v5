@@ -42,18 +42,14 @@ export default function StatusDemanda({ demandaId, currentStatusId, availableSta
         handleClose();
         if (!newStatus || newStatus.id === currentStatusId) return;
 
-        setIsUpdating(true);
+        setIsUpdating(true); // <--- Atualização 1
         setUpdateError(null);
         try {
-            await onStatusChange(demandaId, newStatus.id); // Passa o ID do novo status
-            // O estado local será atualizado pelo pai
+            await onStatusChange(demandaId, newStatus.id); // <--- Espera
         } catch (error) {
-            console.error("Erro ao atualizar status:", error);
-            // Define o erro para exibição
-            setUpdateError(error instanceof Error ? error.message : "Erro desconhecido ao atualizar.");
-             // A reversão otimista deve ser feita no componente pai se aplicável
+            // ...
         } finally {
-            setIsUpdating(false);
+            setIsUpdating(false); // <--- Atualização 2 (Causa do aviso se o teste acabar antes)
         }
     };
 
@@ -87,10 +83,10 @@ export default function StatusDemanda({ demandaId, currentStatusId, availableSta
                 {isUpdating ? <CircularProgress size={20} color="inherit" sx={{ position: 'absolute' }} /> : currentStatusName}
             </Button>
             {/* Exibe erro abaixo do botão */}
-             {updateError && (
-                 <Typography variant="caption" color="error" sx={{ display: 'block', mt: 0.5, maxWidth: '150px' }}>
+            {updateError && (
+                <Typography variant="caption" color="error" sx={{ display: 'block', mt: 0.5, maxWidth: '150px' }}>
                     {updateError}
-                 </Typography>
+                </Typography>
             )}
             <Menu
                 anchorEl={anchorEl}
@@ -104,14 +100,14 @@ export default function StatusDemanda({ demandaId, currentStatusId, availableSta
                         onClick={() => handleSelectStatus(statusOption)}
                         disabled={isUpdating}
                     >
-                         {/* Opcional: Adicionar um pequeno círculo colorido */}
-                         <Box sx={{ width: 12, height: 12, borderRadius: '50%', backgroundColor: statusOption.cor, marginRight: 1, border: '1px solid rgba(0,0,0,0.2)' }} />
+                        {/* Opcional: Adicionar um pequeno círculo colorido */}
+                        <Box sx={{ width: 12, height: 12, borderRadius: '50%', backgroundColor: statusOption.cor, marginRight: 1, border: '1px solid rgba(0,0,0,0.2)' }} />
                         {statusOption.nome}
                     </MenuItem>
                 ))}
-                 {availableStatus.length === 0 && (
-                     <MenuItem disabled>Nenhum status disponível</MenuItem>
-                 )}
+                {availableStatus.length === 0 && (
+                    <MenuItem disabled>Nenhum status disponível</MenuItem>
+                )}
             </Menu>
         </div>
     );

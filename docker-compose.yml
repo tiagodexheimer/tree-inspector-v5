@@ -1,18 +1,35 @@
 version: '3.8' # Especifica a versão do Docker Compose
 
 services:
+  # Banco de Desenvolvimento (Mantido igual, na porta 5432)
   db:
-    image: postgis/postgis:16-3.4 # Imagem oficial do PostGIS (PostgreSQL 16 com PostGIS 3.4)
-    container_name: postgis_db_crud # Nome do container (opcional, mas útil)
+    image: postgis/postgis:16-3.4
+    container_name: postgis_db_crud
     environment:
-      POSTGRES_USER: meuusuario       # Nome de usuário do banco de dados
-      POSTGRES_PASSWORD: minhasenhasecreta # Senha do banco de dados
-      POSTGRES_DB: meubanco_gis       # Nome do banco de dados a ser criado
+      POSTGRES_USER: meuusuario
+      POSTGRES_PASSWORD: minhasenhasecreta
+      POSTGRES_DB: meubanco_gis
     ports:
-      - "5432:5432" # Mapeia a porta 5432 do container para a 5432 da sua máquina
+      - "5432:5432"
     volumes:
-      - postgres_data:/var/lib/postgresql/data # Volume para persistir os dados
-    restart: always # Reinicia o container se ele parar
+      - postgres_data:/var/lib/postgresql/data
+    restart: always
+
+  # [NOVO] Banco de Testes (Porta 5433)
+  # Este banco é volátil (sem volume persistente) para ser rápido e limpo
+  db_test:
+    image: postgis/postgis:16-3.4
+    container_name: postgis_db_test
+    environment:
+      POSTGRES_USER: test_user
+      POSTGRES_PASSWORD: test_password
+      POSTGRES_DB: test_db
+    ports:
+      - "5433:5432" # Mapeia a 5432 do container para a 5433 do host
+    restart: always
+    # tmpfs torna o banco muito mais rápido para testes pois roda na memória RAM
+    tmpfs:
+      - /var/lib/postgresql/data
 
 volumes:
-  postgres_data: # Define o volume nomeado para persistência
+  postgres_data:
