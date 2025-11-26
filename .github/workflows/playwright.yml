@@ -33,6 +33,15 @@ jobs:
       # Use a flag --legacy-peer-deps para evitar o erro de ERESOLVE
       run: npm install --legacy-peer-deps  
       # -----------------------------------------------------
+    - name: Wait for DB and Setup Schema
+      # Este comando executa o script que limpa e cria a tabela 'users'
+      # Ele já está definido no seu package.json: "setup:db:test"
+      run: npm run setup:db:test
+      # As variáveis de ambiente garantem que o script se conecte à porta 5433
+      env:
+        POSTGRES_URL: postgresql://test_user:test_password@localhost:5433/test_db
+        # Necessário se o script de setup for em TS e usar ts-node
+        NODE_OPTIONS: --loader ts-node/esm
     - name: Install Playwright Browsers
       run: npx playwright install --with-deps
     # O Playwright já inicia o servidor web (webServer) com a conexão correta
