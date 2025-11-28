@@ -1,16 +1,95 @@
-/* src/app/globals.css */
+/* =============================== */
+/* Tailwind Base */
+/* =============================== */
 @import "tailwindcss";
 
-/* Estilos para o marcador numerado 
-  Baseado no arquivo:
+/* =============================== */
+/* RESET E NORMALIZAÇÃO MOBILE-FIRST */
+/* =============================== */
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+html {
+  font-size: 16px;                /* Mantém acessível */
+  -webkit-text-size-adjust: 100%; /* Evita zoom forçado */
+  scroll-behavior: smooth;
+}
+
+body {
+  width: 100%;
+  min-height: 100vh;
+  font-family: system-ui, sans-serif;
+  color: #222;
+  background-color: #f7f7f7;
+  overflow-x: hidden; /* Importantíssimo para mobile */
+}
+
+/* Elementos interativos */
+button,
+input,
+textarea,
+select {
+  font-family: inherit;
+  font-size: 1rem;
+}
+
+/* Links */
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+/* Mídias responsivas */
+img,
+video,
+canvas {
+  max-width: 100%;
+  height: auto;
+}
+
+
+/* =============================== */
+/* AJUSTES DE LAYOUT MOBILE-FIRST */
+/* =============================== */
+
+/* Tailwind já trabalha mobile-first, mas aqui garantimos:
+   - inputs 100%
+   - formulários não estouram a tela
 */
+
+input,
+select,
+textarea {
+  width: 100%;
+}
+
+
+/* =============================== */
+/* AJUSTES DO LEAFLET PARA NÃO QUEBRAR NO MOBILE */
+/* =============================== */
+
+.leaflet-container {
+  width: 100% !important;
+  height: 100%;
+  touch-action: none;
+}
+
+
+/* =============================== */
+/* ÍCONES NUMERADOS DOS MARCADORES */
+/* =============================== */
+
 .leaflet-div-icon {
   background: transparent;
   border: none;
 }
 
 .numbered-marker-icon {
-  background-color: #1976d2; /* Cor azul (padrão MUI) */
+  background-color: #1976d2; /* Azul MUI */
   color: white;
   font-weight: bold;
   font-size: 12px;
@@ -20,5 +99,26 @@
   width: 20px;
   height: 20px;
   border: 2px solid white;
-  box-shadow: 0 2px 5px rgba(0,0,0,0.5);
+  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.5);
+}
+
+
+/* =============================== */
+/* BREAKPOINTS OPCIONAIS (CASO USE SEM TAILWIND) */
+/* =============================== */
+
+@media (min-width: 640px) {
+  /* sm */
+}
+
+@media (min-width: 768px) {
+  /* md */
+}
+
+@media (min-width: 1024px) {
+  /* lg */
+}
+
+@media (min-width: 1280px) {
+  /* xl */
 }

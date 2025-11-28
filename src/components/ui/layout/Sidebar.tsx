@@ -4,20 +4,17 @@
 import React from 'react';
 import { 
     Box, Divider, List, ListItem, ListItemButton, 
-    ListItemIcon, ListItemText, Toolbar, useTheme, useMediaQuery, 
-    Drawer // <--- NOVO
+    ListItemIcon, ListItemText, Toolbar, useTheme, useMediaQuery, Drawer
 } from '@mui/material';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 
-// Ícones
 import DashboardIcon from '@mui/icons-material/Dashboard';
 import PinDropIcon from '@mui/icons-material/PinDrop';
 import AltRouteIcon from '@mui/icons-material/AltRoute';
 import SettingsIcon from '@mui/icons-material/Settings';
 import BarChartIcon from '@mui/icons-material/BarChart';
 
-// Definição da largura (constante)
 const SIDEBAR_WIDTH = 240;
 
 const navItems = [
@@ -28,17 +25,17 @@ const navItems = [
     { text: 'Gerenciar', icon: <SettingsIcon />, href: '/gerenciar' },
 ];
 
-// Adicionamos as props de estado mobile
 interface SidebarProps {
-    mobileOpen: boolean; // <--- NOVO
-    handleDrawerToggle: () => void; // <--- NOVO
+    mobileOpen: boolean;
+    handleDrawerToggle: () => void;
 }
 
-// Modificado para aceitar as props
 export default function Sidebar({ mobileOpen, handleDrawerToggle }: SidebarProps) {
     const pathname = usePathname();
     const theme = useTheme();
-    const isMobile = useMediaQuery(theme.breakpoints.down('sm')); 
+
+    // AGORA: mobile/tablet = até 960px
+    const isMobile = useMediaQuery(theme.breakpoints.down('md'));
 
     const drawerContent = (
         <Box onClick={isMobile ? handleDrawerToggle : undefined}>
@@ -47,22 +44,22 @@ export default function Sidebar({ mobileOpen, handleDrawerToggle }: SidebarProps
             <List>
                 {navItems.map((item) => (
                     <ListItem key={item.text} disablePadding>
-                        <ListItemButton 
-                            component={Link} 
+                        <ListItemButton
+                            component={Link}
                             href={item.href}
                             selected={pathname === item.href}
-                            // Corrigindo a cor do texto/ícone para contrastar com o fundo escuro
                             sx={{
                                 '&.Mui-selected': { 
-                                    backgroundColor: 'rgba(255, 255, 255, 0.2)', // Branco semi-transparente
+                                    backgroundColor: 'rgba(255, 255, 255, 0.2)',
                                 },
                                 '&:hover': {
                                     backgroundColor: 'rgba(255, 255, 255, 0.1)',
                                 },
                             }}
                         >
-                            {/* Corrigindo a cor dos ícones e texto para branco/claro */}
-                            <ListItemIcon sx={{ color: 'white' }}>{item.icon}</ListItemIcon> 
+                            <ListItemIcon sx={{ color: 'white' }}>
+                                {item.icon}
+                            </ListItemIcon>
                             <ListItemText primary={item.text} sx={{ color: 'white' }} />
                         </ListItemButton>
                     </ListItem>
@@ -71,7 +68,7 @@ export default function Sidebar({ mobileOpen, handleDrawerToggle }: SidebarProps
         </Box>
     );
 
-    // Renderiza o Drawer temporário para Mobile
+    /* MOBILE + TABLET → Temporary drawer */
     if (isMobile) {
         return (
             <Drawer
@@ -81,10 +78,9 @@ export default function Sidebar({ mobileOpen, handleDrawerToggle }: SidebarProps
                 ModalProps={{ keepMounted: true }} 
                 sx={{
                     '& .MuiDrawer-paper': { 
-                        boxSizing: 'border-box', 
+                        boxSizing: 'border-box',
                         width: SIDEBAR_WIDTH,
-                        // APLICAÇÃO DA COR MARROM (Secondary)
-                        backgroundColor: theme.palette.secondary.main, 
+                        backgroundColor: theme.palette.secondary.main,
                     },
                 }}
             >
@@ -93,18 +89,17 @@ export default function Sidebar({ mobileOpen, handleDrawerToggle }: SidebarProps
         );
     }
 
-    // Renderiza o Sidebar permanente para Desktop
+    /* DESKTOP → Permanent drawer */
     return (
         <Drawer
             variant="permanent"
             sx={{
                 width: SIDEBAR_WIDTH,
                 flexShrink: 0,
-                [`& .MuiDrawer-paper`]: { 
-                    width: SIDEBAR_WIDTH, 
+                [`& .MuiDrawer-paper`]: {
+                    width: SIDEBAR_WIDTH,
                     boxSizing: 'border-box',
-                    // APLICAÇÃO DA COR MARROM (Secondary)
-                    backgroundColor: theme.palette.secondary.main, 
+                    backgroundColor: theme.palette.secondary.main,
                 },
             }}
         >

@@ -1,48 +1,38 @@
-// src/components/ui/demandas/ListaListDemanda.tsx
 'use client';
-// --- INÍCIO DA CORREÇÃO ---
-// 1. Remove a importação do enum 'Status' e ajusta DemandaType (ou define a interface estendida)
-import { DemandaType } from "@/types/demanda"; 
-import { TableContainer, Table, TableHead, TableRow, TableCell, TableBody, Paper, IconButton } from "@mui/material";
-// 2. Importa o StatusDemanda (já estava correto)
+
+import { DemandaType } from "@/types/demanda";
+import {
+    TableContainer, Table, TableHead, TableRow, TableCell, TableBody,
+    Paper, IconButton, Box, useMediaQuery, useTheme, Button
+} from "@mui/material";
 import StatusDemanda from "./StatusDemanda";
 import DeleteIcon from '@mui/icons-material/Delete';
 import EditIcon from '@mui/icons-material/Edit';
 
-// 3. Define as interfaces locais necessárias (copiadas de ListaCardDemanda/StatusDemanda)
-// Interface para o tipo Status vindo da API
 interface StatusOption {
     id: number;
     nome: string;
     cor: string;
 }
 
-// Interface atualizada para DemandaType para incluir id_status, lat e lng
 interface DemandaComIdStatus extends DemandaType {
     id_status?: number | null;
-    status_nome?: string; // Campos opcionais que podem vir do JOIN
+    status_nome?: string;
     status_cor?: string;
-    lat: number | null; // <-- ADICIONADO/CORRIGIDO
-    lng: number | null; // <-- ADICIONADO/CORRIGIDO
+    lat: number | null;
+    lng: number | null;
 }
 
-// 4. Atualiza a interface de Props
 interface ListDemandaProps {
-    demandas: DemandaComIdStatus[]; // <-- Usa a interface estendida
+    demandas: DemandaComIdStatus[];
     selectedDemandas: number[];
     onSelectDemanda: (id: number) => void;
-    onSelectAll?: () => void;
-    numSelected?: number;
-    rowCount?: number;
     onDelete: (id: number) => void;
-    onEdit: (demanda: DemandaComIdStatus) => void; // <-- Usa a interface estendida
-    
-    // 5. Atualiza as props de Status
-    onStatusChange: (demandaId: number, newStatusId: number) => Promise<void>; // <-- Espera ID
-    availableStatus: StatusOption[]; // <-- Adiciona prop
+    onEdit: (demanda: DemandaComIdStatus) => void;
+    onStatusChange: (demandaId: number, newStatusId: number) => Promise<void>;
+    availableStatus: StatusOption[];
 }
 
-// 6. Recebe a nova prop 'availableStatus'
 export default function ListaListDemanda({
     demandas,
     selectedDemandas,
@@ -50,14 +40,12 @@ export default function ListaListDemanda({
     onDelete,
     onEdit,
     onStatusChange,
-    availableStatus, // <-- Recebe a prop aqui
-    //onSelectAll,
-    //numSelected,
-    //rowCount
-}: ListDemandaProps){
-// --- FIM DA CORREÇÃO ---
+    availableStatus
+}: ListDemandaProps) {
 
-    // Função para formatar prazo (mantida como estava)
+    const theme = useTheme();
+    const isMobile = useMediaQuery(theme.breakpoints.down("sm"));
+
     const formatPrazo = (date: Date | null | undefined): string => {
         if (date instanceof Date && !isNaN(date.getTime())) {
             try { return date.toLocaleDateString('pt-BR'); }
@@ -66,7 +54,6 @@ export default function ListaListDemanda({
         return 'Não definido';
     };
 
-    // Função para formatar endereço (mantida como estava)
     const formatEnderecoCompleto = (d: DemandaType): string => {
         const parts = [
             d.logradouro,
@@ -78,112 +65,196 @@ export default function ListaListDemanda({
         ];
         const formatted = parts.filter(Boolean).join('').trim();
         return formatted.startsWith(', ') ? formatted.substring(2) :
-               formatted.startsWith(' - ') ? formatted.substring(3) :
-               formatted || 'Endereço não informado';
+            formatted.startsWith(' - ') ? formatted.substring(3) :
+                formatted || 'Endereço não informado';
     };
 
-    return (
-        // A div externa pode precisar de estilos, ex: padding, se não vierem da página pai
-        <div>
-            <TableContainer component={Paper}>
-                <Table stickyHeader aria-label="Tabela de Demandas">
-                    <TableHead>
-                        <TableRow>
-                            {/* Ajuste os cabeçalhos conforme necessário */}
-                            <TableCell sx={{ fontWeight: 'bold' }}>ID</TableCell>
-                            <TableCell sx={{ fontWeight: 'bold' }}>Endereço Completo</TableCell>
-                            <TableCell sx={{ fontWeight: 'bold' }}>Tipo</TableCell>
-                            <TableCell sx={{ fontWeight: 'bold' }}>Prazo</TableCell>
-                            <TableCell sx={{ fontWeight: 'bold' }}>Status</TableCell>
-                            <TableCell sx={{ fontWeight: 'bold' }} align="right">Ações</TableCell>
-                        </TableRow>
-                    </TableHead>
-                    <TableBody>
-                        {demandas.map((demanda) => {
-                            // Verifica se a linha está selecionada
-                            const isSelected = demanda.id !== undefined && selectedDemandas.includes(demanda.id);
-                            
-                            // --- INÍCIO DA CORREÇÃO ---
-                            // 7. Pega o ID da demanda e o ID do status atual
-                            const demandaId = demanda.id;
-                            const currentStatusId = demanda.id_status; // <-- Usa id_status
-                            // --- FIM DA CORREÇÃO ---
+    // ============================================================
+    // 📱 MOBILE VIEW — Cards verticais
+    // ============================================================
+    if (isMobile) {
+        return (
+            <Box sx={{ display: "flex", flexDirection: "column", gap: 2, p: 1 }}>
+                {demandas.map((demanda) => {
+                    const demandaId = demanda.id!;
+                    const isSelected = selectedDemandas.includes(demandaId);
 
-                            return (
-                                <TableRow
-                                    key={demanda.id}
-                                    hover
-                                    selected={isSelected}
-                                    // onClick={() => onSelectDemanda(demanda.id!)} // Opcional: remover se seleção for por checkbox (não implementado aqui)
-                                    sx={{ '& td': { borderColor: 'rgba(224, 224, 224, 1)' } }}
-                                    aria-selected={isSelected}
+                    return (
+                        <Paper
+                            key={demanda.id}
+                            sx={{
+                                p: 2,
+                                borderRadius: 2,
+                                boxShadow: isSelected ? 4 : 1,
+                                border: isSelected ? "2px solid #1976d2" : "1px solid #ddd"
+                            }}
+                            onClick={() => onSelectDemanda(demandaId)}
+                        >
+                            {/* TÍTULO */}
+                            <Box sx={{ fontWeight: 700, fontSize: "1rem", mb: 1 }}>
+                                Demanda #{demanda.id}
+                            </Box>
+
+                            {/* ENDEREÇO */}
+                            <Box sx={{ mb: 1 }}>
+                                <strong>Endereço:</strong>
+                                <br />
+                                {formatEnderecoCompleto(demanda)}
+                            </Box>
+
+                            {/* TIPO */}
+                            <Box sx={{ mb: 1 }}>
+                                <strong>Tipo:</strong> {demanda.tipo_demanda}
+                            </Box>
+
+                            {/* PRAZO */}
+                            <Box sx={{ mb: 1 }}>
+                                <strong>Prazo:</strong> {formatPrazo(demanda.prazo)}
+                            </Box>
+
+                            {/* STATUS */}
+                            <Box sx={{ mb: 2 }}>
+                                <strong>Status:</strong>
+                                <Box sx={{ mt: 0.5 }}>
+                                    <StatusDemanda
+                                        demandaId={demandaId}
+                                        currentStatusId={demanda.id_status}
+                                        availableStatus={availableStatus}
+                                        onStatusChange={onStatusChange}
+                                    />
+                                </Box>
+                            </Box>
+
+                            {/* AÇÕES */}
+                            <Box sx={{ display: "flex", justifyContent: "flex-end", gap: 1 }}>
+                                <IconButton
+                                    color="primary"
+                                    onClick={(e) => {
+                                        e.stopPropagation();
+                                        onEdit(demanda);
+                                    }}
                                 >
-                                    {/* Células de dados */}
-                                    {/* Adiciona cursor pointer e onClick para seleção */}
-                                    <TableCell onClick={() => demandaId !== undefined && onSelectDemanda(demandaId)} sx={{ cursor: 'pointer' }}>{demanda.id}</TableCell>
-                                    <TableCell onClick={() => demandaId !== undefined && onSelectDemanda(demandaId)} sx={{ cursor: 'pointer' }}>{formatEnderecoCompleto(demanda)}</TableCell>
-                                    <TableCell onClick={() => demandaId !== undefined && onSelectDemanda(demandaId)} sx={{ cursor: 'pointer' }}>{demanda.tipo_demanda}</TableCell>
-                                    <TableCell onClick={() => demandaId !== undefined && onSelectDemanda(demandaId)} sx={{ cursor: 'pointer' }}>{formatPrazo(demanda.prazo)}</TableCell>
+                                    <EditIcon />
+                                </IconButton>
 
-                                    {/* --- INÍCIO DA CORREÇÃO --- */}
-                                    {/* 8. Célula do Status - Passa as props corretas para StatusDemanda */}
-                                    <TableCell> 
-                                        {demandaId !== undefined ? (
-                                            <StatusDemanda
-                                                demandaId={demandaId}
-                                                currentStatusId={currentStatusId} // <-- Passa o ID do status
-                                                availableStatus={availableStatus} // <-- Passa a lista de status
-                                                onStatusChange={onStatusChange}    // <-- Passa a função (agora compatível)
-                                            />
-                                        ) : (
-                                            'N/A' // Caso não haja status ou ID
-                                        )}
-                                    </TableCell>
-                                    {/* --- FIM DA CORREÇÃO --- */}
+                                <IconButton
+                                    color="error"
+                                    onClick={(e) => {
+                                        e.stopPropagation();
+                                        onDelete(demandaId);
+                                    }}
+                                >
+                                    <DeleteIcon />
+                                </IconButton>
+                            </Box>
+                        </Paper>
+                    );
+                })}
 
+                {demandas.length === 0 && (
+                    <Box sx={{ textAlign: "center", mt: 4, color: "text.secondary" }}>
+                        Nenhuma demanda encontrada.
+                    </Box>
+                )}
+            </Box>
+        );
+    }
 
-                                    {/* Célula de Ações (Editar e Deletar) */}
-                                    <TableCell align="right">
-                                        <IconButton
-                                            aria-label={`Editar demanda ${demanda.id}`}
-                                            color="primary"
-                                            onClick={(e) => {
-                                                e.stopPropagation(); // Impede seleção da linha
-                                                onEdit(demanda); // Chama a função onEdit passada
-                                            }}
-                                            title="Editar Demanda"
-                                        >
-                                            <EditIcon />
-                                        </IconButton>
-                                        <IconButton
-                                            aria-label={`Excluir demanda ${demanda.id}`}
-                                            color="error"
-                                            onClick={(e) => {
-                                                e.stopPropagation(); // Impede seleção da linha
-                                                // Garante que ID existe antes de chamar onDelete
-                                                if (demandaId !== undefined) {
-                                                    onDelete(demandaId);
-                                                }
-                                            }}
-                                            title="Excluir Demanda"
-                                        >
-                                            <DeleteIcon />
-                                        </IconButton>
-                                    </TableCell>
-                                </TableRow>
-                            );
-                        })}
-                        {/* Linha para quando não há demandas */}
-                        {demandas.length === 0 && (
-                            <TableRow>
-                                <TableCell colSpan={6} align="center" sx={{ color: 'text.secondary', py: 4 }}>
-                                    Nenhuma demanda encontrada.
+    // ============================================================
+    // 🖥️ DESKTOP VIEW — Tabela completa
+    // ============================================================
+    return (
+        <TableContainer
+            component={Paper}
+            sx={{
+                boxShadow: 'none',
+                overflowX: 'auto',
+                overflowY: 'visible'
+            }}
+        >
+            <Table stickyHeader aria-label="Tabela de Demandas">
+                <TableHead>
+                    <TableRow>
+                        <TableCell sx={{ fontWeight: 'bold' }}>ID</TableCell>
+                        <TableCell sx={{ fontWeight: 'bold' }}>Endereço Completo</TableCell>
+                        <TableCell sx={{ fontWeight: 'bold' }}>Tipo</TableCell>
+                        <TableCell sx={{ fontWeight: 'bold' }}>Prazo</TableCell>
+                        <TableCell sx={{ fontWeight: 'bold' }}>Status</TableCell>
+                        <TableCell sx={{ fontWeight: 'bold' }} align="right">Ações</TableCell>
+                    </TableRow>
+                </TableHead>
+
+                <TableBody>
+                    {demandas.map((demanda) => {
+                        const demandaId = demanda.id!;
+                        const isSelected = selectedDemandas.includes(demandaId);
+
+                        return (
+                            <TableRow
+                                key={demanda.id}
+                                hover
+                                selected={isSelected}
+                                sx={{ '& td': { borderColor: 'rgba(224, 224, 224, 1)' } }}
+                            >
+                                <TableCell onClick={() => onSelectDemanda(demandaId)} sx={{ cursor: 'pointer' }}>
+                                    {demanda.id}
+                                </TableCell>
+
+                                <TableCell onClick={() => onSelectDemanda(demandaId)} sx={{ cursor: 'pointer' }}>
+                                    {formatEnderecoCompleto(demanda)}
+                                </TableCell>
+
+                                <TableCell onClick={() => onSelectDemanda(demandaId)} sx={{ cursor: 'pointer' }}>
+                                    {demanda.tipo_demanda}
+                                </TableCell>
+
+                                <TableCell onClick={() => onSelectDemanda(demandaId)} sx={{ cursor: 'pointer' }}>
+                                    {formatPrazo(demanda.prazo)}
+                                </TableCell>
+
+                                <TableCell>
+                                    <StatusDemanda
+                                        demandaId={demandaId}
+                                        currentStatusId={demanda.id_status}
+                                        availableStatus={availableStatus}
+                                        onStatusChange={onStatusChange}
+                                    />
+                                </TableCell>
+
+                                <TableCell align="right">
+                                    <IconButton
+                                        color="primary"
+                                        onClick={(e) => {
+                                            e.stopPropagation();
+                                            onEdit(demanda);
+                                        }}
+                                    >
+                                        <EditIcon />
+                                    </IconButton>
+
+                                    <IconButton
+                                        color="error"
+                                        onClick={(e) => {
+                                            e.stopPropagation();
+                                            onDelete(demandaId);
+                                        }}
+                                    >
+                                        <DeleteIcon />
+                                    </IconButton>
                                 </TableCell>
                             </TableRow>
-                        )}
-                    </TableBody>
-                </Table>
-            </TableContainer>
-        </div>
+                        );
+                    })}
+
+                    {demandas.length === 0 && (
+                        <TableRow>
+                            <TableCell colSpan={6} align="center" sx={{ color: 'text.secondary', py: 4 }}>
+                                Nenhuma demanda encontrada.
+                            </TableCell>
+                        </TableRow>
+                    )}
+                </TableBody>
+            </Table>
+        </TableContainer>
     );
 }
