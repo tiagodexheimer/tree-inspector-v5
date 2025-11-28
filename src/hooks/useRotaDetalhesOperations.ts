@@ -1,14 +1,14 @@
+// src/hooks/useRotaDetalhesOperations.ts
 import { useState } from 'react';
-// Importa DemandaComOrdem (para o retorno) e DemandasClient (para otimizar)
 import { RotaDetalhesClient, DemandaComOrdem } from '@/services/client/rota-detalhes-client';
-import { DemandasClient } from '@/services/client/demandas-client'; 
-import { OptimizedRouteData } from '@/types/demanda'; 
+import { DemandasClient } from '@/services/client/demandas-client'; // Import necessário
+import { OptimizedRouteData } from '@/types/demanda'; // Import necessário
 
+// Usamos refreshData (ou refresh) do hook de dados para atualizar a tela principal
 export function useRotaDetalhesOperations(rotaId: string, refreshData: () => void) {
   const [isSaving, setIsSaving] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
-  // [NOVO] Estado para otimização
-  const [isOptimizing, setIsOptimizing] = useState(false);
+  const [isOptimizing, setIsOptimizing] = useState(false); // NOVO ESTADO
   const [opError, setOpError] = useState<string | null>(null);
   const [saveSuccess, setSaveSuccess] = useState(false);
 
@@ -33,6 +33,7 @@ export function useRotaDetalhesOperations(rotaId: string, refreshData: () => voi
     try {
       const blob = await RotaDetalhesClient.exportXls(rotaId);
       
+      // Lógica de download no navegador
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
@@ -48,6 +49,7 @@ export function useRotaDetalhesOperations(rotaId: string, refreshData: () => voi
     }
   };
   
+  // [ADICIONADO] Adicionar demandas
   const addDemandas = async (demandaIds: number[]): Promise<DemandaComOrdem[]> => {
       setIsSaving(true);
       setOpError(null);
@@ -64,38 +66,25 @@ export function useRotaDetalhesOperations(rotaId: string, refreshData: () => voi
       }
   };
 
-  // [NOVO] Função de otimização
-const optimizeOrder = async (demandaIds: number[]): Promise<OptimizedRouteData> => {
+  // [CORREÇÃO CRÍTICA] Função de otimização
+  const optimizeOrder = async (demandaIds: number[]): Promise<OptimizedRouteData> => {
     setIsOptimizing(true);
     setOpError(null);
     try {
-        console.log(`[FE LOG: OP START] Chamando otimização para IDs: [${demandaIds.join(', ')}]`);
-        
         const result = await DemandasClient.optimizeRoute(demandaIds);
-        
-        console.log(`[FE LOG: OP SUCCESS] Otimização SUCESSO.`);
-        console.log(`[FE LOG: OP RESULT] Demandas retornadas: ${result.optimizedDemandas.length}`);
-        
-        // CORREÇÃO: Log mais seguro para evitar a quebra "substring is not a function"
-        const polylineInfo = typeof result.routePath === 'string'
-           ? `${result.routePath.substring(0, 50)}... (Comprimento: ${result.routePath.length})`
-           : `[ARRAY de Coords] (Comprimento: ${Array.isArray(result.routePath) ? result.routePath.length : 'N/A'})`;
-        
-        console.log(`[FE LOG: OP RESULT] Polyline (Início): ${polylineInfo}`);
-
-        return result; 
+        return result; // <--- RETURN no sucesso
     } catch (err) {
-        // ... (resto do bloco catch)
+        const message = err instanceof Error ? err.message : "Erro ao otimizar rota.";
+        setOpError(message);
+        throw new Error(message); // <--- THROW no catch
     } finally {
         setIsOptimizing(false);
     }
-};
-
+  };
 
   return {
-    saveOrder, exportToExcel, addDemandas, 
-    optimizeOrder, // <-- Novo retorno
-    isSaving, isExporting, isOptimizing, // <-- Novo estado
+    saveOrder, exportToExcel, addDemandas, optimizeOrder,
+    isSaving, isExporting, isOptimizing, 
     opError, saveSuccess, setSaveSuccess, setOpError
   };
 }

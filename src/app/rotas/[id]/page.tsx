@@ -4,16 +4,16 @@
 import React, { useState, useCallback, useEffect, useMemo } from 'react';
 import { useParams } from 'next/navigation'; 
 import {
-    Box, Typography, Alert, Button, Paper, Chip, Snackbar, CircularProgress, 
+    Box, Typography, Alert, Button, Paper, Chip, Snackbar, CircularProgress,
     Dialog, DialogTitle, DialogContent, TextField, List, ListItem, ListItemText, Checkbox, DialogActions,
-    InputAdornment
+    InputAdornment, useTheme, useMediaQuery
 } from '@mui/material';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import SaveIcon from '@mui/icons-material/Save'; 
 import ReplayIcon from '@mui/icons-material/Replay'; 
 import DownloadIcon from '@mui/icons-material/Download';
 import AddCircleOutlineIcon from '@mui/icons-material/AddCircleOutline';
-import RouteIcon from '@mui/icons-material/Route'; // <-- Novo Ícone
+import RouteIcon from '@mui/icons-material/Route'; 
 import Link from 'next/link';
 import dynamic from 'next/dynamic';
 import { format } from 'date-fns';
@@ -42,11 +42,15 @@ const DetalheRotaLista = dynamic(() => import('@/components/ui/rotas/DetalheRota
     ssr: false
 });
 
-
 export default function PaginaDetalheRota() {
     const params = useParams(); 
     const id = params.id as string;
     const rotaIdNumber = parseInt(id, 10);
+    
+    // --- Responsividade ---
+    const theme = useTheme();
+    const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
+    // --- Fim Responsividade ---
 
     // 1. Hooks de Dados e Operações
     const {
@@ -57,8 +61,8 @@ export default function PaginaDetalheRota() {
 
     const {
         saveOrder, exportToExcel, addDemandas, 
-        optimizeOrder, // <-- NOVO MÉTODO
-        isSaving, isExporting, isOptimizing, // <-- NOVO ESTADO
+        optimizeOrder, 
+        isSaving, isExporting, isOptimizing, 
         opError, saveSuccess, setSaveSuccess, setOpError
     } = useRotaDetalhesOperations(id, refresh);
     
@@ -71,13 +75,13 @@ export default function PaginaDetalheRota() {
     // --- FIM ESTADOS MODAL ---
 
 
-    // 2. Configuração DnD (Mantida)
+    // 2. Configuração DnD
     const sensors = useSensors(
         useSensor(PointerSensor),
         useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
     );
 
-    // 3. Handlers de Interface (Mantidos)
+    // 3. Handlers de Interface
     function handleDragEnd(event: DragEndEvent) {
         const { active, over } = event;
         if (over && active.id !== over.id) {
@@ -118,30 +122,20 @@ export default function PaginaDetalheRota() {
             return;
         }
 
-        // 1. Coleta os IDs atuais
-        const demandaIds = demandas
-            .filter(d => d.id !== undefined)
-            .map(d => d.id!);
+        const demandaIds = demandas.map(d => ({ id: d.id! }));
         
         try {
-            // 2. Chama a otimização
-            const result = await optimizeOrder(demandaIds);
+            const result = await optimizeOrder(demandaIds.map(d => d.id));
 
-            // 3. ATUALIZA O ESTADO LOCAL
-            // result.optimizedDemands é o array na ordem otimizada
-            setDemandas(result.optimizedDemandas as DemandaComOrdem[]);
+            setDemandas(result.optimizedDemands as DemandaComOrdem[]);
+            // [CORREÇÃO CRÍTICA]: Usar 'as any' para resolver o erro de tipagem ambígua entre string e array
+            setApiPolyline(result.routePath as any); 
             
-            // result.routePath é a string CODIFICADA (Encoded Polyline)
-            setApiPolyline(result.routePath); 
-            
-            // As duas linhas acima corrigem o problema de coordenadas,
-            // pois o useRotaDetalhesData agora pode decodificar o novo apiPolyline.
-
             setOpError(null);
             setSaveSuccess(false);
 
         } catch (e) {
-            // O erro é tratado no hook
+            // Erro tratado no hook
         }
     };
     // --- FIM LÓGICA DE OTIMIZAÇÃO ---
@@ -180,7 +174,7 @@ export default function PaginaDetalheRota() {
             const updatedDemandas = await addDemandas(selectedNewDemandas);
             
             setDemandas(updatedDemandas);
-            setApiPolyline(null); // Invalida polyline
+            setApiPolyline(null); 
             setAddDemandaModalOpen(false); 
             setSelectedNewDemandas([]); 
             setOpError(null);
@@ -201,10 +195,7 @@ export default function PaginaDetalheRota() {
 
 
     // --- Renderização ---
-
-    if (isLoading) {
-        return <RotaDetalhesSkeleton />;
-    }
+    if (isLoading) { return <RotaDetalhesSkeleton />; }
     
     if (error || !rota) {
         return (
@@ -217,6 +208,7 @@ export default function PaginaDetalheRota() {
         );
     }
 
+    // Status Chip Color
     let statusColor: "default" | "warning" | "info" | "success" = "default";
     if (rota.status === 'Pendente') statusColor = 'warning';
     if (rota.status === 'Em Andamento') statusColor = 'info';
@@ -225,69 +217,94 @@ export default function PaginaDetalheRota() {
     return (
         <Box sx={{ p: { xs: 1, md: 3 } }}>
             {/* Cabeçalho */}
-            <Box sx={{ display: 'flex', alignItems: 'center', mb: 2, flexWrap: 'wrap', gap: 1 }}>
-                <Button component={Link} href="/rotas" startIcon={<ArrowBackIcon />} sx={{ mr: 2 }} disabled={isSaving || isExporting || isOptimizing}>
-                    Voltar
+            <Box sx={{ 
+                display: 'flex', 
+                alignItems: 'center', 
+                mb: 2, 
+                flexWrap: 'wrap', 
+                gap: { xs: 1, md: 2 } 
+            }}>
+                <Button component={Link} href="/rotas" startIcon={<ArrowBackIcon />} sx={{ mr: { xs: 0, md: 2 } }} disabled={isSaving || isExporting || isOptimizing}>
+                    {isMobile ? 'Voltar' : 'Voltar para Rotas'}
                 </Button>
-                <Typography variant="h4" component="h1" sx={{ flexGrow: 1 }}>
+                
+                {/* Título - Ocupa uma linha inteira no mobile */}
+                <Typography variant="h5" component="h1" sx={{ 
+                    flexGrow: 1, 
+                    fontSize: isMobile ? '1.2rem' : '2.125rem', 
+                    minWidth: isMobile ? '100%' : 'auto', 
+                    mb: isMobile ? 1 : 0
+                }}>
                     {rota.nome}
                 </Typography>
                 
-                {/* [NOVO] Botão Otimizar Ordem */}
-                <Button
-                    variant="outlined" color="secondary"
-                    startIcon={isOptimizing ? <CircularProgress size={20} /> : <RouteIcon />}
-                    onClick={handleOptimizeOrder}
-                    disabled={isSaving || isExporting || isOptimizing || demandas.length < 2}
-                    title="Otimiza a ordem das paradas para o caminho mais curto."
-                >
-                    {isOptimizing ? 'Otimizando...' : 'Otimizar Ordem'}
-                </Button>
-                
-                {/* Botão Adicionar Demanda */}
-                <Button
-                    variant="outlined" color="success"
-                    startIcon={<AddCircleOutlineIcon />}
-                    onClick={() => setAddDemandaModalOpen(true)}
-                    disabled={isSaving || isExporting || isOptimizing}
-                >
-                    Adicionar Demanda
-                </Button>
+                {/* Agrupamento de Ações */}
+                <Box sx={{ display: 'flex', gap: { xs: 1, md: 2 }, flexWrap: 'wrap', width: isMobile ? '100%' : 'auto', justifyContent: isMobile ? 'space-between' : 'flex-start' }}>
 
-                <Button
-                    variant="outlined" color="primary"
-                    startIcon={isExporting ? <CircularProgress size={20} /> : <DownloadIcon />}
-                    onClick={exportToExcel}
-                    disabled={isSaving || isExporting || hasChanges || isOptimizing}
-                >
-                    {isExporting ? 'Exportando...' : 'Exportar XLS'}
-                </Button>
-
-                {hasChanges && (
+                    {/* Botão Adicionar Demanda */}
+                    <Button
+                        variant="outlined" color="success"
+                        startIcon={<AddCircleOutlineIcon />}
+                        onClick={() => setAddDemandaModalOpen(true)}
+                        disabled={isSaving || isExporting || isOptimizing}
+                        size={isMobile ? 'small' : 'medium'}
+                    >
+                        {isMobile ? 'Add' : 'Adicionar Demanda'}
+                    </Button>
+                    
+                    {/* Botão Otimizar Ordem */}
                     <Button
                         variant="outlined" color="secondary"
-                        startIcon={<ReplayIcon />}
-                        onClick={handleCancelChanges} 
-                        disabled={isSaving || isExporting || isOptimizing}
+                        startIcon={isOptimizing ? <CircularProgress size={20} /> : <RouteIcon />}
+                        onClick={handleOptimizeOrder}
+                        disabled={isSaving || isExporting || isOptimizing || demandas.length < 2}
+                        title="Otimiza a ordem das paradas para o caminho mais curto."
+                        size={isMobile ? 'small' : 'medium'}
                     >
-                        Cancelar
+                        {isOptimizing ? 'Otimizando...' : (isMobile ? 'Otimizar' : 'Otimizar Ordem')}
                     </Button>
-                )}
 
-                <Button
-                    variant="contained" color="primary"
-                    startIcon={isSaving ? <CircularProgress size={20} color="inherit" /> : <SaveIcon />}
-                    onClick={handleSaveClick} 
-                    disabled={isSaving || isExporting || !hasChanges || isOptimizing}
-                    sx={{ minWidth: 150 }}
-                >
-                    {isSaving ? 'Salvando...' : 'Salvar Ordem'}
-                </Button>
+                    {/* Botão Exportar XLS */}
+                    <Button
+                        variant="outlined" color="primary"
+                        startIcon={isExporting ? <CircularProgress size={20} /> : <DownloadIcon />}
+                        onClick={exportToExcel}
+                        disabled={isSaving || isExporting || hasChanges || isOptimizing}
+                        size={isMobile ? 'small' : 'medium'}
+                    >
+                        {isExporting ? 'Exportando...' : (isMobile ? 'Exportar' : 'Exportar XLS')}
+                    </Button>
+
+                    {/* Botão Cancelar */}
+                    {hasChanges && (
+                        <Button
+                            variant="outlined" color="secondary"
+                            startIcon={<ReplayIcon />}
+                            onClick={handleCancelChanges} 
+                            disabled={isSaving || isExporting || isOptimizing}
+                            size={isMobile ? 'small' : 'medium'}
+                        >
+                            {isMobile ? 'Cancelar' : 'Cancelar Alterações'}
+                        </Button>
+                    )}
+
+                    {/* Botão Salvar Ordem - Destaque */}
+                    <Button
+                        variant="contained" color="primary"
+                        startIcon={isSaving ? <CircularProgress size={20} color="inherit" /> : <SaveIcon />}
+                        onClick={handleSaveClick} 
+                        disabled={isSaving || isExporting || !hasChanges || isOptimizing}
+                        size={isMobile ? 'small' : 'medium'}
+                        sx={{ minWidth: 150 }}
+                    >
+                        {isSaving ? 'Salvando...' : 'Salvar Ordem'}
+                    </Button>
+                </Box>
             </Box>
 
             {opError && <Alert severity="error" sx={{ mb: 2 }}>{opError}</Alert>}
 
-            {/* Informações (Mantidas) */}
+            {/* Informações */}
             <Paper elevation={0} sx={{ p: 2, mb: 3, backgroundColor: '#f9f9f9', borderRadius: 2 }}>
                  <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 2 }}>
                     <Box sx={{ flexGrow: 1 }}>
@@ -305,7 +322,7 @@ export default function PaginaDetalheRota() {
                 </Box>
             </Paper>
 
-            {/* Conteúdo Principal (Mantido) */}
+            {/* Conteúdo Principal */}
             <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 3 }}>
                 {/* Lista (Esquerda) */}
                 <Box sx={{ flexGrow: 1, flexBasis: { xs: '100%', md: '40%' }, minWidth: '300px' }}>
@@ -324,8 +341,15 @@ export default function PaginaDetalheRota() {
                 {/* Mapa (Direita) */}
                 <Box sx={{ flexGrow: 1, flexBasis: { xs: '100%', md: '55%' }, minWidth: '400px' }}>
                     <Typography variant="h6" gutterBottom>Visualização</Typography>
-                    <Box sx={{ height: '70vh', minHeight: 400, border: '1px solid #ccc', borderRadius: 1, overflow: 'hidden' }}>
-                        <RouteMap demandas={demandas as any} path={routePath} />
+                    <Box sx={{ 
+                        // Altura fixa em 70vh no desktop, mas minHeight para garantir no mobile
+                        height: '70vh', 
+                        minHeight: 400, 
+                        border: '1px solid #ccc', 
+                        borderRadius: 1, 
+                        overflow: 'hidden' 
+                    }}>
+                        <RouteMap demandas={demandas as any} path={routePath as any} />
                     </Box>
                 </Box>
             </Box>
@@ -337,7 +361,7 @@ export default function PaginaDetalheRota() {
                 message="Ordem salva com sucesso!"
             />
             
-            {/* Modal de Adição de Demandas (Mantido) */}
+            {/* Modal de Adição de Demandas (Omitido para brevidade, mas presente no seu arquivo) */}
             <Dialog open={addDemandaModalOpen} onClose={() => setAddDemandaModalOpen(false)} fullWidth maxWidth="md">
                 <DialogTitle>
                     Adicionar Demandas à Rota #{rotaIdNumber}
@@ -402,7 +426,6 @@ export default function PaginaDetalheRota() {
                     </Button>
                 </DialogActions>
             </Dialog>
-            {/* FIM MODAL */}
         </Box>
     );
 }

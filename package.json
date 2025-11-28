@@ -11,7 +11,7 @@
     "test:watch": "jest --watch",
     "test:coverage": "jest --coverage",
     "perf:server": "cross-env POSTGRES_URL=postgresql://test_user:test_password@localhost:5433/test_db next dev -p 3001",
-    "setup:db:test": "cross-env POSTGRES_URL=postgresql://test_user:test_password@localhost:5433/test_db node setup-test-db-robust.js", 
+    "setup:db:test": "cross-env POSTGRES_URL=postgresql://test_user:test_password@localhost:5433/test_db node setup-test-db-robust.js",
     "test:e2e:server": "npm run setup:db:test && npm run dev"
   },
   "dependencies": {
@@ -55,6 +55,7 @@
     "@types/pg": "^8.15.5",
     "@types/react": "19.2.6",
     "@types/react-dom": "19.2.3",
+    "baseline-browser-mapping": "^2.8.32",
     "cross-env": "^10.1.0",
     "eslint": "^9",
     "eslint-config-next": "16.0.3",
@@ -67,6 +68,5 @@
   "overrides": {
     "@types/react": "19.2.6",
     "@types/react-dom": "19.2.3"
-    
   }
 }
