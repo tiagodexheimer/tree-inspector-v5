@@ -11,7 +11,8 @@
     "test:watch": "jest --watch",
     "test:coverage": "jest --coverage",
     "perf:server": "cross-env POSTGRES_URL=postgresql://test_user:test_password@localhost:5433/test_db next dev -p 3001",
-    "setup:db:test": "cross-env POSTGRES_URL=postgresql://test_user:test_password@localhost:5433/test_db node setup-test-db-robust.js"
+    "setup:db:test": "cross-env POSTGRES_URL=postgresql://test_user:test_password@localhost:5433/test_db node setup-test-db-robust.js", 
+    "test:e2e:server": "npm run setup:db:test && npm run dev"
   },
   "dependencies": {
     "@auth/pg-adapter": "^1.11.1",

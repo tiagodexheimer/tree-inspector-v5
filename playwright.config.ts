@@ -17,7 +17,7 @@ export default defineConfig({
 
   // Configura o servidor de desenvolvimento para subir antes dos testes
  webServer: {
-    command: 'npm run dev',
+    command: 'npm run test:e2e:server',
     url: 'http://localhost:3000',
     reuseExistingServer: !process.env.CI,
     timeout: 120 * 1000,

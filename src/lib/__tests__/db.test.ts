@@ -1,5 +1,6 @@
-// src/lib/__tests__/db.test.ts
+// src/lib/__tests__/db.test.ts (CÓDIGO CORRIGIDO)
 
+// Salvamos o ambiente original para restauração
 const originalEnv = process.env;
 
 // Mock da dependência pg
@@ -25,18 +26,19 @@ describe('DB Connection Configuration (src/lib/db.ts)', () => {
         DB_DATABASE: 'dev_db',
     };
     const expectedFallbackUrl = 'postgresql://test_user_fallback:test_password@docker_db:5432/dev_db';
-    // URL que usaremos para poluir e depois limpar o ambiente
+    // URL que usaremos para o teste de prioridade
     const testUrlPriority1 = 'postgresql://url_priority_1:pass@host:1234/test_db_url';
 
     beforeEach(() => {
-        // Limpa o cache de módulos E o ambiente para cada teste
+        // 1. Limpa o cache de módulos (para re-importar db.ts)
         jest.resetModules(); 
+        
+        // 2. Reseta process.env
         process.env = { ...originalEnv };
-        
-        // Limpa todas as variáveis de conexão usadas nos testes
         delete process.env.POSTGRES_URL;
-        Object.keys(fallbackEnv).forEach(key => delete process.env[key]);
         
+        // 3. Limpa as variáveis DB_ e o Singleton
+        Object.keys(fallbackEnv).forEach(key => delete process.env[key]);
         // Garante que o singleton global esteja limpo (essencial para db.ts)
         global.pool = undefined; 
     });
@@ -72,6 +74,7 @@ describe('DB Connection Configuration (src/lib/db.ts)', () => {
 
         expect(() => {
             jest.isolateModules(() => {
+                 // A importação falha, disparando o throw em db.ts
                  require('../db');
             });
         }).toThrow("Não foi possível conectar ao banco de dados.");
@@ -90,12 +93,11 @@ describe('DB Connection Configuration (src/lib/db.ts)', () => {
             firstPool = require('../db').default;
         });
 
-        // Simula uma segunda tentativa de importação
         jest.isolateModules(() => {
             secondPool = require('../db').default;
         });
 
-        // O pool deve ser o mesmo objeto, garantindo o Singleton
+        // O pool deve ser o mesmo objeto
         expect(firstPool).toBe(secondPool);
     });
 });
