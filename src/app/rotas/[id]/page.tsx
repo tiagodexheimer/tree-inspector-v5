@@ -1,14 +1,19 @@
+// src/app/rotas/[id]/page.tsx
 'use client';
 
-import React from 'react';
+import React, { useState, useCallback, useEffect, useMemo } from 'react';
 import { useParams } from 'next/navigation'; 
 import {
-    Box, Typography, Alert, Button, Paper, Chip, Snackbar, CircularProgress // <--- ADICIONADO AQUI
+    Box, Typography, Alert, Button, Paper, Chip, Snackbar, CircularProgress,
+    Dialog, DialogTitle, DialogContent, TextField, List, ListItem, ListItemText, Checkbox, DialogActions,
+    InputAdornment, useTheme, useMediaQuery
 } from '@mui/material';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import SaveIcon from '@mui/icons-material/Save'; 
 import ReplayIcon from '@mui/icons-material/Replay'; 
 import DownloadIcon from '@mui/icons-material/Download';
+import AddCircleOutlineIcon from '@mui/icons-material/AddCircleOutline';
+import RouteIcon from '@mui/icons-material/Route'; 
 import Link from 'next/link';
 import dynamic from 'next/dynamic';
 import { format } from 'date-fns';
@@ -25,8 +30,9 @@ import RotaDetalhesSkeleton from '@/components/ui/rotas/RotaDetalhesSkeleton';
 // Hooks
 import { useRotaDetalhesData } from '@/hooks/useRotaDetalhesData';
 import { useRotaDetalhesOperations } from '@/hooks/useRotaDetalhesOperations';
+import { RotaDetalhesClient, DemandaNaoDistribuida, DemandaComOrdem } from '@/services/client/rota-detalhes-client'; 
 
-// --- Imports Dinâmicos ---
+// Imports Dinâmicos
 const RouteMap = dynamic(() => import('@/components/ui/demandas/RouteMap'), {
     loading: () => <Box sx={{ height: '100%', bgcolor: '#eee' }} />,
     ssr: false
@@ -36,10 +42,15 @@ const DetalheRotaLista = dynamic(() => import('@/components/ui/rotas/DetalheRota
     ssr: false
 });
 
-
 export default function PaginaDetalheRota() {
     const params = useParams(); 
     const id = params.id as string;
+    const rotaIdNumber = parseInt(id, 10);
+    
+    // --- Responsividade ---
+    const theme = useTheme();
+    const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
+    // --- Fim Responsividade ---
 
     // 1. Hooks de Dados e Operações
     const {
@@ -49,9 +60,20 @@ export default function PaginaDetalheRota() {
     } = useRotaDetalhesData(id);
 
     const {
-        saveOrder, exportToExcel,
-        isSaving, isExporting, opError, saveSuccess, setSaveSuccess, setOpError
+        saveOrder, exportToExcel, addDemandas, 
+        optimizeOrder, 
+        isSaving, isExporting, isOptimizing, 
+        opError, saveSuccess, setSaveSuccess, setOpError
     } = useRotaDetalhesOperations(id, refresh);
+    
+    // --- ESTADOS DO MODAL ---
+    const [addDemandaModalOpen, setAddDemandaModalOpen] = useState(false);
+    const [undistributedDemandas, setUndistributedDemandas] = useState<DemandaNaoDistribuida[]>([]);
+    const [loadingUndistributed, setLoadingUndistributed] = useState(false);
+    const [selectedNewDemandas, setSelectedNewDemandas] = useState<number[]>([]);
+    const [modalFilter, setModalFilter] = useState('');
+    // --- FIM ESTADOS MODAL ---
+
 
     // 2. Configuração DnD
     const sensors = useSensors(
@@ -63,7 +85,7 @@ export default function PaginaDetalheRota() {
     function handleDragEnd(event: DragEndEvent) {
         const { active, over } = event;
         if (over && active.id !== over.id) {
-            setApiPolyline(null); // Invalida polyline otimizada
+            setApiPolyline(null); 
             setDemandas((items) => {
                 const oldIndex = items.findIndex((item) => item.id === active.id);
                 const newIndex = items.findIndex((item) => item.id === over.id);
@@ -90,14 +112,90 @@ export default function PaginaDetalheRota() {
     };
 
     const handleSaveClick = () => {
-        saveOrder(demandas.map(d => ({ id: d.id! })));
+        saveOrder(demandas.map(d => ({ id: d.id! }))); 
     };
+    
+    // --- LÓGICA DE OTIMIZAÇÃO ---
+    const handleOptimizeOrder = async () => {
+        if (demandas.length <= 1) {
+            setOpError("A rota precisa de pelo menos 2 demandas com coordenadas para ser otimizada.");
+            return;
+        }
+
+        const demandaIds = demandas.map(d => ({ id: d.id! }));
+        
+        try {
+            const result = await optimizeOrder(demandaIds.map(d => d.id));
+
+            setDemandas(result.optimizedDemands as DemandaComOrdem[]);
+            // [CORREÇÃO CRÍTICA]: Usar 'as any' para resolver o erro de tipagem ambígua entre string e array
+            setApiPolyline(result.routePath as any); 
+            
+            setOpError(null);
+            setSaveSuccess(false);
+
+        } catch (e) {
+            // Erro tratado no hook
+        }
+    };
+    // --- FIM LÓGICA DE OTIMIZAÇÃO ---
+
+    // --- Lógica do Modal (Mantida) ---
+    const fetchUndistributedDemandas = useCallback(async () => {
+        setLoadingUndistributed(true);
+        try {
+            const result = await RotaDetalhesClient.getUndistributedDemandas();
+            setUndistributedDemandas(result);
+        } catch (e) {
+            setOpError("Falha ao carregar demandas disponíveis.");
+        } finally {
+            setLoadingUndistributed(false);
+        }
+    }, []);
+
+    useEffect(() => {
+        if (addDemandaModalOpen) {
+            fetchUndistributedDemandas();
+            setSelectedNewDemandas([]); 
+            setModalFilter('');
+        }
+    }, [addDemandaModalOpen, fetchUndistributedDemandas]);
+    
+    const toggleNewDemanda = (id: number) => {
+        setSelectedNewDemandas(prev => 
+            prev.includes(id) ? prev.filter(i => i !== id) : [...prev, id]
+        );
+    };
+    
+    const handleAddSelectedDemandas = async () => {
+        if (selectedNewDemandas.length === 0) return;
+        
+        try {
+            const updatedDemandas = await addDemandas(selectedNewDemandas);
+            
+            setDemandas(updatedDemandas);
+            setApiPolyline(null); 
+            setAddDemandaModalOpen(false); 
+            setSelectedNewDemandas([]); 
+            setOpError(null);
+        } catch (e) {
+            // Erro tratado no hook (opError)
+        }
+    };
+    
+    const filteredUndistributed = useMemo(() => {
+        if (!modalFilter) return undistributedDemandas;
+        const filterText = modalFilter.toLowerCase();
+        return undistributedDemandas.filter(d =>
+            d.protocolo.toLowerCase().includes(filterText) ||
+            d.logradouro.toLowerCase().includes(filterText) ||
+            d.nome_solicitante.toLowerCase().includes(filterText)
+        );
+    }, [undistributedDemandas, modalFilter]);
+
 
     // --- Renderização ---
-
-    if (isLoading) {
-        return <RotaDetalhesSkeleton />;
-    }
+    if (isLoading) { return <RotaDetalhesSkeleton />; }
     
     if (error || !rota) {
         return (
@@ -119,43 +217,89 @@ export default function PaginaDetalheRota() {
     return (
         <Box sx={{ p: { xs: 1, md: 3 } }}>
             {/* Cabeçalho */}
-            <Box sx={{ display: 'flex', alignItems: 'center', mb: 2, flexWrap: 'wrap', gap: 1 }}>
-                <Button component={Link} href="/rotas" startIcon={<ArrowBackIcon />} sx={{ mr: 2 }} disabled={isSaving || isExporting}>
-                    Voltar
+            <Box sx={{ 
+                display: 'flex', 
+                alignItems: 'center', 
+                mb: 2, 
+                flexWrap: 'wrap', 
+                gap: { xs: 1, md: 2 } 
+            }}>
+                <Button component={Link} href="/rotas" startIcon={<ArrowBackIcon />} sx={{ mr: { xs: 0, md: 2 } }} disabled={isSaving || isExporting || isOptimizing}>
+                    {isMobile ? 'Voltar' : 'Voltar para Rotas'}
                 </Button>
-                <Typography variant="h4" component="h1" sx={{ flexGrow: 1 }}>
+                
+                {/* Título - Ocupa uma linha inteira no mobile */}
+                <Typography variant="h5" component="h1" sx={{ 
+                    flexGrow: 1, 
+                    fontSize: isMobile ? '1.2rem' : '2.125rem', 
+                    minWidth: isMobile ? '100%' : 'auto', 
+                    mb: isMobile ? 1 : 0
+                }}>
                     {rota.nome}
                 </Typography>
                 
-                <Button
-                    variant="outlined" color="primary"
-                    startIcon={isExporting ? <CircularProgress size={20} /> : <DownloadIcon />}
-                    onClick={exportToExcel}
-                    disabled={isSaving || isExporting || hasChanges}
-                >
-                    {isExporting ? 'Exportando...' : 'Exportar XLS'}
-                </Button>
+                {/* Agrupamento de Ações */}
+                <Box sx={{ display: 'flex', gap: { xs: 1, md: 2 }, flexWrap: 'wrap', width: isMobile ? '100%' : 'auto', justifyContent: isMobile ? 'space-between' : 'flex-start' }}>
 
-                {hasChanges && (
+                    {/* Botão Adicionar Demanda */}
+                    <Button
+                        variant="outlined" color="success"
+                        startIcon={<AddCircleOutlineIcon />}
+                        onClick={() => setAddDemandaModalOpen(true)}
+                        disabled={isSaving || isExporting || isOptimizing}
+                        size={isMobile ? 'small' : 'medium'}
+                    >
+                        {isMobile ? 'Add' : 'Adicionar Demanda'}
+                    </Button>
+                    
+                    {/* Botão Otimizar Ordem */}
                     <Button
                         variant="outlined" color="secondary"
-                        startIcon={<ReplayIcon />}
-                        onClick={handleCancelChanges} 
-                        disabled={isSaving || isExporting}
+                        startIcon={isOptimizing ? <CircularProgress size={20} /> : <RouteIcon />}
+                        onClick={handleOptimizeOrder}
+                        disabled={isSaving || isExporting || isOptimizing || demandas.length < 2}
+                        title="Otimiza a ordem das paradas para o caminho mais curto."
+                        size={isMobile ? 'small' : 'medium'}
                     >
-                        Cancelar
+                        {isOptimizing ? 'Otimizando...' : (isMobile ? 'Otimizar' : 'Otimizar Ordem')}
                     </Button>
-                )}
 
-                <Button
-                    variant="contained" color="primary"
-                    startIcon={isSaving ? <CircularProgress size={20} color="inherit" /> : <SaveIcon />}
-                    onClick={handleSaveClick} 
-                    disabled={isSaving || isExporting || !hasChanges}
-                    sx={{ minWidth: 150 }}
-                >
-                    {isSaving ? 'Salvando...' : 'Salvar Ordem'}
-                </Button>
+                    {/* Botão Exportar XLS */}
+                    <Button
+                        variant="outlined" color="primary"
+                        startIcon={isExporting ? <CircularProgress size={20} /> : <DownloadIcon />}
+                        onClick={exportToExcel}
+                        disabled={isSaving || isExporting || hasChanges || isOptimizing}
+                        size={isMobile ? 'small' : 'medium'}
+                    >
+                        {isExporting ? 'Exportando...' : (isMobile ? 'Exportar' : 'Exportar XLS')}
+                    </Button>
+
+                    {/* Botão Cancelar */}
+                    {hasChanges && (
+                        <Button
+                            variant="outlined" color="secondary"
+                            startIcon={<ReplayIcon />}
+                            onClick={handleCancelChanges} 
+                            disabled={isSaving || isExporting || isOptimizing}
+                            size={isMobile ? 'small' : 'medium'}
+                        >
+                            {isMobile ? 'Cancelar' : 'Cancelar Alterações'}
+                        </Button>
+                    )}
+
+                    {/* Botão Salvar Ordem - Destaque */}
+                    <Button
+                        variant="contained" color="primary"
+                        startIcon={isSaving ? <CircularProgress size={20} color="inherit" /> : <SaveIcon />}
+                        onClick={handleSaveClick} 
+                        disabled={isSaving || isExporting || !hasChanges || isOptimizing}
+                        size={isMobile ? 'small' : 'medium'}
+                        sx={{ minWidth: 150 }}
+                    >
+                        {isSaving ? 'Salvando...' : 'Salvar Ordem'}
+                    </Button>
+                </Box>
             </Box>
 
             {opError && <Alert severity="error" sx={{ mb: 2 }}>{opError}</Alert>}
@@ -189,7 +333,7 @@ export default function PaginaDetalheRota() {
                         demandas={demandas} 
                         sensors={sensors} 
                         onDragEnd={handleDragEnd}
-                        disabled={isSaving || isExporting}
+                        disabled={isSaving || isExporting || isOptimizing}
                         onRemove={handleRemoveDemanda}
                     />
                 </Box>
@@ -197,8 +341,15 @@ export default function PaginaDetalheRota() {
                 {/* Mapa (Direita) */}
                 <Box sx={{ flexGrow: 1, flexBasis: { xs: '100%', md: '55%' }, minWidth: '400px' }}>
                     <Typography variant="h6" gutterBottom>Visualização</Typography>
-                    <Box sx={{ height: '70vh', minHeight: 400, border: '1px solid #ccc', borderRadius: 1, overflow: 'hidden' }}>
-                        <RouteMap demandas={demandas} path={routePath} />
+                    <Box sx={{ 
+                        // Altura fixa em 70vh no desktop, mas minHeight para garantir no mobile
+                        height: '70vh', 
+                        minHeight: 400, 
+                        border: '1px solid #ccc', 
+                        borderRadius: 1, 
+                        overflow: 'hidden' 
+                    }}>
+                        <RouteMap demandas={demandas as any} path={routePath as any} />
                     </Box>
                 </Box>
             </Box>
@@ -209,6 +360,72 @@ export default function PaginaDetalheRota() {
                 onClose={() => setSaveSuccess(false)}
                 message="Ordem salva com sucesso!"
             />
+            
+            {/* Modal de Adição de Demandas (Omitido para brevidade, mas presente no seu arquivo) */}
+            <Dialog open={addDemandaModalOpen} onClose={() => setAddDemandaModalOpen(false)} fullWidth maxWidth="md">
+                <DialogTitle>
+                    Adicionar Demandas à Rota #{rotaIdNumber}
+                </DialogTitle>
+                <DialogContent dividers>
+                    <Typography variant="body2" color="text.secondary" gutterBottom>
+                        Selecione as demandas abaixo que ainda **não foram distribuídas** em nenhuma rota.
+                    </Typography>
+                    <TextField
+                        fullWidth
+                        label="Filtrar por Protocolo, Endereço ou Solicitante"
+                        variant="outlined"
+                        size="small"
+                        value={modalFilter}
+                        onChange={(e) => setModalFilter(e.target.value)}
+                        sx={{ mb: 2 }}
+                        InputProps={{
+                            endAdornment: (
+                                <InputAdornment position="end">
+                                    {filteredUndistributed.length} de {undistributedDemandas.length}
+                                </InputAdornment>
+                            )
+                        }}
+                    />
+
+                    {loadingUndistributed ? (
+                        <Box sx={{ textAlign: 'center', py: 4 }}><CircularProgress /></Box>
+                    ) : (
+                        <List dense sx={{ maxHeight: 400, overflowY: 'auto', border: '1px solid #ddd', borderRadius: 1 }}>
+                            {filteredUndistributed.map((demanda) => (
+                                <ListItem
+                                    key={demanda.id}
+                                    onClick={() => toggleNewDemanda(demanda.id)}
+                                    secondaryAction={
+                                        <Checkbox 
+                                            edge="end" 
+                                            checked={selectedNewDemandas.includes(demanda.id)}
+                                            onChange={() => toggleNewDemanda(demanda.id)}
+                                        />
+                                    }
+                                    sx={{ '&:hover': { bgcolor: 'action.hover' }, cursor: 'pointer' }}
+                                >
+                                    <ListItemText
+                                        primary={`#${demanda.id} | ${demanda.tipo_demanda}: ${demanda.logradouro}, ${demanda.numero}`}
+                                        secondary={`Solicitante: ${demanda.nome_solicitante} - ${demanda.status_nome}`}
+                                    />
+                                </ListItem>
+                            ))}
+                            {undistributedDemandas.length === 0 && <ListItem><ListItemText secondary="Nenhuma demanda disponível para adicionar." /></ListItem>}
+                        </List>
+                    )}
+                </DialogContent>
+                <DialogActions>
+                    <Button onClick={() => setAddDemandaModalOpen(false)} disabled={isSaving}>Cancelar</Button>
+                    <Button 
+                        onClick={handleAddSelectedDemandas} 
+                        variant="contained" 
+                        color="success" 
+                        disabled={selectedNewDemandas.length === 0 || isSaving}
+                    >
+                        {isSaving ? <CircularProgress size={20} color="inherit" sx={{ mr: 1 }} /> : `Adicionar (${selectedNewDemandas.length}) Demandas`}
+                    </Button>
+                </DialogActions>
+            </Dialog>
         </Box>
     );
 }

@@ -1,15 +1,15 @@
+// src/app/rotas/page.tsx
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useCallback } from 'react';
 import {
-    Box, Typography, Alert, Button,
-    Dialog, DialogActions, DialogContent, DialogContentText, DialogTitle
+    Box, Typography, Alert, Button, Paper, CircularProgress,
+    Dialog, DialogActions, DialogContent, DialogContentText, DialogTitle, useTheme, useMediaQuery
 } from '@mui/material';
 import InfoOutlinedIcon from '@mui/icons-material/InfoOutlined';
-// 1. Importar dynamic
 import dynamic from 'next/dynamic';
 
-// 2. Importar o Skeleton
+// Componentes UI
 import RotasSkeleton from '@/components/ui/rotas/RotasSkeleton';
 
 // Hooks e Tipos
@@ -17,119 +17,210 @@ import { useRotasData } from '@/hooks/useRotasData';
 import { useRotasOperations } from '@/hooks/useRotasOperations';
 import { RotaComContagem } from '@/services/client/rotas-client';
 
-// 3. Importação Dinâmica do Componente Pesado (DataGrid)
-// O loading aqui serve para quando o bundle JS está sendo baixado, não necessariamente os dados
+// Carregamento dinâmico dos componentes principais
 const ListaRotas = dynamic(() => import('@/components/ui/rotas/ListaRotas'), {
     loading: () => <RotasSkeleton />,
-    ssr: false // DataGrid geralmente é client-side only
+    ssr: false 
+});
+
+const RouteMap = dynamic(() => import('@/components/ui/demandas/RouteMap'), {
+    loading: () => <Box sx={{ height: '100%', bgcolor: '#eee' }} />,
+    ssr: false
 });
 
 export default function RotasPage() {
-    // Hooks de Dados e Operações
-    const { rotas, isLoading, error, refresh, setRotas } = useRotasData();
+    // Hooks para dados e operações
+    const { 
+        rotas, isLoading, error, refresh, selectedRouteMap, 
+        isLoadingRouteMap, fetchRouteDetailsForMap 
+    } = useRotasData();
     
-    // Estado Local de UI (Modais)
+    const { deleteRota, isProcessing: isDeleting, opError: deleteError, clearError } = useRotasOperations(refresh);
+
+    // Estados para o Modal de Confirmação de Deleção
     const [openDeleteConfirm, setOpenDeleteConfirm] = useState(false);
     const [rotaParaDeletar, setRotaParaDeletar] = useState<RotaComContagem | null>(null);
 
-    // Estado de Operações (Escrita)
-    const { deleteRota, isProcessing: isDeleting, opError: deleteError, clearError } = useRotasOperations();
-
-    // Handlers
-    const iniciarDelecao = (id: number) => {
+    // Detecção de breakpoint (Mobile/Desktop)
+    const theme = useTheme();
+    const isMobile = useMediaQuery(theme.breakpoints.down('sm')); 
+    
+    // Handlers para Deleção
+    const iniciarDelecao = useCallback((id: number) => {
+        if (typeof id !== 'number' || isNaN(id) || id <= 0) {
+            console.error("Deleção bloqueada: ID inválido/ausente recebido:", id);
+            return; 
+        }
+        
         const rota = rotas.find(r => r.id === id) || null;
         if (rota) {
             setRotaParaDeletar(rota);
-            clearError();
             setOpenDeleteConfirm(true);
-        }
-    };
-
-    const handleCloseDeleteConfirm = () => {
-        setOpenDeleteConfirm(false);
-        setTimeout(() => {
-            setRotaParaDeletar(null);
             clearError();
-        }, 300);
-    };
-
-    const confirmarDelecao = async () => {
-        if (!rotaParaDeletar) return;
-
-        try {
-            await deleteRota(rotaParaDeletar.id);
-            setRotas(prev => prev.filter(r => r.id !== rotaParaDeletar.id));
-            handleCloseDeleteConfirm();
-        } catch (error) {
-            // Erro capturado no hook
+        } else {
+            console.error("Rota não encontrada para o ID:", id);
         }
-    };
+    }, [rotas, clearError]);
+
+    const handleCloseDeleteConfirm = useCallback(() => {
+        setOpenDeleteConfirm(false);
+        setRotaParaDeletar(null);
+    }, []);
+
+    const confirmarDelecao = useCallback(async () => {
+        if (!rotaParaDeletar) {
+             handleCloseDeleteConfirm();
+             return;
+        }
+        
+        await deleteRota(rotaParaDeletar.id); 
+        handleCloseDeleteConfirm();
+    }, [rotaParaDeletar, deleteRota, handleCloseDeleteConfirm]);
+
+    // Handler para clique na linha da tabela / card da rota
+    const handleRowClick = useCallback((rotaId: number) => { 
+        fetchRouteDetailsForMap(rotaId); 
+    }, [fetchRouteDetailsForMap]);
+
+    // Dados para o Mapa
+    const mapDemandas = selectedRouteMap?.demandas || [];
+    const mapRota = rotas.find(r => r.id === selectedRouteMap?.rota.id);
+    const selectedRotaId = selectedRouteMap?.rota.id || null;
 
     return (
-        <div>
-            <h1 className="text-2xl font-bold mb-4" style={{ margin: "16px" }}>
+        <Box sx={{ p: isMobile ? 1 : 3 }}>
+            <Typography variant="h4" fontWeight="bold" sx={{ mb: isMobile ? 2 : 4 }}>
                 Rotas Criadas
-            </h1>
+            </Typography>
 
-            {/* Tratamento de Erro */}
+            {/* Exibe erros de carregamento */}
             {error && (
-                <Box sx={{ p: 2 }}>
+                <Box sx={{ mb: 2 }}>
                     <Alert severity="error">
-                        Erro ao carregar rotas: {error}
+                        Erro ao carregar dados: {error}
                         <Button color="inherit" size="small" onClick={refresh}>Tentar Novamente</Button>
                     </Alert>
                 </Box>
             )}
 
-            {/* 4. Renderização Condicional Otimizada:
-               Se isLoading -> Skeleton
-               Se não tem dados -> Empty State
-               Se tem dados -> Lista (Carregada dinamicamente)
-            */}
-            {isLoading ? (
-                <Box sx={{ p: 2 }}>
-                    <RotasSkeleton />
-                </Box>
-            ) : (
-                rotas.length > 0 ? (
-                    <Box sx={{ p: 2 }}>
-                        <ListaRotas rotas={rotas} onDelete={iniciarDelecao} />
-                    </Box>
-                ) : !error && (
-                    <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '50vh', color: 'grey.600', mt: 4 }}>
-                        <InfoOutlinedIcon sx={{ fontSize: 60, mb: 2 }} />
-                        <Typography variant="h6">Nenhuma rota criada ainda.</Typography>
-                        <Typography variant="body1" sx={{ mt: 1 }}>
-                            Vá para a página de <a href="/demandas" style={{ color: '#1976d2', textDecoration: 'underline' }}>Demandas</a> para criar sua primeira rota.
-                        </Typography>
-                    </Box>
-                )
-            )}
+            {/* Container Principal: Define o Layout Flexível (Lista e Mapa) */}
+            <Box 
+                sx={{ 
+                    display: 'flex', 
+                    gap: 3, 
+                    // Empilha em telas pequenas (mobile/sm) e divide em telas médias+ (desktop/md+)
+                    flexDirection: { xs: 'column', sm: 'column', md: 'row' }, 
+                    alignItems: 'flex-start' 
+                }}
+            >
 
-            {/* Modal de Confirmação */}
-            <Dialog open={openDeleteConfirm} onClose={handleCloseDeleteConfirm}>
-                <DialogTitle>Confirmar Exclusão</DialogTitle>
+                {/* Coluna da Lista (60% no desktop) */}
+                <Box sx={{ 
+                    flexBasis: { xs: '100%', md: '60%' }, 
+                    flexGrow: 1,
+                    minWidth: { xs: '100%', md: 400 } 
+                }}>
+                    <Paper elevation={2}>
+                        {isLoading ? (
+                            <RotasSkeleton />
+                        ) : (
+                            rotas.length > 0 ? (
+                                <ListaRotas 
+                                    rotas={rotas} 
+                                    onDelete={iniciarDelecao} 
+                                    onRowClick={handleRowClick} 
+                                    selectedRotaId={selectedRotaId} 
+                                />
+                            ) : !error && (
+                                <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: 400, color: 'grey.600', p: 4 }}>
+                                    <InfoOutlinedIcon sx={{ fontSize: 60, mb: 2 }} />
+                                    <Typography variant="h6">Nenhuma rota criada ainda.</Typography>
+                                </Box>
+                            )
+                        )}
+                    </Paper>
+                </Box>
+
+                {/* Coluna Direita: Mapa (40% no desktop) */}
+                <Box sx={{ 
+                    flexBasis: { xs: '100%', md: '40%' }, 
+                    flexGrow: 1, 
+                    minWidth: { xs: '100%', md: 350 } 
+                }}>
+                    <Paper elevation={2} sx={{ 
+                        height: { xs: 400, md: '50vh' }, 
+                        minHeight: 400, 
+                        overflow: 'hidden',
+                        // [CRITICAL FIX]: Ativa FLEX para gerenciar o espaço interno vertical
+                        display: 'flex',
+                        flexDirection: 'column',
+                    }}>
+                        {/* 1. Header (Fixado no topo) */}
+                        <Typography variant="h6" sx={{ 
+                            p: 2, 
+                            bgcolor: '#f5f5f5', 
+                            borderBottom: '1px solid #ddd',
+                            flexShrink: 0 
+                        }}>
+                            Visualização da Rota: {mapRota?.nome || (isLoadingRouteMap ? 'Carregando...' : 'Nenhuma Selecionada')}
+                        </Typography>
+                        
+                        {/* 2. Map Container (Ocupa o espaço restante) */}
+                        <Box sx={{ 
+                            flexGrow: 1, // Ocupa todo o espaço vertical restante
+                            // Removemos o cálculo de 64px, pois o Flexbox faz isso
+                            height: 'auto', 
+                        }}>
+                            {isLoadingRouteMap || (selectedRotaId && !selectedRouteMap) ? (
+                                <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100%' }}>
+                                     <CircularProgress />
+                                </Box>
+                            ) : (
+                                <RouteMap 
+                                    demandas={mapDemandas as any} 
+                                    path={selectedRouteMap?.path as any[]} 
+                                />
+                            )}
+                        </Box>
+                    </Paper>
+                </Box>
+
+            </Box>
+
+            {/* Modal de Confirmação de Deleção (Mantido) */}
+            <Dialog
+                open={openDeleteConfirm}
+                onClose={handleCloseDeleteConfirm}
+                aria-labelledby="alert-dialog-title"
+                aria-describedby="alert-dialog-description"
+            >
+                <DialogTitle id="alert-dialog-title">
+                    {"Confirmar Exclusão"}
+                </DialogTitle>
                 <DialogContent>
-                    <DialogContentText>
-                        Você tem certeza que deseja excluir a rota:
+                    <DialogContentText id="alert-dialog-description">
+                        Tem certeza que deseja deletar a rota **{rotaParaDeletar?.nome}** (ID: {rotaParaDeletar?.id})? Esta ação não pode ser desfeita.
+                        {deleteError && (
+                            <Alert severity="error" sx={{ mt: 2 }}>
+                                Erro ao deletar: {deleteError}
+                            </Alert>
+                        )}
                     </DialogContentText>
-                    <Typography variant="h6" sx={{ my: 1, fontWeight: 'bold' }}>
-                        {rotaParaDeletar?.nome} (ID: {rotaParaDeletar?.id})
-                    </Typography>
-                    <DialogContentText>
-                        Todas as associações de demandas com esta rota serão perdidas.
-                        Esta ação não pode ser desfeita.
-                    </DialogContentText>
-                    
-                    {deleteError && <Alert severity="error" sx={{ mt: 2 }}>{deleteError}</Alert>}
                 </DialogContent>
                 <DialogActions>
-                    <Button onClick={handleCloseDeleteConfirm} disabled={isDeleting}>Cancelar</Button>
-                    <Button onClick={confirmarDelecao} color="error" variant="contained" disabled={isDeleting}>
-                        {isDeleting ? <Typography variant="caption">Excluindo...</Typography> : 'Excluir'}
+                    <Button onClick={handleCloseDeleteConfirm} color="primary" disabled={isDeleting}>
+                        Cancelar
+                    </Button>
+                    <Button 
+                        onClick={confirmarDelecao} 
+                        color="error" 
+                        autoFocus
+                        disabled={isDeleting}
+                    >
+                        {isDeleting ? <CircularProgress size={24} /> : 'Deletar'}
                     </Button>
                 </DialogActions>
             </Dialog>
-        </div>
+        </Box>
     );
 }

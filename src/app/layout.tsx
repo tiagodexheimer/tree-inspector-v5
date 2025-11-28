@@ -1,63 +1,70 @@
-//src/app/layout.tsx
-import type { Metadata } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
+// src/app/layout.tsx
+"use client";
+
+import { Inter } from "next/font/google";
 import "./globals.css";
-import Header from "@/components/ui/layout/Header";
-import Sidebar from "@/components/ui/layout/Sidebar";
 import ThemeRegistry from "@/components/ThemeRegistry";
-import 'leaflet/dist/leaflet.css';
+import Sidebar from "@/components/ui/layout/Sidebar";
+import Header from "@/components/ui/layout/Header";
+import Body from "@/components/ui/layout/Body";
+import { SessionProvider } from "next-auth/react";
+import { useState, useCallback } from "react";
+import { Box } from "@mui/material";
 
-// [NOVO] Importe o AuthProvider
-import AuthProvider from "./AuthProvider";
-
-const geistSans = Geist({
-  variable: "--font-geist-sans",
-  subsets: ["latin"],
-});
-
-const geistMono = Geist_Mono({
-  variable: "--font-geist-mono",
-  subsets: ["latin"],
-});
-
-export const metadata: Metadata = {
-  title: "Tree Inspector", // Mudei o título
-  description: "Gerenciamento de Arborização Urbana",
-};
+const inter = Inter({ subsets: ["latin"] });
 
 export default function RootLayout({
   children,
-}: Readonly<{
+}: {
   children: React.ReactNode;
-}>) {
+}) {
+  const [mobileOpen, setMobileOpen] = useState(false);
+
+  const handleDrawerToggle = useCallback(() => {
+    setMobileOpen((prev) => !prev);
+  }, []);
+
   return (
     <html lang="pt-BR">
-      <body className={`${geistSans.variable} ${geistMono.variable} antialiased`}>
-        <AuthProvider>
+      <head>
+        {/* Mobile-first necessário */}
+        <meta
+          name="viewport"
+          content="width=device-width, initial-scale=1, maximum-scale=1"
+        />
+      </head>
+
+      <body className={inter.className}>
+        <SessionProvider>
           <ThemeRegistry>
-              <div className="bg-gray-100">
-                <div className="fixed top-0 left-0 w-full z-30">
-                  <Header />
-                </div>
+            {/*
+              MOBILE-FIRST:
+              - display flex, coluna no mobile
+              - linha no desktop
+            */}
+            <Box
+              sx={{
+                display: "flex",
+                flexDirection: { xs: "column", md: "row" },
+                width: "100%",
+                minHeight: "100vh",
+                overflowX: "hidden",
+              }}
+            >
+              {/* HEADER FIXO MOBILE */}
+              <Header onMenuClick={handleDrawerToggle} />
 
-                {/* Sidebar com posição vertical e largura fixas (w-56) */}
-                <div className="fixed top-[48px] left-0 h-screen z-20 w-56">
-                  <Sidebar />
-                </div>
+              {/* SIDEBAR MOBILE/DESKTOP */}
+              <Sidebar
+                mobileOpen={mobileOpen}
+                handleDrawerToggle={handleDrawerToggle}
+              />
 
-                {/* pt-12 (48px) e pl-56 (224px) já estão corretos */}
-                <div className="pt-12 pl-56">
-                  <div 
-                    // ADICIONE max-w-full E overflow-x-auto AQUI
-                    className="w-full text-black max-w-full overflow-x-auto" 
-                    style={{ background: "#F5F5DC", minHeight: 'calc(100vh - 48px)' }}
-                  >
-                    <main>{children}</main>
-                  </div>
-                </div>
-              </div>
+              {/* CONTEÚDO PRINCIPAL */}
+              <Body>{children}</Body>
+            </Box>
           </ThemeRegistry>
-        </AuthProvider>
+        </SessionProvider>
       </body>
     </html>
   );

@@ -1,68 +1,61 @@
 // src/components/ui/layout/Header.tsx
-'use client'; // [NOVO] Precisa ser um Client Component para usar a sessão
+'use client';
 
-import { Toolbar, IconButton, Box, Typography, Button } from '@mui/material';
+import React from 'react';
+import { AppBar, Toolbar, Typography, Box, IconButton, useTheme, useMediaQuery } from '@mui/material';
 import MenuIcon from '@mui/icons-material/Menu';
+import { signOut } from "next-auth/react";
+import LogoutIcon from '@mui/icons-material/Logout';
+import Link from 'next/link';
 
-// [NOVO] Importações do Auth.js
-import { useSession, signOut } from 'next-auth/react';
+interface HeaderProps {
+    onMenuClick: () => void;
+}
 
-export default function Header() {
-    // [NOVO] Pega os dados da sessão
-    const { data: session, status } = useSession();
+const SIDEBAR_WIDTH = 240;
+
+export default function Header({ onMenuClick }: HeaderProps) {
+    const theme = useTheme();
+
+    // AGORA MOBILE OU TABLET = width < 900px
+    const isMobile = useMediaQuery(theme.breakpoints.down('md'));
 
     return (
-        <div className='flex w-full justify-between items-center h-12 text-white' style={{ background: '#257e1a' }}>
-            <Toolbar variant="dense" className='w-full flex justify-between shadow-lg'>
-            <div>
-                <IconButton edge="start" color="inherit" aria-label="menu">
-                    <MenuIcon />
-                </IconButton>
-            </div>
-            <div>
-                {/* Mudei o H1 para Typography */}
-                <Typography variant="h6" component="div">
-                    Tree Inspector V5
-                </Typography>
-            </div>
-            
-            {/* [NOVO] Lógica de Login/Logout */}
-            <Box sx={{ minWidth: 150, textAlign: 'right' }}>
-                {status === 'loading' && (
-                    <Typography variant="body2">Carregando...</Typography>
-                )}
-                
-                {status === 'authenticated' && session.user && (
-                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-                        <Typography variant="body2" noWrap>
-                            Olá, {session.user.name || session.user.email}
-                        </Typography>
-                        <Button 
-                            color="inherit" 
-                            variant="outlined" 
-                            size="small"
-                            onClick={() => signOut({ callbackUrl: '/login' })} // Desloga e manda para o login
-                        >
-                            Sair
-                        </Button>
-                    </Box>
-                )}
-                
-                {/* (Opcional) Mostra o botão de Login se não estiver logado
-                    (Embora o middleware vá redirecionar de qualquer forma) */}
-                {status === 'unauthenticated' && (
-                     <Button 
-                        color="inherit" 
-                        variant="outlined" 
-                        size="small"
-                        href="/login" // Link simples para a página de login
+        <AppBar
+            position="fixed"
+            sx={{
+                zIndex: (theme) => theme.zIndex.drawer + 1,
+                width: isMobile ? '100%' : `calc(100% - ${SIDEBAR_WIDTH}px)`,
+                ml: isMobile ? 0 : `${SIDEBAR_WIDTH}px`,
+            }}
+        >
+            <Toolbar sx={{ justifyContent: 'space-between' }}>
+
+                {/* Botão Hamburguer – agora aparece em mobile + tablet */}
+                {isMobile && (
+                    <IconButton
+                        color="inherit"
+                        aria-label="open drawer"
+                        edge="start"
+                        onClick={onMenuClick}
+                        sx={{ mr: 2 }}
                     >
-                        Login
-                    </Button>
+                        <MenuIcon />
+                    </IconButton>
                 )}
-            </Box>
-            
-        </Toolbar>
-        </div>
+
+                <Typography variant="h6" noWrap component="div" sx={{ flexGrow: 1 }}>
+                    <Link href="/dashboard" style={{ color: 'inherit', textDecoration: 'none' }}>
+                        Tree Inspector V5
+                    </Link>
+                </Typography>
+
+                <Box sx={{ flexGrow: 0 }}>
+                    <IconButton color="inherit" onClick={() => signOut()} title="Sair">
+                        <LogoutIcon />
+                    </IconButton>
+                </Box>
+            </Toolbar>
+        </AppBar>
     );
 }

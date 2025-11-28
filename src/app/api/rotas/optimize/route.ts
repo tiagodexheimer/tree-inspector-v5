@@ -1,9 +1,8 @@
 // src/app/api/rotas/optimize/route.ts
 import { NextRequest, NextResponse } from 'next/server';
 import pool from '../../../../lib/db';
-// Removendo a importação desnecessária de GeoJsonPoint do types/demanda
 import { DemandaType } from '@/types/demanda'; 
-import { decode } from '@googlemaps/polyline-codec';
+import { decode, encode } from '@googlemaps/polyline-codec'; // 'encode' necessário para fallback
 
 const START_END_POINT_COORDS = { latitude: -29.8533191, longitude: -51.1789191};
 
@@ -29,14 +28,16 @@ interface RoutesApiResponse {
     };
 }
 
-// [MODIFICADO]: Interface mais simples para o tipo retornado do banco
+// [MODIFICADO]: Interface para o tipo retornado do banco (agora com STATUS)
 interface DemandaWithCoords extends DemandaType {
     lat: number;
     lng: number;
-    // O campo 'geom' não precisa ser explicitamente redefinido aqui
+    status_nome?: string;
+    status_cor?: string;
+    id_status?: number | null;
 }
 
-// [NOVO] Função utilitária para calcular a distância (Haversine) entre dois pontos
+// Função utilitária para calcular a distância (Haversine)
 function haversine(lat1: number, lon1: number, lat2: number, lon2: number): number {
     const R = 6371; // Raio da Terra em quilômetros
     const dLat = (lat2 - lat1) * (Math.PI / 180);
@@ -65,36 +66,31 @@ export async function POST(request: NextRequest) {
             return NextResponse.json({ message: 'Nenhum ID de demanda fornecido.' }, { status: 400 });
         }
 
-        // 1. Buscar coordenadas
+        // 1. Buscar coordenadas e STATUS completos
         const queryResult = await pool.query(
-            `SELECT id, nome_solicitante, logradouro, numero, bairro, cidade, uf, cep, tipo_demanda, descricao, prazo, id_status,
-                   ST_Y(geom) as lat, 
-                   ST_X(geom) as lng -- [MODIFICADO] Apenas lat/lng (mais rápido)
-             FROM demandas 
-             WHERE id = ANY($1::int[]) AND geom IS NOT NULL`, // Adiciona filtro para ter geom
+            `SELECT d.id, d.nome_solicitante, d.logradouro, d.numero, d.bairro, d.cidade, d.uf, d.cep, d.tipo_demanda, d.descricao, d.prazo, d.id_status, 
+                    s.nome as status_nome, s.cor as status_cor,
+                    ST_Y(d.geom) as lat, 
+                    ST_X(d.geom) as lng
+             FROM demandas d 
+             LEFT JOIN demandas_status s ON d.id_status = s.id
+             WHERE d.id = ANY($1::int[]) AND geom IS NOT NULL`, 
             [demandaIds]
         );
 
         const demandas: DemandaWithCoords[] = queryResult.rows as DemandaWithCoords[]; 
-
-        let demandasComGeom = demandas.filter(d => d.lat && d.lng); // Filtra por lat/lng válidos
+        let demandasComGeom = demandas.filter(d => d.lat && d.lng); 
 
         if (demandasComGeom.length === 0) {
              return NextResponse.json({ message: 'Nenhuma das demandas selecionadas possui coordenadas válidas para roteirizar.' }, { status: 400 });
         }
 
-        // 2. Lógica do Ponto de Partida do Usuário
-        let originCoordinates = START_END_POINT_COORDS; // Padrão
-        
+        let originCoordinates = START_END_POINT_COORDS; 
         if (userLocation && userLocation.latitude && userLocation.longitude) {
-            console.log("[API /rotas/optimize] Usando localização do usuário como origem:", userLocation);
             originCoordinates = { latitude: userLocation.latitude, longitude: userLocation.longitude };
-        } else {
-            console.log("[API /rotas/optimize] Localização do usuário não recebida. Usando PONTO PADRÃO como origem.");
         }
 
-        // --- INÍCIO DA NOVA LÓGICA DE OTIMIZAÇÃO HÍBRIDA (Forçar o mais próximo a ser o primeiro) ---
-        
+        // --- Lógica de Otimização Híbrida (Encontrar o ponto mais próximo para ser a ORIGEM da rota) ---
         let closestDemanda: DemandaWithCoords | null = null;
         let remainingDemandas: DemandaWithCoords[] = [...demandasComGeom]; 
         let newOriginForApi = originCoordinates; 
@@ -103,15 +99,8 @@ export async function POST(request: NextRequest) {
             let minDistance = Infinity;
             let closestDemandaId: number | null | undefined = null;
 
-            // Encontra a demanda mais próxima da localização do usuário (originCoordinates)
             demandasComGeom.forEach((demanda) => {
-                const distance = haversine(
-                    originCoordinates.latitude, 
-                    originCoordinates.longitude, 
-                    demanda.lat, 
-                    demanda.lng
-                );
-                
+                const distance = haversine(originCoordinates.latitude, originCoordinates.longitude, demanda.lat, demanda.lng);
                 if (distance < minDistance) {
                     minDistance = distance;
                     closestDemandaId = demanda.id;
@@ -119,28 +108,25 @@ export async function POST(request: NextRequest) {
             });
 
             if (closestDemandaId !== null) {
-                // 1. Identifica o ponto mais próximo
                 closestDemanda = demandasComGeom.find(d => d.id === closestDemandaId) || null;
-
                 if (closestDemanda) {
-                    // 2. Remove o ponto mais próximo da lista de intermediários a serem otimizados.
-                    // [MODIFICADO]: Usando filter para evitar problemas de índice com splice
                     remainingDemandas = demandasComGeom.filter(d => d.id !== closestDemandaId);
-                    
-                    // 3. Define a localização do ponto mais próximo como a nova ORIGEM para o Google Routes.
                     newOriginForApi = { latitude: closestDemanda.lat, longitude: closestDemanda.lng };
-                    console.log(`[API /rotas/optimize] Demanda mais próxima (ID: ${closestDemanda.id}) definida como NOVO PONTO DE ORIGEM para a otimização subsequente.`);
                 }
             }
         }
         
-        // Caso A: Apenas uma demanda (closestDemanda foi encontrado, mas remainingDemandas está vazio)
+        // Caso A: Apenas uma demanda (Ou a otimização só tem uma parada)
         if (remainingDemandas.length === 0 && closestDemanda) {
-            console.log("[API /rotas/optimize] Apenas uma demanda, retornando-a.");
-             // Nenhuma rota real para calcular. Retorna a demanda única.
+            console.log("[API /rotas/optimize] Apenas uma demanda, retornando caminho manual.");
+            const pathPoints: [number, number][] = [
+                [originCoordinates.latitude, originCoordinates.longitude],
+                [closestDemanda.lat, closestDemanda.lng] as [number, number],
+                [originCoordinates.latitude, originCoordinates.longitude]
+            ];
             return NextResponse.json({
                 optimizedDemands: [closestDemanda],
-                routePath: '', 
+                routePath: encode(pathPoints), // Retornamos string ENCODED
                 startPoint: { lat: originCoordinates.latitude, lng: originCoordinates.longitude } 
             }, { status: 200 });
         }
@@ -150,7 +136,6 @@ export async function POST(request: NextRequest) {
              closestDemanda = demandasComGeom[0];
              remainingDemandas = demandasComGeom.slice(1);
              newOriginForApi = { latitude: closestDemanda.lat, longitude: closestDemanda.lng };
-             console.warn("[API /rotas/optimize] Fallback ativado: closestDemanda não definida. Usando a primeira demanda como início.");
         }
         
         // 3. Montar a requisição para a Google Routes API
@@ -162,7 +147,6 @@ export async function POST(request: NextRequest) {
             'X-Goog-FieldMask': 'routes.optimizedIntermediateWaypointIndex,routes.polyline'
         };
 
-        // As demandas restantes serão os INTERMEDIÁRIOS a serem otimizados
         const intermediatesForApi = remainingDemandas.map(d => ({
             location: {
                 latLng: { 
@@ -173,19 +157,14 @@ export async function POST(request: NextRequest) {
         }));
 
         const requestBody = {
-            // ORIGEM: A demanda mais próxima (forçando a primeira parada)
             origin: { location: { latLng: newOriginForApi } }, 
-            // DESTINO: A base (ponto final)
             destination: { location: { latLng: START_END_POINT_COORDS } }, 
-            // INTERMEDIÁRIOS: As demandas restantes a serem otimizadas
             intermediates: intermediatesForApi, 
             travelMode: 'DRIVE',
             routingPreference: 'TRAFFIC_AWARE',
-            optimizeWaypointOrder: true // Otimiza a ordem dos INTERMEDIÁRIOS
+            optimizeWaypointOrder: true 
         };
 
-        console.log(`[API /rotas/optimize] Chamando Google Routes API para otimizar ${remainingDemandas.length} paradas...`);
-        
         const directionsResponse = await fetch(newDirectionsUrl, {
             method: 'POST',
             headers: headers,
@@ -194,43 +173,48 @@ export async function POST(request: NextRequest) {
 
         const data: RoutesApiResponse = await directionsResponse.json();
 
-        if (!directionsResponse.ok || data.error) {
-            console.error('[API /rotas/optimize] Erro do Google Routes API:', data.error);
-            const errorMsg = data.error?.message || `Erro HTTP: ${directionsResponse.status}`;
-            throw new Error(`Erro da API de Roteamento: ${errorMsg}`);
+        // 4. Tratamento de Erro/Fallback (Retornar array decodificado para fallback)
+        if (!directionsResponse.ok || data.error || !data.routes || data.routes.length === 0 || !data.routes[0].polyline?.encodedPolyline) {
+            console.warn('[API /rotas/optimize] Falha na API de Roteamento ou resposta incompleta. Usando Fallback manual.');
+            
+            // Fallback: Linhas retas (usando array DECODED)
+            const manualPathPoints: [number, number][] = [
+                [originCoordinates.latitude, originCoordinates.longitude],
+                ...demandasComGeom.map(d => [d.lat, d.lng] as [number, number]),
+                [originCoordinates.latitude, originCoordinates.longitude]
+            ];
+            
+            return NextResponse.json({
+                optimizedDemands: demandasComGeom, // Retorna a lista original para não perder dados
+                routePath: manualPathPoints,      // Retorna ARRAY DE COORDENADAS DECODIFICADAS
+                startPoint: { lat: originCoordinates.latitude, lng: originCoordinates.longitude }
+            }, { status: 200 });
         }
         
-        if (!data.routes || data.routes.length === 0) {
-            throw new Error(`Erro da API de Roteamento: Nenhuma rota retornada.`);
-        }
-        
-        // 4. Processar a resposta
+        // 5. Processar a resposta de SUCESSO
         const route = data.routes[0];
-        
-        if (!route.optimizedIntermediateWaypointIndex || !route.polyline?.encodedPolyline) {
-            console.error('[API /rotas/optimize] Resposta da API não contém os campos esperados (polyline/index).', route);
-            throw new Error('Resposta da API de Roteamento está incompleta.');
-        }
-
         const optimizedOrder: number[] = route.optimizedIntermediateWaypointIndex;
         const encodedPolyline = route.polyline.encodedPolyline;
 
-        // 5. Reordenar nosso array de demandas restantes (remainingDemandas) com os índices otimizados
+        // 6. Criar a ordem FINAL (usando o array correto)
         const optimizedRemainingDemandasOrdenadas = optimizedOrder.map(index => remainingDemandas[index]);
 
-        // 6. Criar a ordem FINAL: [Demanda Mais Próxima] + [Demandas Otimizadas Restantes]
-        const optimizedDemandasOrdenadas = [closestDemanda, ...optimizedRemainingDemandasOrdenadas]; 
+        const firstDemand = closestDemanda ? [closestDemanda] : [];
+        const optimizedDemandasOrdenadas = firstDemand.concat(optimizedRemainingDemandasOrdenadas)
+            .filter((d): d is DemandaWithCoords => !!d)
+            .map((d, index) => ({ 
+                ...d, 
+                ordem: index,
+                status_nome: d.status_nome || 'N/A',
+                status_cor: d.status_cor || '#808080'
+            }));
         
-        // 7. Decodificar a polilinha
-        const routePath = decode(encodedPolyline);
-
-        console.log(`[API /rotas/optimize] Rota otimizada com sucesso. A primeira parada é a mais próxima, e o restante está otimizado.`);
+        // 7. Retorna a STRING CODIFICADA (sucesso)
+        console.log(`[API /rotas/optimize] Rota otimizada com sucesso.`);
 
         return NextResponse.json({
-            // A ordem agora é: [Mais Próxima] + [Restante Otimizado]
             optimizedDemands: optimizedDemandasOrdenadas, 
-            routePath: routePath,             
-            // O ponto de partida é a localização do usuário (real)
+            routePath: encodedPolyline, // <--- Retorna a STRING ENCODED no sucesso
             startPoint: { lat: originCoordinates.latitude, lng: originCoordinates.longitude } 
         }, { status: 200 });
 
@@ -238,9 +222,9 @@ export async function POST(request: NextRequest) {
         console.error('[API /rotas/optimize] Erro inesperado:', error);
         const errorMessage = error instanceof Error ? error.message : 'Erro desconhecido no servidor.';
         
+        // Falha interna (500)
         return NextResponse.json({ 
-            message: `Erro interno ao otimizar rota: ${errorMessage}`,
-            error: errorMessage 
+            message: `Erro interno ao otimizar rota: ${errorMessage}`
         }, { status: 500 });
     }
 }

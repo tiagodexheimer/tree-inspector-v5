@@ -1,14 +1,17 @@
+// src/components/ui/rotas/ListaRotas.tsx
 'use client';
 
 import React from 'react';
 import { useRouter } from 'next/navigation'; 
-import { DataGrid, GridColDef, GridActionsCellItem } from '@mui/x-data-grid'; 
-import { Box, Chip } from '@mui/material'; 
-// CORREÇÃO: Importar do serviço, não da página
+import { DataGrid, GridColDef, GridActionsCellItem, GridRowParams } from '@mui/x-data-grid'; 
+import { Box, Chip, useTheme, useMediaQuery, Typography } from '@mui/material'; 
 import { RotaComContagem } from '@/services/client/rotas-client';
 import VisibilityIcon from '@mui/icons-material/Visibility';
 import DeleteIcon from '@mui/icons-material/Delete';
 import { format } from 'date-fns'; 
+
+// Importar o novo componente mobile
+import ListaCardRotas from './ListaCardRotas';
 
 const formatData = (dateString: string | null) => {
     if (!dateString) return 'N/A';
@@ -21,32 +24,47 @@ const formatData = (dateString: string | null) => {
 
 interface ListaRotasProps {
     rotas: RotaComContagem[];
-    onDelete: (id: number) => void;
+    onDelete: (id: number) => void; 
+    onRowClick: (id: number) => void; 
+    selectedRotaId: number | null; 
 }
 
-export default function ListaRotas({ rotas, onDelete }: ListaRotasProps) {
+export default function ListaRotas({ rotas, onDelete, onRowClick, selectedRotaId }: ListaRotasProps) {
     const router = useRouter(); 
+    const theme = useTheme();
+    // DETECTA se é mobile (< 600px)
+    const isMobile = useMediaQuery(theme.breakpoints.down('sm')); 
     
+    // Definição das colunas da DataGrid (apenas para Desktop)
     const columns: GridColDef[] = [
-        { field: 'id', headerName: 'ID', width: 70 },
-        { field: 'nome', headerName: 'Nome da Rota', flex: 1, minWidth: 200 },
-        { field: 'responsavel', headerName: 'Responsável', width: 180 },
+        { field: 'id', headerName: 'ID', width: 50 }, 
+        { 
+            field: 'nome', 
+            headerName: 'Nome da Rota', 
+            flex: 1, 
+            minWidth: 120 
+        },
+        { 
+            field: 'responsavel', 
+            headerName: 'Responsável', 
+            width: 120 
+        },
         {
             field: 'status',
             headerName: 'Status',
-            width: 120,
+            width: 100, 
             renderCell: (params) => {
                 let color: "default" | "warning" | "info" | "success" = "default";
                 if (params.value === 'Pendente') color = 'warning';
                 if (params.value === 'Em Andamento') color = 'info';
                 if (params.value === 'Concluída') color = 'success';
-                return <Chip label={params.value || 'N/A'} color={color} size="small" />;
+                return <Chip label={params.value || 'N/A'} color={color} size="small" sx={{ minWidth: 80 }} />;
             }
         },
         {
             field: 'total_demandas',
             headerName: 'Demandas',
-            width: 100,
+            width: 90, 
             type: 'number',
             align: 'center',
             headerAlign: 'center',
@@ -61,7 +79,7 @@ export default function ListaRotas({ rotas, onDelete }: ListaRotasProps) {
             field: 'actions',
             type: 'actions',
             headerName: 'Ações',
-            width: 100,
+            width: 100, 
             cellClassName: 'actions',
             getActions: ({ id }) => {
                 return [
@@ -69,14 +87,15 @@ export default function ListaRotas({ rotas, onDelete }: ListaRotasProps) {
                         key={`view-${id}`}
                         icon={<VisibilityIcon />}
                         label="Visualizar Rota"
-                        onClick={() => router.push(`/rotas/${id}`)}
+                        onClick={(e) => { e.stopPropagation(); router.push(`/rotas/${id}`); }} 
                         color="inherit"
                     />,
                     <GridActionsCellItem
                         key={`delete-${id}`}
                         icon={<DeleteIcon />}
                         label="Deletar Rota"
-                        onClick={() => onDelete(id as number)}
+                        // Corrigido para chamar onDelete (que recebe o ID)
+                        onClick={(e) => { e.stopPropagation(); onDelete(id as number); }}
                         color="inherit"
                     />,
                 ];
@@ -84,8 +103,27 @@ export default function ListaRotas({ rotas, onDelete }: ListaRotasProps) {
         },
     ];
 
+    const getRowClassName = (params: GridRowParams) => {
+        return params.row.id === selectedRotaId ? 'Mui-selected' : '';
+    };
+
+
+    // RETORNO CONDICIONAL
+    if (isMobile) {
+        // [CORREÇÃO APLICADA AQUI]: Passando a prop onDelete para o componente mobile
+        return (
+            <ListaCardRotas 
+                rotas={rotas} 
+                onRowClick={onRowClick} 
+                selectedRotaId={selectedRotaId} 
+                onDelete={onDelete} // <--- PROP FALTANTE ADICIONADA
+            />
+        );
+    }
+
+    // Renderiza a DataGrid no Desktop
     return (
-        <Box sx={{ height: '70vh', width: '100%' }}>
+        <Box sx={{ height: '70vh', minHeight: 450, width: '100%', cursor: 'pointer' }}> 
             <DataGrid
                 rows={rotas}
                 columns={columns}
@@ -97,6 +135,8 @@ export default function ListaRotas({ rotas, onDelete }: ListaRotasProps) {
                 }}
                 checkboxSelection={false} 
                 disableRowSelectionOnClick
+                onRowClick={(params) => onRowClick(params.row.id)}
+                getRowClassName={getRowClassName}
             />
         </Box>
     );

@@ -1,10 +1,11 @@
+// src/components/ui/demandas/CriarRotaModal.tsx
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import {
     Dialog, DialogTitle, DialogContent, DialogActions, Button, TextField, Box, Typography,
     List, ListItem, ListItemText, Paper, IconButton, FormControl, InputLabel, Select, MenuItem, SelectChangeEvent,
-    CircularProgress, Alert
+    CircularProgress, Alert, useMediaQuery, useTheme
 } from "@mui/material";
 import {
     DndContext,
@@ -27,7 +28,9 @@ import DragIndicatorIcon from '@mui/icons-material/DragIndicator';
 import { DemandaType, DemandaComIdStatus, OptimizedRouteData } from "@/types/demanda";
 import _dynamic from 'next/dynamic';
 import { LatLngExpression } from 'leaflet';
+import { decode } from '@googlemaps/polyline-codec';
 
+// Importação Dinâmica do Mapa
 const RouteMapComponent = _dynamic(() => import('./RouteMap'), {
     ssr: false,
     loading: () => <Box sx={{ height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', backgroundColor: '#eee', color: '#777' }}>Carregando mapa da rota...</Box>
@@ -36,7 +39,7 @@ const RouteMapComponent = _dynamic(() => import('./RouteMap'), {
 interface CriarRotaModalProps {
     open: boolean;
     onClose: () => void;
-    routeData: OptimizedRouteData | null; 
+    routeData: OptimizedRouteData | null;
     onRotaCriada: (nomeRota: string, responsavel: string) => void;
 }
 
@@ -76,12 +79,14 @@ function SortableItem({ demanda }: { demanda: DemandaComIdStatus }) {
 }
 
 export default function CriarRotaModal({ open, onClose, routeData, onRotaCriada }: CriarRotaModalProps) {
+    const theme = useTheme();
+    const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
+
     const [nomeRota, setNomeRota] = useState('');
     const [responsavel, setResponsavel] = useState('');
     const [orderedDemandas, setOrderedDemandas] = useState<DemandaComIdStatus[]>([]);
     const [currentRoutePath, setCurrentRoutePath] = useState<[number, number][]>([]);
 
-    // Estados para lista de usuários
     const [usersList, setUsersList] = useState<UserOption[]>([]);
     const [isLoadingUsers, setIsLoadingUsers] = useState(false);
 
@@ -107,26 +112,58 @@ export default function CriarRotaModal({ open, onClose, routeData, onRotaCriada 
                 })
                 .catch(err => {
                     console.error("Erro ao buscar usuários:", err);
-                    // Fallback opcional ou apenas log
                 })
                 .finally(() => setIsLoadingUsers(false));
         }
     }, [open]);
 
+    // Efeito para popular dados ao receber routeData
     useEffect(() => {
         if (open && routeData) {
-            const validDemands = (routeData.optimizedDemands || []).filter(d => d && d.id);
-            
-            setOrderedDemandas(validDemands);
-            setCurrentRoutePath(routeData.routePath || []); 
-            
+
+            // 1. Popula a lista de demandas (GARANTINDO ESCOPO)
+            const validDemandas = (routeData.optimizedDemands || [])
+                .filter(Boolean) as DemandaComIdStatus[];
+
+            // 2. Processa o caminho (String ENCODED ou Array DECODED)
+            let pathArray: ([number, number])[] | string[] = [];
+
+            if (typeof routeData.routePath === 'string' && routeData.routePath.length > 5) {
+                try {
+                    pathArray = decode(routeData.routePath);
+                } catch (e) {
+                    console.error("Erro ao decodificar Polyline da API (String):", e);
+                }
+            } else if (Array.isArray(routeData.routePath)) {
+                pathArray = routeData.routePath as [number, number][];
+            }
+
+            const initialPath = pathArray.filter(p => p !== null && p !== undefined) as [number, number][];
+
+            // 3. Verifica se precisa de fallback manual (Rota inválida, mas tem demandas)
+            let finalPath = initialPath;
+            if (initialPath.length <= 2 && validDemandas.length > 0) {
+                finalPath = [
+                    START_END_POINT as [number, number],
+                    ...validDemandas
+                        .filter(d => d.lat !== null && d.lng !== null)
+                        .map(d => [d.lat!, d.lng!] as [number, number]),
+                    START_END_POINT as [number, number]
+                ].filter(p => p !== null && p !== undefined) as [number, number][];
+            }
+            // --------------------------------------------------------------------------
+
+            // 4. ATRIBUIÇÃO DOS ESTADOS (VÁLIDO DENTRO DO ESCOPO)
+            setOrderedDemandas(validDemandas);
+            setCurrentRoutePath(finalPath);
+
             setNomeRota('');
             setResponsavel('');
             setIsSaving(false);
             setApiError(null);
         } else if (!open) {
-             setOrderedDemandas([]);
-             setCurrentRoutePath([]);
+            setOrderedDemandas([]);
+            setCurrentRoutePath([]);
         }
     }, [routeData, open]);
 
@@ -134,22 +171,24 @@ export default function CriarRotaModal({ open, onClose, routeData, onRotaCriada 
         const { active, over } = event;
         if (over && active.id !== over.id) {
             if (apiError) setApiError(null);
-            
+
             setOrderedDemandas((items) => {
                 const oldIndex = items.findIndex((item) => item.id === active.id);
                 const newIndex = items.findIndex((item) => item.id === over.id);
-                 if (oldIndex === -1 || newIndex === -1) return items;
+                if (oldIndex === -1 || newIndex === -1) return items;
 
                 const newOrderedItems = arrayMove(items, oldIndex, newIndex);
 
+                // Reconstrução do caminho (Filtro Defensivo na Construção)
                 const newPath: [number, number][] = [
-                    START_END_POINT as [number, number], 
+                    START_END_POINT as [number, number],
                     ...newOrderedItems
-                        .filter(d => d && d.lat && d.lng) 
+                        .filter(d => d && d.lat !== null && d.lng !== null)
                         .map(d => [d.lat!, d.lng!] as [number, number]),
-                    START_END_POINT as [number, number] 
-                ];
-                
+                    START_END_POINT as [number, number]
+                ]
+                    .filter(p => p !== null && p !== undefined) as [number, number][];
+
                 setCurrentRoutePath(newPath);
                 return newOrderedItems;
             });
@@ -171,8 +210,9 @@ export default function CriarRotaModal({ open, onClose, routeData, onRotaCriada 
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     nome: nomeRota,
-                    responsavel: responsavel, // Aqui enviamos o nome do usuário (conforme backend espera string)
-                    demandas: orderedDemandas
+                    responsavel: responsavel,
+                    // Garante que o array de demandas enviado só contenha IDs válidos
+                    demandas: orderedDemandas.filter(d => d && d.id).map(d => ({ id: d.id }))
                 })
             });
 
@@ -198,13 +238,37 @@ export default function CriarRotaModal({ open, onClose, routeData, onRotaCriada 
         .map(d => d.id!);
 
     return (
-        <Dialog open={open} onClose={onClose} fullWidth maxWidth="md">
+        // [AJUSTE RESPONSIVO]: fullScreen no mobile
+        <Dialog
+            open={open}
+            onClose={onClose}
+            fullWidth
+            maxWidth="md"
+            sx={{
+                '& .MuiDialog-container': {
+                    '& .MuiPaper-root': {
+                        '@media (max-width: 600px)': {
+                            margin: '0 !important',
+                            borderRadius: '0 !important',
+                            maxHeight: '100%',
+                            minHeight: '100%',
+                            display: 'flex',
+                            flexDirection: 'column',
+                        }
+                    }
+                }
+            }}
+        >
             <DialogTitle>Criar Nova Rota</DialogTitle>
             <DialogContent dividers>
                 {apiError && <Alert severity="error" sx={{ mb: 2 }}>{apiError}</Alert>}
 
+                {/* Layout Principal: Empilha em Mobile */}
                 <Box sx={{ display: 'flex', gap: 3, flexDirection: { xs: 'column', md: 'row' } }}>
+
+                    {/* Coluna Esquerda: Dados e Lista de Demandas */}
                     <Box sx={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 2 }}>
+                        {/* Formulário de Nome e Responsável (Mantido) */}
                         <TextField
                             label="Nome da Rota"
                             variant="outlined"
@@ -234,8 +298,6 @@ export default function CriarRotaModal({ open, onClose, routeData, onRotaCriada 
                                 <MenuItem value="" disabled>
                                     {isLoadingUsers ? "Carregando usuários..." : "Selecione..."}
                                 </MenuItem>
-                                
-                                {/* Renderiza a lista de usuários reais */}
                                 {usersList.map((user) => (
                                     <MenuItem key={user.id} value={user.name}>
                                         {user.name}
@@ -251,7 +313,7 @@ export default function CriarRotaModal({ open, onClose, routeData, onRotaCriada 
 
                         <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
                             <SortableContext items={sortableItemsIds} strategy={verticalListSortingStrategy}>
-                                <List component={Paper} sx={{ maxHeight: 300, overflow: 'auto', border: '1px solid #ddd', opacity: isSaving ? 0.7 : 1 }}>
+                                <List component={Paper} sx={{ maxHeight: { xs: 200, md: 300 }, overflow: 'auto', border: '1px solid #ddd', opacity: isSaving ? 0.7 : 1 }}>
                                     {orderedDemandas.map((demanda, index) => (
                                         demanda && demanda.id ? (
                                             <Box key={demanda.id} sx={{ display: 'flex', alignItems: 'center', borderBottom: '1px solid #eee' }}>
@@ -272,17 +334,34 @@ export default function CriarRotaModal({ open, onClose, routeData, onRotaCriada 
                                 </List>
                             </SortableContext>
                         </DndContext>
-                        
+
                     </Box>
 
-                    <Box sx={{ flex: 1, minHeight: 400, border: '1px solid #ccc', borderRadius: 1, overflow: 'hidden', opacity: isSaving ? 0.7 : 1 }}>
-                        {routeData && (
-                            <RouteMapComponent 
-                                demandas={orderedDemandas} 
-                                path={currentRoutePath} 
-                                modalIsOpen={open} 
+                    {/* Coluna Direita: Mapa (FIXADO E RESPONSIVO) */}
+                    <Box
+                        sx={{
+                            width: '100%',
+                            height: { xs: '300px', sm: '400px', md: '450px' }, // ← ALTURA FIXA REAL
+                            border: '1px solid #ccc',
+                            borderRadius: 1,
+                            overflow: 'hidden',
+                            position: 'relative',
+                        }}
+                    >
+
+                        {/* Renderiza o mapa APENAS se houver demandas ordenadas */}
+                        {open && orderedDemandas.length > 0 ? (
+                            <RouteMapComponent
+                                demandas={orderedDemandas}
+                                path={currentRoutePath}
+                                modalIsOpen={open}
                             />
+                        ) : (
+                            <Box sx={{ height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', backgroundColor: '#fff' }}>
+                                <Typography color="text.secondary">Selecione demandas válidas para visualizar o mapa.</Typography>
+                            </Box>
                         )}
+
                     </Box>
                 </Box>
             </DialogContent>

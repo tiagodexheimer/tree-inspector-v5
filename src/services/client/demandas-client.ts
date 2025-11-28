@@ -1,3 +1,4 @@
+// src/services/client/demandas-client.ts
 import { DemandaComIdStatus, OptimizedRouteData } from "@/types/demanda";
 
 interface FetchDemandasParams {
@@ -13,6 +14,13 @@ interface FetchDemandasResponse {
   totalCount: number;
 }
 
+// Interface de retorno esperada para a criação de demanda
+interface CreateDemandaResponse {
+    protocolo: string;
+    demanda: any; // O objeto completo da demanda criada
+    message: string;
+}
+
 export const DemandasClient = {
   async getAll(params: FetchDemandasParams): Promise<FetchDemandasResponse> {
     const query = new URLSearchParams({
@@ -26,6 +34,34 @@ export const DemandasClient = {
     const response = await fetch(`/api/demandas?${query}`);
     if (!response.ok) throw new Error("Erro ao buscar demandas.");
     return response.json();
+  },
+  
+  // [MÉTODO PARA CRIAR (POST)]
+  async create(data: any): Promise<CreateDemandaResponse> {
+    const response = await fetch('/api/demandas', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data),
+    });
+    if (!response.ok) {
+        const errorBody = await response.json().catch(() => ({}));
+        throw new Error(errorBody.message || `Erro HTTP ${response.status} ao criar demanda.`);
+    }
+    // Retorna o corpo da resposta, que contém o protocolo
+    return response.json(); 
+  },
+
+  // [MÉTODO PARA ATUALIZAR (PUT)]
+  async update(id: number, data: any): Promise<void> {
+    const response = await fetch(`/api/demandas/${id}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data),
+    });
+    if (!response.ok) {
+        const errorBody = await response.json().catch(() => ({}));
+        throw new Error(errorBody.message || `Erro HTTP ${response.status} ao atualizar demanda.`);
+    }
   },
 
   async updateStatus(id: number, idStatus: number): Promise<void> {
