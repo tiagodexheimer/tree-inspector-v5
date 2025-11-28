@@ -131,6 +131,28 @@ export class RotasService {
     const safeName = rotaNome.replace(/[^a-z0-9_\- ]/gi, '').trim().replace(/ /g, '_');
     return { buffer, filename: `Rota_${id}_${safeName}.xlsx` };
   }
+
+  async addDemandasToRota(rotaId: number, demandaIds: number[]) {
+        // 1. Verifica se a rota existe
+        const rota = await RotasRepository.findById(rotaId);
+        if (!rota) throw new Error("Rota não encontrada.");
+
+        // 2. Busca a ordem máxima atual para continuar a contagem
+        const currentDemandas = await RotasRepository.findDemandasByRotaId(rotaId);
+        let maxOrder = currentDemandas.reduce((max: number, d: any) => Math.max(max, d.ordem), -1);
+        
+        // 3. Prepara as novas demandas com a ordem sequencial
+        const newDemandasWithOrder = demandaIds.map((id) => ({
+            id: id,
+            ordem: ++maxOrder
+        }));
+        
+        // 4. Salva as novas associações
+        const result = await RotasRepository.addDemandasToRota(rotaId, newDemandasWithOrder);
+
+        // 5. Retorna a lista completa atualizada (incluindo as novas)
+        return await RotasRepository.findDemandasByRotaId(rotaId);
+    }
 }
 
 export const rotasService = new RotasService();

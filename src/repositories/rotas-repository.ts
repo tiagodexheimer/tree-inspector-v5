@@ -233,5 +233,38 @@ export const RotasRepository = {
       } finally {
           client.release();
       }
-  }
+  },
+  
+  // [CORREÇÃO APLICADA] Adicionar demandas (com ordem) a uma rota existente
+  addDemandasToRota: async (rotaId: number, demandas: { id: number; ordem: number }[]): Promise<void> => {
+    const client = await pool.connect();
+    try {
+        await client.query('BEGIN');
+
+        if (demandas.length > 0) {
+            const values: string[] = [];
+            const params: any[] = [rotaId];
+            
+            demandas.forEach((d) => {
+                const offset = params.length + 1;
+                values.push(`($1, $${offset}, $${offset + 1})`);
+                params.push(d.id, d.ordem);
+            });
+
+            const insertQuery = `
+                INSERT INTO rotas_demandas (rota_id, demanda_id, ordem)
+                VALUES ${values.join(', ')}
+            `;
+            await client.query(insertQuery, params);
+        }
+
+        await client.query('COMMIT');
+    } catch (error) {
+        await client.query('ROLLBACK');
+        console.error("Erro no RotasRepository.addDemandasToRota:", error);
+        throw error; // Deixa o service ou a API tratar o erro 23505 (Unique violation)
+    } finally {
+        client.release();
+    }
+  }, // <--- O uso da vírgula aqui é crucial
 };

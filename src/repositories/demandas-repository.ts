@@ -261,4 +261,27 @@ export const DemandasRepository = {
       throw new Error("Falha ao deletar demandas no banco de dados.");
     }
   },
+  async findUndistributed(): Promise<any[]> {
+        try {
+            const query = `
+                SELECT
+                    d.id, d.protocolo, d.nome_solicitante, d.tipo_demanda, d.descricao,
+                    d.logradouro, d.numero, d.bairro, d.cidade, d.uf,
+                    s.nome as status_nome, 
+                    s.cor as status_cor,   
+                    ST_Y(d.geom) as lat, 
+                    ST_X(d.geom) as lng
+                FROM demandas d
+                LEFT JOIN rotas_demandas rd ON d.id = rd.demanda_id
+                LEFT JOIN demandas_status s ON d.id_status = s.id
+                WHERE rd.demanda_id IS NULL -- Filtra onde não há associação com rotas
+                ORDER BY d.created_at DESC;
+            `;
+            const result = await pool.query(query);
+            return result.rows;
+        } catch (error) {
+            console.error("Erro no DemandasRepository.findUndistributed:", error);
+            throw new Error("Falha ao buscar demandas não distribuídas.");
+        }
+    },
 };

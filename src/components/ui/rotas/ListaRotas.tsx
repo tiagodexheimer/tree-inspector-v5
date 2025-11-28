@@ -1,10 +1,10 @@
+// src/components/ui/rotas/ListaRotas.tsx
 'use client';
 
 import React from 'react';
 import { useRouter } from 'next/navigation'; 
-import { DataGrid, GridColDef, GridActionsCellItem } from '@mui/x-data-grid'; 
+import { DataGrid, GridColDef, GridActionsCellItem, GridRowParams } from '@mui/x-data-grid'; // [NOVO] Importar GridRowParams
 import { Box, Chip } from '@mui/material'; 
-// CORREÇÃO: Importar do serviço, não da página
 import { RotaComContagem } from '@/services/client/rotas-client';
 import VisibilityIcon from '@mui/icons-material/Visibility';
 import DeleteIcon from '@mui/icons-material/Delete';
@@ -22,12 +22,17 @@ const formatData = (dateString: string | null) => {
 interface ListaRotasProps {
     rotas: RotaComContagem[];
     onDelete: (id: number) => void;
+    // [NOVO] Adicionar o handler de clique na linha
+    onRowClick: (id: number) => void; 
+    selectedRotaId: number | null; // Para destacar a linha
 }
 
-export default function ListaRotas({ rotas, onDelete }: ListaRotasProps) {
+// [MODIFICADO] Adicionar onRowClick e selectedRotaId
+export default function ListaRotas({ rotas, onDelete, onRowClick, selectedRotaId }: ListaRotasProps) {
     const router = useRouter(); 
     
     const columns: GridColDef[] = [
+// ... (colunas permanecem as mesmas)
         { field: 'id', headerName: 'ID', width: 70 },
         { field: 'nome', headerName: 'Nome da Rota', flex: 1, minWidth: 200 },
         { field: 'responsavel', headerName: 'Responsável', width: 180 },
@@ -84,8 +89,13 @@ export default function ListaRotas({ rotas, onDelete }: ListaRotasProps) {
         },
     ];
 
+    // [NOVO] Função para mapear o ID da linha para o estilo (highlight)
+    const getRowClassName = (params: GridRowParams) => {
+        return params.row.id === selectedRotaId ? 'Mui-selected' : '';
+    };
+
     return (
-        <Box sx={{ height: '70vh', width: '100%' }}>
+        <Box sx={{ height: '70vh', width: '100%', cursor: 'pointer' }}>
             <DataGrid
                 rows={rotas}
                 columns={columns}
@@ -97,6 +107,10 @@ export default function ListaRotas({ rotas, onDelete }: ListaRotasProps) {
                 }}
                 checkboxSelection={false} 
                 disableRowSelectionOnClick
+                // [MODIFICADO] Adiciona o handler para o clique na linha
+                onRowClick={(params) => onRowClick(params.row.id)}
+                // [NOVO] Adiciona a classe para destacar
+                getRowClassName={getRowClassName}
             />
         </Box>
     );
