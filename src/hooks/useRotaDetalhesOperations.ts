@@ -1,8 +1,8 @@
 // src/hooks/useRotaDetalhesOperations.ts
 import { useState } from 'react';
-import { RotaDetalhesClient, DemandaComOrdem } from '@/services/client/rota-detalhes-client';
-import { DemandasClient } from '@/services/client/demandas-client'; // Import necessário
-import { OptimizedRouteData } from '@/types/demanda'; // Import necessário
+import { RotaDetalhesClient, DemandaComOrdem } from '@/services/client/rota-detalhes-client'; 
+import { DemandasClient } from '@/services/client/demandas-client'; 
+import { OptimizedRouteData } from '@/types/demanda'; 
 
 // Usamos refreshData (ou refresh) do hook de dados para atualizar a tela principal
 export function useRotaDetalhesOperations(rotaId: string, refreshData: () => void) {
@@ -76,7 +76,7 @@ export function useRotaDetalhesOperations(rotaId: string, refreshData: () => voi
     } catch (err) {
         const message = err instanceof Error ? err.message : "Erro ao otimizar rota.";
         setOpError(message);
-        throw new Error(message); // <--- THROW no catch
+        throw new Error(message); // <--- THROW CRÍTICO para o TypeScript
     } finally {
         setIsOptimizing(false);
     }

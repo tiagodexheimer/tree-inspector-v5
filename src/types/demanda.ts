@@ -56,6 +56,6 @@ export interface DemandaComIdStatus extends DemandaType {
 
 export interface OptimizedRouteData {
     optimizedDemands: DemandaComIdStatus[];
-    routePath: [number, number][];
+    routePath: string | [number, number][];
     startPoint: { lat: number, lng: number };
 }

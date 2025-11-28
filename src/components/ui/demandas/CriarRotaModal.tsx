@@ -1,7 +1,7 @@
 // src/components/ui/demandas/CriarRotaModal.tsx
 'use client';
 
-import { useState, useEffect, useCallback, useMemo, useRef } from 'react'; // Adicionado useRef
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import {
     Dialog, DialogTitle, DialogContent, DialogActions, Button, TextField, Box, Typography,
     List, ListItem, ListItemText, Paper, IconButton, FormControl, InputLabel, Select, MenuItem, SelectChangeEvent,
@@ -121,14 +121,14 @@ export default function CriarRotaModal({ open, onClose, routeData, onRotaCriada 
     useEffect(() => {
         if (open && routeData) {
 
-            // 1. Popula a lista de demandas (garantindo que os objetos sejam válidos)
+            // 1. Popula a lista de demandas (GARANTINDO ESCOPO)
             const validDemandas = (routeData.optimizedDemands || [])
                 .filter(Boolean) as DemandaComIdStatus[];
 
-            // 2. Processa o caminho (Garantindo que o array de coordenadas não tenha nulos)
+            // 2. Processa o caminho (String ENCODED ou Array DECODED)
             let pathArray: ([number, number])[] | string[] = [];
 
-            if (typeof routeData.routePath === 'string' && (routeData.routePath as string).length > 5) {
+            if (typeof routeData.routePath === 'string' && routeData.routePath.length > 5) {
                 try {
                     pathArray = decode(routeData.routePath);
                 } catch (e) {
@@ -153,7 +153,7 @@ export default function CriarRotaModal({ open, onClose, routeData, onRotaCriada 
             }
             // --------------------------------------------------------------------------
 
-            // 4. ATRIBUIÇÃO DOS ESTADOS (Corrigido o escopo)
+            // 4. ATRIBUIÇÃO DOS ESTADOS (VÁLIDO DENTRO DO ESCOPO)
             setOrderedDemandas(validDemandas);
             setCurrentRoutePath(finalPath);
 
@@ -338,14 +338,16 @@ export default function CriarRotaModal({ open, onClose, routeData, onRotaCriada 
                     </Box>
 
                     {/* Coluna Direita: Mapa (FIXADO E RESPONSIVO) */}
-                    <Box sx={{
-                        width: '100%',
-                        height: { xs: '300px', sm: '400px', md: '450px' }, // ← ALTURA FIXA REAL
-                        border: '1px solid #ccc',
-                        borderRadius: 1,
-                        overflow: 'hidden',
-                        position: 'relative',
-                    }}>
+                    <Box
+                        sx={{
+                            width: '100%',
+                            height: { xs: '300px', sm: '400px', md: '450px' }, // ← ALTURA FIXA REAL
+                            border: '1px solid #ccc',
+                            borderRadius: 1,
+                            overflow: 'hidden',
+                            position: 'relative',
+                        }}
+                    >
 
                         {/* Renderiza o mapa APENAS se houver demandas ordenadas */}
                         {open && orderedDemandas.length > 0 ? (
