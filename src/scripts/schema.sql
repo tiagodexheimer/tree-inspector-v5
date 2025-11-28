@@ -129,9 +129,10 @@ CREATE TABLE IF NOT EXISTS accounts (
 
 -- Inserção de dados iniciais (opcional, mas recomendado)
 INSERT INTO demandas_status (nome, cor) VALUES
-('Pendente', '#FFA500'),
-('Em Andamento', '#1976D2'),
-('Concluído', '#2E7D32')
+('Pendente', '#FFA500'),          -- Início do Fluxo
+('Vistoria Agendada', '#1976D2'), -- NOVO - Acionado na Criação da Rota
+('Em Rota', '#9c27b0'),           -- NOVO - Acionado no Início da Rota (Android)
+('Concluído', '#2E7D32')          -- Fim do Fluxo
 ON CONFLICT (nome) DO NOTHING;
 
 INSERT INTO demandas_tipos (nome) VALUES
