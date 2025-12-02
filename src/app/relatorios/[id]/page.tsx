@@ -1,256 +1,235 @@
-// src/app/relatorios/[id]/page.tsx
 'use client';
 
 import React, { useEffect, useState } from 'react';
-import { useParams } from 'next/navigation';
-import {
-    Box, Typography, Paper, Divider, Button, CircularProgress,
-    Table, TableBody, TableCell, TableContainer, TableHead, TableRow,
-    Card, CardMedia
+import { 
+    Box, 
+    Typography, 
+    Paper, 
+    Divider, 
+    CircularProgress, 
+    Stack, 
+    Button, 
+    Chip,
+    Container,
+    Card,
+    CardMedia
 } from '@mui/material';
+import { useParams, useRouter } from 'next/navigation';
+import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import PrintIcon from '@mui/icons-material/Print';
 
-// (Removida a importação de Grid que estava causando erro)
+// --- COMPONENTE AUXILIAR PARA RENDERIZAR RESPOSTAS (TEXTO OU IMAGEM) ---
+const RenderizarResposta = ({ valor }: { valor: any }) => {
+    if (!valor) return <Typography color="text.secondary" variant="body2">-</Typography>;
 
-// --- CSS DE IMPRESSÃO ROBUSTO ---
-const printStyles = `
-  @media print {
-    /* 1. Esconde TUDO no site inicialmente */
-    body * {
-      visibility: hidden;
+    // 1. Verifica se é uma LISTA (Array) de imagens (Novo padrão do Android)
+    if (Array.isArray(valor)) {
+        if (valor.length === 0) return <Typography color="text.secondary" variant="body2">Sem imagens</Typography>;
+        
+        return (
+            <Stack direction="row" flexWrap="wrap" gap={2} mt={1}>
+                {valor.map((item, index) => (
+                    <Box key={index} sx={{ border: '1px solid #ddd', borderRadius: 2, overflow: 'hidden', maxWidth: 200 }}>
+                        {/* Recursividade para renderizar cada item da lista */}
+                        <RenderizarResposta valor={item} />
+                    </Box>
+                ))}
+            </Stack>
+        );
     }
 
-    /* 2. Zera margens do navegador */
-    @page { 
-      margin: 0;
-      size: auto; 
+    // 2. Verifica se é uma STRING que parece uma IMAGEM (URL ou Base64)
+    if (typeof valor === 'string') {
+        const isUrlVercel = valor.includes('vercel-storage.com');
+        const isImagemExtensao = valor.match(/\.(jpeg|jpg|gif|png|webp)$/i) != null;
+        const isBase64 = valor.startsWith('data:image');
+
+        if (isUrlVercel || isImagemExtensao || isBase64) {
+            return (
+                <Card variant="outlined" sx={{ maxWidth: '100%', width: 'fit-content' }}>
+                    <CardMedia
+                        component="img"
+                        image={valor}
+                        alt="Evidência Fotográfica"
+                        sx={{ 
+                            height: 200, 
+                            width: 'auto', 
+                            minWidth: 150,
+                            objectFit: 'contain', 
+                            bgcolor: '#f0f0f0',
+                            cursor: 'pointer'
+                        }}
+                        onClick={() => window.open(valor, '_blank')} // Abre em nova aba ao clicar
+                    />
+                </Card>
+            );
+        }
     }
 
-    /* 3. Configura o Body */
-    body {
-      margin: 0;
-      padding: 0;
-      background: white;
-    }
+    // 3. Caso padrão: Texto ou Número
+    return <Typography variant="body1" sx={{ whiteSpace: 'pre-line' }}>{String(valor)}</Typography>;
+};
 
-    /* 4. Torna VISÍVEL apenas o nosso container de papel (e seus filhos) */
-    .page-container, .page-container * {
-      visibility: visible !important;
-    }
-
-    /* 5. Posiciona o papel absolutamente sobre todo o resto */
-    .page-container {
-      position: absolute !important;
-      left: 0 !important;
-      top: 0 !important;
-      width: 100% !important;
-      margin: 0 !important;
-      padding: 2cm !important; /* Margem interna do papel */
-      box-shadow: none !important;
-      border: none !important;
-      background: white !important;
-      z-index: 9999; /* Garante que fique por cima de tudo */
-    }
-
-    /* 6. Esconde botões que não devem sair na impressão */
-    .no-print {
-      display: none !important;
-    }
-
-    /* 7. Evita quebras indesejadas */
-    .image-container, tr, td {
-      page-break-inside: avoid;
-    }
-  }
-`;
-
-export default function DetalheRelatorioPage() {
+// --- PÁGINA PRINCIPAL ---
+export default function RelatorioDetalhePage() {
     const params = useParams();
-    const [data, setData] = useState<any>(null);
+    const router = useRouter();
+    const [relatorio, setRelatorio] = useState<any>(null);
     const [loading, setLoading] = useState(true);
+    const [erro, setErro] = useState('');
 
     useEffect(() => {
-        if (params.id) {
+        if (params?.id) {
             fetch(`/api/relatorios/${params.id}`)
-                .then(res => res.json())
-                .then(result => {
-                    setData(result);
+                .then(async (res) => {
+                    if (!res.ok) throw new Error('Falha ao carregar dados');
+                    return res.json();
+                })
+                .then(data => {
+                    setRelatorio(data);
+                    setLoading(false);
+                })
+                .catch(err => {
+                    console.error(err);
+                    setErro('Erro ao carregar o relatório. Tente novamente.');
                     setLoading(false);
                 });
         }
-    }, [params.id]);
+    }, [params?.id]);
 
-    if (loading) return <Box sx={{ display: 'flex', justifyContent: 'center', mt: 10 }}><CircularProgress /></Box>;
-    if (!data) return <Typography>Relatório não encontrado.</Typography>;
+    if (loading) {
+        return (
+            <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '80vh' }}>
+                <CircularProgress />
+            </Box>
+        );
+    }
 
-    const isImageList = (value: any) => {
-        return Array.isArray(value) && value.length > 0 && typeof value[0] === 'string';
-    };
+    if (erro || !relatorio) {
+        return (
+            <Container maxWidth="md" sx={{ mt: 4 }}>
+                <Typography color="error" variant="h6">{erro || 'Relatório não encontrado.'}</Typography>
+                <Button startIcon={<ArrowBackIcon />} onClick={() => router.back()} sx={{ mt: 2 }}>
+                    Voltar
+                </Button>
+            </Container>
+        );
+    }
 
-    const getImageSrc = (imgStr: string) => {
-        if (imgStr.startsWith('http')) return imgStr;
-        if (imgStr.startsWith('data:image')) return imgStr;
-        if (imgStr.length > 200 && !imgStr.includes('/')) {
-             return `data:image/jpeg;base64,${imgStr}`;
-        }
-        return imgStr;
-    };
-
-    const renderRespostas = () => {
-        if (!data.respostas) return null;
-
-        const camposDefinidos = data.definicaoCampos || [];
-
-        return Object.entries(data.respostas).map(([key, value]) => {
-            if (value === null || value === undefined) return null;
-
-            const campoDef = camposDefinidos.find((c: any) => c.name === key);
-            const label = key === 'fotos_evidencia' ? 'Evidências Fotográficas' : (campoDef ? campoDef.label : key);
-
-            // RENDERIZAÇÃO DE IMAGENS
-            if (isImageList(value)) {
-                const images = value as string[];
-                return (
-                    <TableRow key={key} className="image-container">
-                        <TableCell colSpan={2} sx={{ py: 3, borderBottom: 'none' }}>
-                            <Typography variant="subtitle2" sx={{ fontWeight: 'bold', mb: 2, color: '#333' }}>
-                                📸 {label}
-                            </Typography>
-                            
-                            {/* AJUSTE AQUI: Mudei para fixar 2 colunas sempre */}
-                            <Box sx={{ 
-                                display: 'grid',
-                                gridTemplateColumns: '1fr 1fr', // <-- Força 2 colunas grandes (50% cada)
-                                gap: 2,
-                                width: '100%'
-                            }}>
-                                {images.map((imgStr, idx) => (
-                                    <Box key={idx} sx={{ breakInside: 'avoid', pageBreakInside: 'avoid' }}>
-                                        <Card variant="outlined">
-                                            <CardMedia
-                                                component="img"
-                                                height="350" // <-- AUMENTEI A ALTURA (antes era 200) para a foto ficar grande
-                                                image={getImageSrc(imgStr)}
-                                                alt={`Foto ${idx + 1}`}
-                                                sx={{ objectFit: 'cover' }}
-                                                onError={(e: any) => {
-                                                    e.target.onerror = null; 
-                                                    e.target.src = 'https://via.placeholder.com/350?text=Err+Carregar';
-                                                }}
-                                            />
-                                        </Card>
-                                    </Box>
-                                ))}
-                            </Box>
-                        </TableCell>
-                    </TableRow>
-                );
-            }
-
-            // RENDERIZAÇÃO DE TEXTO/BOOLEAN
-            let valorFormatado = String(value);
-            if (typeof value === 'boolean') valorFormatado = value ? 'Sim' : 'Não';
-            if (value === '') valorFormatado = '-';
-
-            return (
-                <TableRow key={key}>
-                    <TableCell sx={{ fontWeight: 'bold', width: '30%', verticalAlign: 'top', borderBottom: '1px solid #eee' }}>{label}</TableCell>
-                    <TableCell sx={{ borderBottom: '1px solid #eee' }}>{valorFormatado}</TableCell>
-                </TableRow>
-            );
-        });
-    };
+    // Prepara os campos para exibição (mescla campos dinâmicos com fixos se necessário)
+    const camposParaExibir = [
+        ...(relatorio.definicaoCampos || []).map((c: any) => ({
+            label: c.label,
+            key: c.name
+        })),
+        // Garante que as fotos gerais apareçam mesmo se não estiverem na definição do formulário
+        { label: "Evidências Fotográficas (Geral)", key: "fotos_evidencia" },
+        // Campos fixos legados (caso existam no JSON)
+        { label: "Observações Gerais", key: "observacoes" }
+    ];
 
     return (
-        <Box sx={{ bgcolor: '#f5f5f5', minHeight: '100vh', py: 4, display: 'flex', justifyContent: 'center' }}>
-            {/* Injeta os estilos globais de impressão apenas nesta página */}
-            <style jsx global>{printStyles}</style>
+        <Box sx={{ p: 3, backgroundColor: '#f5f5f5', minHeight: '100vh' }}>
+            {/* Barra de Ações Superior */}
+            <Stack direction="row" justifyContent="space-between" alignItems="center" mb={3} maxWidth="lg" mx="auto">
+                <Button startIcon={<ArrowBackIcon />} onClick={() => router.back()}>
+                    Voltar
+                </Button>
+                <Button 
+                    variant="contained" 
+                    startIcon={<PrintIcon />} 
+                    onClick={() => window.print()}
+                >
+                    Imprimir / PDF
+                </Button>
+            </Stack>
 
-            <Paper
-                className="page-container"
-                elevation={3}
-                sx={{
-                    width: '210mm',
-                    minHeight: '297mm',
-                    p: 5,
-                    bgcolor: 'white',
-                    position: 'relative',
-                    mx: 'auto'
-                }}
-            >
-                {/* Botão de Imprimir (Classe no-print esconde ele na impressão) */}
-                <Box sx={{ position: 'absolute', top: 20, right: 20 }} className="no-print">
-                    <Button 
-                        variant="contained" 
-                        color="primary" 
-                        startIcon={<PrintIcon />} 
-                        onClick={() => window.print()}
-                    >
-                        Imprimir / PDF
-                    </Button>
-                </Box>
-
-                {/* Cabeçalho */}
-                <Box sx={{ textAlign: 'center', mb: 4 }}>
-                    <Typography variant="h5" fontWeight="900" gutterBottom sx={{ textTransform: 'uppercase' }}>
-                        Laudo de Vistoria Técnica
-                    </Typography>
-                    <Typography variant="subtitle1" color="text.secondary">Tree Inspector - Gestão de Arborização</Typography>
-                    <Divider sx={{ mt: 2, borderBottomWidth: 2, borderColor: '#000' }} />
-                </Box>
-
-                {/* Seção 1 - SUBSTITUIÇÃO DO GRID POR BOX/CSS GRID */}
-                <Box sx={{ mb: 4 }}>
-                    <Typography variant="h6" sx={{ bgcolor: '#eee', p: 1, pl: 2, mb: 2, fontWeight: 'bold', borderRadius: 1 }}>
-                        1. DADOS DA SOLICITAÇÃO
-                    </Typography>
+            <Container maxWidth="lg">
+                <Paper elevation={3} sx={{ p: 5, mb: 5 }}>
                     
-                    <Box sx={{ 
-                        display: 'grid', 
-                        gridTemplateColumns: '1fr 1fr', // Duas colunas iguais
-                        gap: 2, 
-                        px: 1 
-                    }}>
-                        <Box><Typography><strong>Protocolo:</strong> {data.protocolo}</Typography></Box>
-                        <Box><Typography><strong>Data Vistoria:</strong> {new Date(data.data_realizacao).toLocaleDateString()}</Typography></Box>
-                        {/* gridColumn: 'span 2' faz o item ocupar a linha toda (como xs={12}) */}
-                        <Box sx={{ gridColumn: 'span 2' }}><Typography><strong>Endereço:</strong> {data.logradouro}, {data.numero} - {data.bairro}</Typography></Box>
-                        <Box><Typography><strong>Cidade:</strong> {data.cidade}/{data.uf}</Typography></Box>
+                    {/* CABEÇALHO DO RELATÓRIO */}
+                    <Stack spacing={1} mb={4}>
+                        <Stack direction="row" justifyContent="space-between" alignItems="flex-start">
+                            <Box>
+                                <Typography variant="overline" color="text.secondary">RELATÓRIO TÉCNICO DE VISTORIA</Typography>
+                                <Typography variant="h4" sx={{ fontWeight: 'bold', color: '#2e7d32' }}>
+                                    {relatorio.tipo_demanda}
+                                </Typography>
+                            </Box>
+                            <Chip label={relatorio.protocolo} color="primary" variant="outlined" />
+                        </Stack>
+                        
+                        <Typography variant="subtitle1">
+                            <strong>Data da Vistoria:</strong> {new Date(relatorio.data_realizacao).toLocaleDateString('pt-BR')} às {new Date(relatorio.data_realizacao).toLocaleTimeString('pt-BR', {hour: '2-digit', minute:'2-digit'})}
+                        </Typography>
+                    </Stack>
+
+                    <Divider sx={{ mb: 4 }} />
+
+                    {/* DADOS DA SOLICITAÇÃO (ESTÁTICOS) */}
+                    <Box mb={4}>
+                        <Typography variant="h6" gutterBottom sx={{ bgcolor: '#e8f5e9', p: 1, pl: 2, borderRadius: 1 }}>
+                            1. Dados da Solicitação
+                        </Typography>
+                        
+                        <Stack direction={{ xs: 'column', md: 'row' }} spacing={4} mt={2}>
+                            <Box flex={1}>
+                                <Typography variant="caption" color="text.secondary">Solicitante</Typography>
+                                <Typography variant="body1" gutterBottom>{relatorio.nome_solicitante || 'Não informado'}</Typography>
+                            </Box>
+                            <Box flex={1}>
+                                <Typography variant="caption" color="text.secondary">Endereço</Typography>
+                                <Typography variant="body1" gutterBottom>
+                                    {relatorio.logradouro}, {relatorio.numero}
+                                    {relatorio.bairro ? ` - ${relatorio.bairro}` : ''}
+                                    {relatorio.cidade ? `, ${relatorio.cidade}` : ''}
+                                </Typography>
+                            </Box>
+                        </Stack>
+                        
+                        <Box mt={2}>
+                            <Typography variant="caption" color="text.secondary">Descrição da Demanda</Typography>
+                            <Typography variant="body1" sx={{ fontStyle: 'italic', color: '#555' }}>
+                                "{relatorio.descricao_demanda || 'Sem descrição'}"
+                            </Typography>
+                        </Box>
                     </Box>
-                </Box>
 
-                {/* Seção 2 */}
-                <Box sx={{ mb: 4 }}>
-                    <Typography variant="h6" sx={{ bgcolor: '#eee', p: 1, pl: 2, mb: 2, fontWeight: 'bold', borderRadius: 1 }}>
-                        2. DESCRIÇÃO DA DEMANDA
-                    </Typography>
-                    <Typography paragraph sx={{ textAlign: 'justify', px: 1 }}>
-                        {data.descricao_demanda}
-                    </Typography>
-                </Box>
+                    {/* DADOS DO LAUDO TÉCNICO (DINÂMICOS) */}
+                    <Box mb={4}>
+                        <Typography variant="h6" gutterBottom sx={{ bgcolor: '#e8f5e9', p: 1, pl: 2, borderRadius: 1 }}>
+                            2. Laudo Técnico
+                        </Typography>
 
-                {/* Seção 3 */}
-                <Box sx={{ mb: 4 }}>
-                    <Typography variant="h6" sx={{ bgcolor: '#eee', p: 1, pl: 2, mb: 1, fontWeight: 'bold', borderRadius: 1 }}>
-                        3. PARECER TÉCNICO E EVIDÊNCIAS
-                    </Typography>
-                    <TableContainer>
-                        <Table size="small">
-                            <TableBody>
-                                {renderRespostas()}
-                            </TableBody>
-                        </Table>
-                    </TableContainer>
-                </Box>
+                        <Stack spacing={3} mt={2}>
+                            {camposParaExibir.map((campo: any) => {
+                                const valor = relatorio.respostas ? relatorio.respostas[campo.key] : null;
+                                
+                                // Pula campos vazios ou nulos para deixar o relatório limpo
+                                if (!valor || (Array.isArray(valor) && valor.length === 0)) return null;
 
-                {/* Rodapé / Assinatura */}
-                <Box sx={{ mt: 8, textAlign: 'center', pageBreakInside: 'avoid' }}>
-                    <Box sx={{ height: 50 }} /> {/* Espaço para assinatura */}
-                    <Divider sx={{ width: '60%', mx: 'auto', mb: 1, borderColor: '#000' }} />
-                    <Typography fontWeight="bold">Responsável Técnico</Typography>
-                    <Typography variant="caption" display="block">Documento gerado eletronicamente em {new Date().toLocaleString()}</Typography>
-                </Box>
-            </Paper>
+                                return (
+                                    <Box key={campo.key} sx={{ breakInside: 'avoid' }}>
+                                        <Typography variant="subtitle2" sx={{ fontWeight: 'bold', mb: 0.5 }}>
+                                            {campo.label}
+                                        </Typography>
+                                        <Box sx={{ pl: 1, borderLeft: '3px solid #eee' }}>
+                                            <RenderizarResposta valor={valor} />
+                                        </Box>
+                                    </Box>
+                                );
+                            })}
+                        </Stack>
+                    </Box>
+
+                    {/* RODAPÉ */}
+                    <Divider sx={{ mt: 6, mb: 2 }} />
+                    <Typography variant="caption" align="center" display="block" color="text.secondary">
+                        Relatório gerado automaticamente pelo sistema TreeInspector em {new Date().toLocaleDateString()}.
+                    </Typography>
+
+                </Paper>
+            </Container>
         </Box>
     );
 }
