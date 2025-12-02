@@ -56,5 +56,19 @@ export const RotasClient = {
     if (!response.ok) {
       throw new Error(`Erro HTTP ${response.status} ao deletar rota.`);
     }
+  },
+  async update(id: number, data: { nome?: string; responsavel?: string; status?: string }): Promise<void> {
+    const response = await fetch(`/api/rotas/${id}`, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(data)
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json();
+      throw new Error(errorData.message || `Erro HTTP ${response.status} ao atualizar rota.`);
+    }
   }
 };

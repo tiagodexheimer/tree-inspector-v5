@@ -6,7 +6,9 @@ import { useParams } from 'next/navigation';
 import {
     Box, Typography, Alert, Button, Paper, Chip, Snackbar, CircularProgress,
     Dialog, DialogTitle, DialogContent, TextField, List, ListItem, ListItemText, Checkbox, DialogActions,
-    InputAdornment, useTheme, useMediaQuery
+    InputAdornment, useTheme, useMediaQuery, IconButton,
+    // [NOVO] Imports para o Select
+    FormControl, InputLabel, Select, MenuItem
 } from '@mui/material';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import SaveIcon from '@mui/icons-material/Save'; 
@@ -14,6 +16,7 @@ import ReplayIcon from '@mui/icons-material/Replay';
 import DownloadIcon from '@mui/icons-material/Download';
 import AddCircleOutlineIcon from '@mui/icons-material/AddCircleOutline';
 import RouteIcon from '@mui/icons-material/Route'; 
+import EditIcon from '@mui/icons-material/Edit';
 import Link from 'next/link';
 import dynamic from 'next/dynamic';
 import { format } from 'date-fns';
@@ -31,6 +34,7 @@ import RotaDetalhesSkeleton from '@/components/ui/rotas/RotaDetalhesSkeleton';
 import { useRotaDetalhesData } from '@/hooks/useRotaDetalhesData';
 import { useRotaDetalhesOperations } from '@/hooks/useRotaDetalhesOperations';
 import { RotaDetalhesClient, DemandaNaoDistribuida, DemandaComOrdem } from '@/services/client/rota-detalhes-client'; 
+import { RotasClient } from '@/services/client/rotas-client';
 
 // Imports Dinâmicos
 const RouteMap = dynamic(() => import('@/components/ui/demandas/RouteMap'), {
@@ -50,7 +54,6 @@ export default function PaginaDetalheRota() {
     // --- Responsividade ---
     const theme = useTheme();
     const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
-    // --- Fim Responsividade ---
 
     // 1. Hooks de Dados e Operações
     const {
@@ -66,14 +69,21 @@ export default function PaginaDetalheRota() {
         opError, saveSuccess, setSaveSuccess, setOpError
     } = useRotaDetalhesOperations(id, refresh);
     
-    // --- ESTADOS DO MODAL ---
+    // --- ESTADOS DO MODAL DE ADICIONAR DEMANDA ---
     const [addDemandaModalOpen, setAddDemandaModalOpen] = useState(false);
     const [undistributedDemandas, setUndistributedDemandas] = useState<DemandaNaoDistribuida[]>([]);
     const [loadingUndistributed, setLoadingUndistributed] = useState(false);
     const [selectedNewDemandas, setSelectedNewDemandas] = useState<number[]>([]);
     const [modalFilter, setModalFilter] = useState('');
-    // --- FIM ESTADOS MODAL ---
 
+    // --- ESTADOS DO MODAL DE EDIÇÃO DA ROTA ---
+    const [editModalOpen, setEditModalOpen] = useState(false);
+    const [editName, setEditName] = useState('');
+    const [editResponsavel, setEditResponsavel] = useState('');
+    const [isUpdating, setIsUpdating] = useState(false);
+    
+    // [NOVO] Lista de usuários para o dropdown
+    const [usersList, setUsersList] = useState<any[]>([]);
 
     // 2. Configuração DnD
     const sensors = useSensors(
@@ -128,7 +138,6 @@ export default function PaginaDetalheRota() {
             const result = await optimizeOrder(demandaIds.map(d => d.id));
 
             setDemandas(result.optimizedDemands as DemandaComOrdem[]);
-            // [CORREÇÃO CRÍTICA]: Usar 'as any' para resolver o erro de tipagem ambígua entre string e array
             setApiPolyline(result.routePath as any); 
             
             setOpError(null);
@@ -138,9 +147,47 @@ export default function PaginaDetalheRota() {
             // Erro tratado no hook
         }
     };
-    // --- FIM LÓGICA DE OTIMIZAÇÃO ---
 
-    // --- Lógica do Modal (Mantida) ---
+    // --- LÓGICA DE EDIÇÃO DA ROTA ---
+    
+    // [NOVO] Busca usuários quando o modal abre
+    useEffect(() => {
+        if (editModalOpen) {
+            fetch('/api/users/list')
+                .then(res => res.json())
+                .then(data => setUsersList(data))
+                .catch(err => console.error("Erro ao carregar usuários", err));
+        }
+    }, [editModalOpen]);
+
+    const handleOpenEditModal = () => {
+        if (rota) {
+            setEditName(rota.nome);
+            setEditResponsavel(rota.responsavel);
+            setEditModalOpen(true);
+        }
+    };
+
+    const handleSaveEditRota = async () => {
+        if (!editName.trim() || !editResponsavel.trim()) return;
+        
+        setIsUpdating(true);
+        try {
+            await RotasClient.update(rotaIdNumber, {
+                nome: editName,
+                responsavel: editResponsavel
+            });
+            await refresh(); 
+            setEditModalOpen(false);
+            setSaveSuccess(true); 
+        } catch (e) {
+            setOpError("Erro ao atualizar informações da rota.");
+        } finally {
+            setIsUpdating(false);
+        }
+    };
+
+    // --- Lógica do Modal de Adição (Mantida) ---
     const fetchUndistributedDemandas = useCallback(async () => {
         setLoadingUndistributed(true);
         try {
@@ -179,7 +226,7 @@ export default function PaginaDetalheRota() {
             setSelectedNewDemandas([]); 
             setOpError(null);
         } catch (e) {
-            // Erro tratado no hook (opError)
+            // Erro tratado no hook
         }
     };
     
@@ -208,7 +255,6 @@ export default function PaginaDetalheRota() {
         );
     }
 
-    // Status Chip Color
     let statusColor: "default" | "warning" | "info" | "success" = "default";
     if (rota.status === 'Pendente') statusColor = 'warning';
     if (rota.status === 'Em Andamento') statusColor = 'info';
@@ -228,20 +274,18 @@ export default function PaginaDetalheRota() {
                     {isMobile ? 'Voltar' : 'Voltar para Rotas'}
                 </Button>
                 
-                {/* Título - Ocupa uma linha inteira no mobile */}
-                <Typography variant="h5" component="h1" sx={{ 
-                    flexGrow: 1, 
-                    fontSize: isMobile ? '1.2rem' : '2.125rem', 
-                    minWidth: isMobile ? '100%' : 'auto', 
-                    mb: isMobile ? 1 : 0
-                }}>
-                    {rota.nome}
-                </Typography>
+                {/* Título COM BOTÃO DE EDITAR */}
+                <Box sx={{ display: 'flex', alignItems: 'center', flexGrow: 1, minWidth: isMobile ? '100%' : 'auto', mb: isMobile ? 1 : 0 }}>
+                    <Typography variant="h5" component="h1" sx={{ fontSize: isMobile ? '1.2rem' : '2.125rem', mr: 1 }}>
+                        {rota.nome}
+                    </Typography>
+                    <IconButton size="small" onClick={handleOpenEditModal} disabled={isSaving || isOptimizing}>
+                        <EditIcon fontSize="small" />
+                    </IconButton>
+                </Box>
                 
-                {/* Agrupamento de Ações */}
+                {/* Ações */}
                 <Box sx={{ display: 'flex', gap: { xs: 1, md: 2 }, flexWrap: 'wrap', width: isMobile ? '100%' : 'auto', justifyContent: isMobile ? 'space-between' : 'flex-start' }}>
-
-                    {/* Botão Adicionar Demanda */}
                     <Button
                         variant="outlined" color="success"
                         startIcon={<AddCircleOutlineIcon />}
@@ -252,7 +296,6 @@ export default function PaginaDetalheRota() {
                         {isMobile ? 'Add' : 'Adicionar Demanda'}
                     </Button>
                     
-                    {/* Botão Otimizar Ordem */}
                     <Button
                         variant="outlined" color="secondary"
                         startIcon={isOptimizing ? <CircularProgress size={20} /> : <RouteIcon />}
@@ -264,7 +307,6 @@ export default function PaginaDetalheRota() {
                         {isOptimizing ? 'Otimizando...' : (isMobile ? 'Otimizar' : 'Otimizar Ordem')}
                     </Button>
 
-                    {/* Botão Exportar XLS */}
                     <Button
                         variant="outlined" color="primary"
                         startIcon={isExporting ? <CircularProgress size={20} /> : <DownloadIcon />}
@@ -275,7 +317,6 @@ export default function PaginaDetalheRota() {
                         {isExporting ? 'Exportando...' : (isMobile ? 'Exportar' : 'Exportar XLS')}
                     </Button>
 
-                    {/* Botão Cancelar */}
                     {hasChanges && (
                         <Button
                             variant="outlined" color="secondary"
@@ -288,7 +329,6 @@ export default function PaginaDetalheRota() {
                         </Button>
                     )}
 
-                    {/* Botão Salvar Ordem - Destaque */}
                     <Button
                         variant="contained" color="primary"
                         startIcon={isSaving ? <CircularProgress size={20} color="inherit" /> : <SaveIcon />}
@@ -322,9 +362,8 @@ export default function PaginaDetalheRota() {
                 </Box>
             </Paper>
 
-            {/* Conteúdo Principal */}
+            {/* Conteúdo */}
             <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 3 }}>
-                {/* Lista (Esquerda) */}
                 <Box sx={{ flexGrow: 1, flexBasis: { xs: '100%', md: '40%' }, minWidth: '300px' }}>
                     <Typography variant="h6" gutterBottom>
                         {demandas.length} Paradas na Rota
@@ -337,12 +376,9 @@ export default function PaginaDetalheRota() {
                         onRemove={handleRemoveDemanda}
                     />
                 </Box>
-                
-                {/* Mapa (Direita) */}
                 <Box sx={{ flexGrow: 1, flexBasis: { xs: '100%', md: '55%' }, minWidth: '400px' }}>
                     <Typography variant="h6" gutterBottom>Visualização</Typography>
                     <Box sx={{ 
-                        // Altura fixa em 70vh no desktop, mas minHeight para garantir no mobile
                         height: '70vh', 
                         minHeight: 400, 
                         border: '1px solid #ccc', 
@@ -358,10 +394,10 @@ export default function PaginaDetalheRota() {
                 open={saveSuccess}
                 autoHideDuration={4000}
                 onClose={() => setSaveSuccess(false)}
-                message="Ordem salva com sucesso!"
+                message="Operação realizada com sucesso!"
             />
             
-            {/* Modal de Adição de Demandas (Omitido para brevidade, mas presente no seu arquivo) */}
+            {/* Modal de Adicionar Demandas */}
             <Dialog open={addDemandaModalOpen} onClose={() => setAddDemandaModalOpen(false)} fullWidth maxWidth="md">
                 <DialogTitle>
                     Adicionar Demandas à Rota #{rotaIdNumber}
@@ -423,6 +459,48 @@ export default function PaginaDetalheRota() {
                         disabled={selectedNewDemandas.length === 0 || isSaving}
                     >
                         {isSaving ? <CircularProgress size={20} color="inherit" sx={{ mr: 1 }} /> : `Adicionar (${selectedNewDemandas.length}) Demandas`}
+                    </Button>
+                </DialogActions>
+            </Dialog>
+
+            {/* Modal de Edição de Rota (ATUALIZADO) */}
+            <Dialog open={editModalOpen} onClose={() => setEditModalOpen(false)} fullWidth maxWidth="sm">
+                <DialogTitle>Editar Detalhes da Rota</DialogTitle>
+                <DialogContent dividers>
+                    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, mt: 1 }}>
+                        <TextField
+                            label="Nome da Rota"
+                            value={editName}
+                            onChange={(e) => setEditName(e.target.value)}
+                            fullWidth
+                            disabled={isUpdating}
+                        />
+                        {/* [NOVO] Select de Responsável */}
+                        <FormControl fullWidth disabled={isUpdating}>
+                            <InputLabel id="responsavel-select-label">Responsável</InputLabel>
+                            <Select
+                                labelId="responsavel-select-label"
+                                value={editResponsavel}
+                                label="Responsável"
+                                onChange={(e) => setEditResponsavel(e.target.value)}
+                            >
+                                {usersList.map((user) => (
+                                    <MenuItem key={user.id} value={user.name}>
+                                        {user.name}
+                                    </MenuItem>
+                                ))}
+                            </Select>
+                        </FormControl>
+                    </Box>
+                </DialogContent>
+                <DialogActions>
+                    <Button onClick={() => setEditModalOpen(false)} disabled={isUpdating}>Cancelar</Button>
+                    <Button 
+                        onClick={handleSaveEditRota} 
+                        variant="contained" 
+                        disabled={isUpdating || !editName.trim() || !editResponsavel.trim()}
+                    >
+                        {isUpdating ? <CircularProgress size={20} color="inherit" /> : 'Salvar Alterações'}
                     </Button>
                 </DialogActions>
             </Dialog>
