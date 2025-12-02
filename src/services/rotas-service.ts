@@ -1,4 +1,6 @@
+// src/services/rotas-service.ts
 import { RotasRepository, RotaPersistence, UpdateRotaDTO } from "@/repositories/rotas-repository";
+import { DemandasRepository } from "@/repositories/demandas-repository"; // <-- CORREÇÃO: Importação adicionada
 import * as XLSX from 'xlsx'; 
 import { format } from 'date-fns';
 
@@ -22,12 +24,20 @@ export class RotasService {
       if (!input.demandas || input.demandas.length === 0) throw new Error("A rota deve conter pelo menos uma demanda.");
 
       const demandasComOrdem = input.demandas.map((d, index) => ({ id: d.id, ordem: index }));
-      return await RotasRepository.create({
+      
+      // 1. Cria a Rota
+      const newRota = await RotasRepository.create({
           nome: input.nome.trim(),
           responsavel: input.responsavel.trim(),
-          status: "Pendente",
+          status: "Pendente", // Status da rota (não da demanda)
           demandas: demandasComOrdem
       });
+
+      // 2. [AUTOMAÇÃO DE FLUXO] Atualiza o status das demandas para "Vistoria Agendada"
+      const demandaIds = input.demandas.map(d => d.id);
+      await DemandasRepository.updateStatusByName(demandaIds, "Vistoria Agendada");
+
+      return newRota;
   }
 
   async getRotaDetails(id: number) {

@@ -243,7 +243,7 @@ export default function DemandasPage() {
                     open={criarRotaModalOpen}
                     onClose={() => setCriarRotaModalOpen(false)}
                     routeData={optimizedRouteData}
-                    onRotaCriada={() => setCriarRotaModalOpen(false)}
+                    onRotaCriada={() => { setCriarRotaModalOpen(false); refresh(); }}
                 />
             )}
         </div>

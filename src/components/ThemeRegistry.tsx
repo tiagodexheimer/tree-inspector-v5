@@ -8,7 +8,7 @@ import CssBaseline from '@mui/material/CssBaseline';
 const THEME_COLORS = {
     // Definimos o verde e o marrom como cores primárias e secundárias,
     // ou usamos um nome customizado. Vamos usar a paleta principal:
-    greenHeader: '#4CAF50',    // Verde (para o Header)
+    greenHeader: '#009440',    // Verde (para o Header)
     brownSidebar: '#795548',  // Marrom (para o Sidebar)
     backgroundBody: '#F5F5DC', // Bege (Beige, para o fundo)
 };

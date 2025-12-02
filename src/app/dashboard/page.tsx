@@ -1,3 +1,4 @@
+// src/app/dashboard/page.tsx
 'use client';
 
 import React, { useEffect, useState } from 'react';
@@ -55,33 +56,36 @@ export default function DashboardPage() {
                 Visão Geral da Operação
             </Typography>
 
-            {/* 1. KPIs (Indicadores) */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-6 mb-8">
-                <KPICard 
-                    title="Total de Demandas" 
-                    value={data.kpis.totalDemandas} 
-                    icon={<Assignment fontSize="large" />} 
-                    color="#1976d2" 
-                />
-                <KPICard 
-                    title="Pendentes" 
-                    value={data.kpis.totalPendentes} 
-                    icon={<PendingActions fontSize="large" />} 
-                    color="#ed6c02" 
-                />
-                <KPICard 
-                    title="Concluídas" 
-                    value={data.kpis.totalConcluidas} 
-                    icon={<CheckCircle fontSize="large" />} 
-                    color="#2e7d32" 
-                />
-                <KPICard 
-                    title="Rotas Ativas" 
-                    value={data.kpis.totalRotas} 
-                    icon={<Route fontSize="large" />} 
-                    color="#9c27b0" 
-                />
-            </div>
+            {/* 1. KPIs (Indicadores) - CORRIGIDO: usa Box MUI para controlar a margem inferior */}
+            <Box sx={{ mb: 4 }}> 
+                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-6">
+                    <KPICard 
+                        title="Total de Demandas" 
+                        value={data.kpis.totalDemandas} 
+                        icon={<Assignment fontSize="large" />} 
+                        color="#1976d2" 
+                    />
+                    <KPICard 
+                        title="Pendentes" 
+                        value={data.kpis.totalPendentes} 
+                        icon={<PendingActions fontSize="large" />} 
+                        color="#ed6c02" 
+                    />
+                    <KPICard 
+                        title="Concluídas" 
+                        value={data.kpis.totalConcluidas} 
+                        icon={<CheckCircle fontSize="large" />} 
+                        color="#2e7d32" 
+                    />
+                    <KPICard 
+                        title="Rotas Ativas" 
+                        value={data.kpis.totalRotas} 
+                        icon={<Route fontSize="large" />} 
+                        color="#9c27b0" 
+                    />
+                </div>
+            </Box>
+            
 
             {/* 2. Gráficos e Ações */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">

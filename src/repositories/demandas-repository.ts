@@ -216,6 +216,40 @@ export const DemandasRepository = {
     }
   },
 
+ async updateStatusByName(ids: number[], statusName: string): Promise<void> {
+    const client = await pool.connect();
+    try {
+        await client.query('BEGIN');
+        
+        // 1. Busca o ID do status pelo nome
+        const statusRes = await client.query(
+            "SELECT id FROM demandas_status WHERE nome = $1", 
+            [statusName]
+        );
+
+        if (statusRes.rows.length === 0) {
+            throw new Error(`Status "${statusName}" não encontrado para atualização.`);
+        }
+        const idStatus = statusRes.rows[0].id;
+
+        // 2. Atualiza as demandas em lote
+        const query = `
+            UPDATE demandas 
+            SET id_status = $1, updated_at = NOW()
+            WHERE id = ANY($2::int[])
+        `;
+        await client.query(query, [idStatus, ids]);
+
+        await client.query('COMMIT');
+    } catch (error) {
+        await client.query('ROLLBACK');
+        console.error("Erro no DemandasRepository.updateStatusByName:", error);
+        throw new Error("Falha ao atualizar status das demandas em lote.");
+    } finally {
+        client.release();
+    }
+  },
+
   // [NOVO] Deletar
   async delete(id: number): Promise<boolean> {
     try {

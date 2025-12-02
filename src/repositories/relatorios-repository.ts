@@ -3,8 +3,10 @@ import pool from "@/lib/db";
 
 export const RelatoriosRepository = {
   async findAll() {
+    // A query antiga duplicava resultados se a demanda estivesse em múltiplas rotas.
+    // Usamos DISTINCT ON (v.id) para garantir que cada vistoria apareça uma única vez.
     const query = `
-      SELECT 
+      SELECT DISTINCT ON (v.id)
         v.id,
         v.demanda_id,
         d.protocolo,
@@ -14,14 +16,21 @@ export const RelatoriosRepository = {
         u.name as responsavel_tecnico
       FROM vistorias_realizadas v
       JOIN demandas d ON v.demanda_id = d.id
-      -- Tenta pegar o responsável da rota, se houver (opcional, depende da sua regra de negócio)
+      -- Joins para pegar o técnico (pode gerar duplicação sem o DISTINCT)
       LEFT JOIN rotas_demandas rd ON d.id = rd.demanda_id
       LEFT JOIN rotas r ON rd.rota_id = r.id
-      LEFT JOIN users u ON r.responsavel = u.name -- ou outra lógica de vinculo de usuário
-      ORDER BY v.data_realizacao DESC
+      LEFT JOIN users u ON r.responsavel = u.name
+      -- Ordena pelo ID para o DISTINCT funcionar, depois pela data
+      ORDER BY v.id, v.data_realizacao DESC
     `;
-    const result = await pool.query(query);
-    return result.rows;
+    
+    try {
+      const result = await pool.query(query);
+      return result.rows;
+    } catch (error) {
+      console.error("Erro ao buscar relatórios:", error);
+      return []; // Retorna lista vazia em caso de erro para não quebrar o front
+    }
   },
 
   async findById(id: number) {

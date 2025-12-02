@@ -25,8 +25,10 @@ export default function Header({ onMenuClick }: HeaderProps) {
             position="fixed"
             sx={{
                 zIndex: (theme) => theme.zIndex.drawer + 1,
-                width: isMobile ? '100%' : `calc(100% - ${SIDEBAR_WIDTH}px)`,
-                ml: isMobile ? 0 : `${SIDEBAR_WIDTH}px`,
+                // [CORREÇÃO AQUI]
+                // Remove a lógica condicional para forçar 100% da largura da viewport (edge-to-edge)
+                width: '100%',
+                ml: 0,
             }}
         >
             <Toolbar sx={{ justifyContent: 'space-between' }}>

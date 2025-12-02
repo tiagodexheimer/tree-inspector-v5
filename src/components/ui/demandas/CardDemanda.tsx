@@ -112,7 +112,15 @@ const CardDemanda = memo((props: CardDemandaProps) => {
           title={tipo_demanda || `Demanda ${id}`}
           subheader={enderecoFormatado}
           action={
-            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5 }}>
+            <Box 
+              sx={{ 
+                display: 'flex', 
+                flexDirection: 'column', 
+                gap: 0.5, 
+                alignItems: 'flex-end', // Alinha Status e Ícones à direita
+                flexShrink: 0 // Impede que este bloco encolha se o título for longo
+              }}
+            >
               <Box sx={{ display: 'flex', gap: 0.5 }}>
                 <IconButton size="small" onClick={(e) => { e.stopPropagation(); onEdit(props); }}>
                   <EditIcon fontSize="small" />
@@ -130,15 +138,22 @@ const CardDemanda = memo((props: CardDemandaProps) => {
               />
             </Box>
           }
+          
           titleTypographyProps={{
             fontWeight: "bold",
             fontSize: isMobile ? "0.95rem" : "1rem",
-            noWrap: true
+            noWrap: true // Mantém o título curto em uma linha
           }}
+          
+          // [CORREÇÃO 2: Permite quebra de linha no endereço]
           subheaderTypographyProps={{
             variant: "caption",
             color: "text.secondary",
-            noWrap: true
+            // Remove 'noWrap: true' e permite quebra de linha se necessário
+            sx: { 
+                whiteSpace: 'normal', // Permite quebra de linha
+                display: 'block' // Garante que a quebra ocorra abaixo do título
+            }
           }}
           sx={{ pb: 0 }}
         />
