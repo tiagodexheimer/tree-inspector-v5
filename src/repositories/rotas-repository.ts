@@ -9,6 +9,11 @@ export interface RotaPersistence {
   data_rota: Date | null;
   created_at: Date;
   total_demandas: number;
+  // [NOVO] Campos de personalização obrigatórios na leitura
+  inicio_personalizado_lat?: number;
+  inicio_personalizado_lng?: number;
+  fim_personalizado_lat?: number;
+  fim_personalizado_lng?: number;
 }
 
 export interface UpdateRotaDTO {
@@ -23,6 +28,9 @@ export interface CreateRotaDTO {
   responsavel: string;
   status: string;
   demandas: { id: number; ordem: number }[];
+  // [NOVO] Campos opcionais de criação
+  inicio_personalizado?: { lat: number; lng: number } | null;
+  fim_personalizado?: { lat: number; lng: number } | null;
 }
 
 export interface ExportDataResult {
@@ -35,6 +43,7 @@ export const RotasRepository = {
 
   async findAll(): Promise<RotaPersistence[]> {
     try {
+      // Adicionamos as colunas de personalização no SELECT
       const query = `
             SELECT
                 r.id,
@@ -43,6 +52,10 @@ export const RotasRepository = {
                 r.status,
                 r.data_rota,
                 r.created_at,
+                r.inicio_personalizado_lat,
+                r.inicio_personalizado_lng,
+                r.fim_personalizado_lat,
+                r.fim_personalizado_lng,
                 COUNT(rd.demanda_id) AS total_demandas
             FROM
                 rotas r
@@ -134,25 +147,56 @@ export const RotasRepository = {
     const client = await pool.connect();
     try {
       await client.query("BEGIN");
+      
+      // [CORREÇÃO CRÍTICA] Incluídos os campos de personalização no INSERT
       const rotaQuery = `
-        INSERT INTO rotas (nome, responsavel, status)
-        VALUES ($1, $2, $3)
+        INSERT INTO rotas (
+            nome, responsavel, status, 
+            inicio_personalizado_lat, inicio_personalizado_lng, 
+            fim_personalizado_lat, fim_personalizado_lng
+        )
+        VALUES ($1, $2, $3, $4, $5, $6, $7)
         RETURNING id, nome, responsavel, status;
       `;
-      const rotaResult = await client.query(rotaQuery, [data.nome, data.responsavel, data.status]);
+      
+      const values = [
+          data.nome, 
+          data.responsavel, 
+          data.status,
+          data.inicio_personalizado?.lat || null,
+          data.inicio_personalizado?.lng || null,
+          data.fim_personalizado?.lat || null,
+          data.fim_personalizado?.lng || null
+      ];
+
+      const rotaResult = await client.query(rotaQuery, values);
       const newRota = rotaResult.rows[0];
 
       if (data.demandas.length > 0) {
-          const values: string[] = [];
-          const params: any[] = [newRota.id];
+          const valuesDemanda: string[] = [];
+          const paramsDemanda: any[] = [newRota.id];
           data.demandas.forEach((d) => {
-              const offset = params.length + 1;
-              values.push(`($1, $${offset}, $${offset + 1})`);
-              params.push(d.id, d.ordem);
+              const offset = paramsDemanda.length + 1;
+              valuesDemanda.push(`($1, $${offset}, $${offset + 1})`);
+              paramsDemanda.push(d.id, d.ordem);
           });
-          const insertQuery = `INSERT INTO rotas_demandas (rota_id, demanda_id, ordem) VALUES ${values.join(", ")}`;
-          await client.query(insertQuery, params);
+          const insertQuery = `INSERT INTO rotas_demandas (rota_id, demanda_id, ordem) VALUES ${valuesDemanda.join(", ")}`;
+          await client.query(insertQuery, paramsDemanda);
       }
+      
+      // Atualiza status das demandas
+      if (data.demandas.length > 0) {
+          const ids = data.demandas.map(d => d.id);
+          const placeholders = ids.map((_, i) => `$${i + 1}`).join(', ');
+          
+          const updateStatusQuery = `
+            UPDATE demandas 
+            SET id_status = (SELECT id FROM demandas_status WHERE nome = 'Vistoria Agendada' LIMIT 1), updated_at = NOW()
+            WHERE id IN (${placeholders})
+          `;
+          await client.query(updateStatusQuery, ids); 
+      }
+
       await client.query("COMMIT");
       return newRota;
     } catch (error) {
@@ -198,16 +242,12 @@ export const RotasRepository = {
       }
   },
 
-  // [NOVO] Reordenar Demandas
   async reorderDemandas(rotaId: number, demandas: { id: number; ordem: number }[]): Promise<void> {
       const client = await pool.connect();
       try {
           await client.query('BEGIN');
-
-          // 1. Limpa associações antigas da rota
           await client.query('DELETE FROM rotas_demandas WHERE rota_id = $1', [rotaId]);
 
-          // 2. Insere novamente com a nova ordem
           if (demandas.length > 0) {
               const values: string[] = [];
               const params: any[] = [rotaId];
@@ -235,7 +275,6 @@ export const RotasRepository = {
       }
   },
   
-  // [CORREÇÃO APLICADA] Adicionar demandas (com ordem) a uma rota existente
   addDemandasToRota: async (rotaId: number, demandas: { id: number; ordem: number }[]): Promise<void> => {
     const client = await pool.connect();
     try {
@@ -262,9 +301,9 @@ export const RotasRepository = {
     } catch (error) {
         await client.query('ROLLBACK');
         console.error("Erro no RotasRepository.addDemandasToRota:", error);
-        throw error; // Deixa o service ou a API tratar o erro 23505 (Unique violation)
+        throw error;
     } finally {
         client.release();
     }
-  }, // <--- O uso da vírgula aqui é crucial
+  },
 };

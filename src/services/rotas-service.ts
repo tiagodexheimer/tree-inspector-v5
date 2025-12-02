@@ -1,35 +1,54 @@
-import { RotasRepository, RotaPersistence, UpdateRotaDTO } from "@/repositories/rotas-repository";
+import {
+  RotasRepository,
+  RotaPersistence,
+  UpdateRotaDTO,
+} from "@/repositories/rotas-repository";
 import { ConfiguracoesRepository } from "@/repositories/configuracoes-repository"; // [NOVO] Import
-import * as XLSX from 'xlsx'; 
-import { format } from 'date-fns';
+import * as XLSX from "xlsx";
+import { format } from "date-fns";
 
 interface CreateRotaInput {
   nome: string;
   responsavel: string;
   demandas: { id: number }[];
+  // [NOVO]
+  inicio_personalizado?: { lat: number; lng: number };
+  fim_personalizado?: { lat: number; lng: number };
 }
 
 // Coordenadas de fallback caso não haja nada no banco (Último recurso)
-const DEFAULT_FALLBACK_COORDS = { latitude: -29.8533191, longitude: -51.1789191 };
+const DEFAULT_FALLBACK_COORDS = {
+  latitude: -29.8533191,
+  longitude: -51.1789191,
+};
 
 export class RotasService {
-  
   async listRotas() {
-      return await RotasRepository.findAll();
+    return await RotasRepository.findAll();
   }
 
   async createRota(input: CreateRotaInput) {
-      if (!input.nome || input.nome.trim() === "") throw new Error("O nome da rota é obrigatório.");
-      if (!input.responsavel || input.responsavel.trim() === "") throw new Error("O responsável é obrigatório.");
-      if (!input.demandas || input.demandas.length === 0) throw new Error("A rota deve conter pelo menos uma demanda.");
+    if (!input.nome || input.nome.trim() === "")
+      throw new Error("O nome da rota é obrigatório.");
+    if (!input.responsavel || input.responsavel.trim() === "")
+      throw new Error("O responsável é obrigatório.");
+    if (!input.demandas || input.demandas.length === 0)
+      throw new Error("A rota deve conter pelo menos uma demanda.");
 
-      const demandasComOrdem = input.demandas.map((d, index) => ({ id: d.id, ordem: index }));
-      return await RotasRepository.create({
-          nome: input.nome.trim(),
-          responsavel: input.responsavel.trim(),
-          status: "Pendente",
-          demandas: demandasComOrdem
-      });
+    const demandasComOrdem = input.demandas.map((d, index) => ({
+      id: d.id,
+      ordem: index,
+    }));
+
+    return await RotasRepository.create({
+      nome: input.nome.trim(),
+      responsavel: input.responsavel.trim(),
+      status: "Pendente",
+      demandas: demandasComOrdem,
+      // [NOVO] Repassa os dados opcionais
+      inicio_personalizado: input.inicio_personalizado || null,
+      fim_personalizado: input.fim_personalizado || null,
+    });
   }
 
   async getRotaDetails(id: number) {
@@ -38,29 +57,25 @@ export class RotasService {
 
     const demandas = await RotasRepository.findDemandasByRotaId(id);
     
-    // --- [NOVO] Lógica de Ponto de Partida e Chegada ---
-    
-    // 1. Busca configuração global (Padrões do sistema)
+    // 1. Busca configuração global
     const configGlobal = await ConfiguracoesRepository.getRotaConfig();
 
-    // 2. Define os pontos. Prioridade:
-    //    1º: Personalizado na própria rota (se existir as colunas no banco)
-    //    2º: Configuração Global (definida no menu Configurações)
-    //    3º: Fallback Hardcoded (para evitar crash se tudo estiver vazio)
-    
-    // Cast 'as any' para acessar propriedades novas caso a interface RotaPersistence não tenha sido atualizada ainda
+    // 2. Define prioridade: Personalizado Rota > Global > Fallback
     const r = rota as any; 
+    
+    // Verifica se existem valores numéricos (0 é válido)
+    const hasPersonalStart = r.inicio_personalizado_lat !== null && r.inicio_personalizado_lat !== undefined;
+    const hasPersonalEnd = r.fim_personalizado_lat !== null && r.fim_personalizado_lat !== undefined;
 
     const startPoint = {
-        latitude: r.inicio_personalizado_lat || configGlobal?.inicio.lat || DEFAULT_FALLBACK_COORDS.latitude,
-        longitude: r.inicio_personalizado_lng || configGlobal?.inicio.lng || DEFAULT_FALLBACK_COORDS.longitude
+        latitude: hasPersonalStart ? r.inicio_personalizado_lat : (configGlobal?.inicio.lat || DEFAULT_FALLBACK_COORDS.latitude),
+        longitude: hasPersonalStart ? r.inicio_personalizado_lng : (configGlobal?.inicio.lng || DEFAULT_FALLBACK_COORDS.longitude)
     };
 
     const endPoint = {
-        latitude: r.fim_personalizado_lat || configGlobal?.fim.lat || DEFAULT_FALLBACK_COORDS.latitude,
-        longitude: r.fim_personalizado_lng || configGlobal?.fim.lng || DEFAULT_FALLBACK_COORDS.longitude
+        latitude: hasPersonalEnd ? r.fim_personalizado_lat : (configGlobal?.fim.lat || DEFAULT_FALLBACK_COORDS.latitude),
+        longitude: hasPersonalEnd ? r.fim_personalizado_lng : (configGlobal?.fim.lng || DEFAULT_FALLBACK_COORDS.longitude)
     };
-    // ---------------------------------------------------
 
     let encodedPolyline: string | null = null;
     const apiKey = process.env.GOOGLE_MAPS_API_KEY;
@@ -70,8 +85,8 @@ export class RotasService {
     if (demandasComGeom.length > 0 && apiKey) {
         try {
             const requestBody = {
-                origin: { location: { latLng: startPoint } },      // [USANDO VARIÁVEL DINÂMICA]
-                destination: { location: { latLng: endPoint } },   // [USANDO VARIÁVEL DINÂMICA]
+                origin: { location: { latLng: startPoint } },
+                destination: { location: { latLng: endPoint } },
                 intermediates: demandasComGeom.map((d: any) => ({
                     location: { latLng: { latitude: d.lat, longitude: d.lng } }
                 })),
@@ -93,19 +108,21 @@ export class RotasService {
             const data = await response.json();
             if (response.ok && data.routes && data.routes.length > 0 && data.routes[0].polyline) {
                 encodedPolyline = data.routes[0].polyline.encodedPolyline;
-            } else {
-                console.warn("[RotasService] Aviso API Google:", data);
             }
         } catch (error) {
             console.error(`[RotasService] Erro Google API rota ${id}:`, error);
         }
     }
-    return { rota, demandas, encodedPolyline };
+    
+    // [CORREÇÃO] Retorna os pontos usados para o frontend desenhar os pinos
+    return { rota, demandas, encodedPolyline, startPoint, endPoint };
   }
 
   async updateRota(id: number, input: UpdateRotaDTO) {
-    if (!input.nome || input.nome.trim() === '') throw new Error("Nome é obrigatório.");
-    if (!input.responsavel || input.responsavel.trim() === '') throw new Error("Responsável é obrigatório.");
+    if (!input.nome || input.nome.trim() === "")
+      throw new Error("Nome é obrigatório.");
+    if (!input.responsavel || input.responsavel.trim() === "")
+      throw new Error("Responsável é obrigatório.");
 
     const updated = await RotasRepository.update(id, input);
     if (!updated) throw new Error("Rota não encontrada para atualização.");
@@ -113,65 +130,97 @@ export class RotasService {
   }
 
   async deleteRota(id: number) {
-      const success = await RotasRepository.delete(id);
-      if (!success) throw new Error("Rota não encontrada para exclusão.");
+    const success = await RotasRepository.delete(id);
+    if (!success) throw new Error("Rota não encontrada para exclusão.");
   }
 
   async reorderDemandas(rotaId: number, demandasIds: { id: number }[]) {
-      const rota = await RotasRepository.findById(rotaId);
-      if (!rota) throw new Error("Rota não encontrada.");
+    const rota = await RotasRepository.findById(rotaId);
+    if (!rota) throw new Error("Rota não encontrada.");
 
-      const demandasComOrdem = demandasIds.map((d, index) => ({
-          id: d.id,
-          ordem: index
-      }));
+    const demandasComOrdem = demandasIds.map((d, index) => ({
+      id: d.id,
+      ordem: index,
+    }));
 
-      await RotasRepository.reorderDemandas(rotaId, demandasComOrdem);
+    await RotasRepository.reorderDemandas(rotaId, demandasComOrdem);
   }
 
-  async generateExport(id: number): Promise<{ buffer: Buffer; filename: string }> {
+  async generateExport(
+    id: number
+  ): Promise<{ buffer: Buffer; filename: string }> {
     const data = await RotasRepository.findExportData(id);
     if (!data) throw new Error("Rota não encontrada para exportação.");
 
     const { rotaNome, demandas } = data;
-    const dadosFormatados = demandas.map(row => ({
-        "Ordem": row.ordem, "ID Demanda": row.id, "Tipo": row.tipo_demanda,
-        "Descrição": row.descricao, "CEP": row.cep, "Rua": row.logradouro,
-        "Número": row.numero, "Bairro": row.bairro, "Cidade": row.cidade,
-        "UF": row.uf, "Complemento": row.complemento, "Solicitante": row.nome_solicitante,
-        "Telefone": row.telefone_solicitante, "E-mail": row.email_solicitante,
-        "Status": row.status_nome, "Prazo": row.prazo ? format(new Date(row.prazo), 'dd/MM/yyyy') : '',
+    const dadosFormatados = demandas.map((row) => ({
+      Ordem: row.ordem,
+      "ID Demanda": row.id,
+      Tipo: row.tipo_demanda,
+      Descrição: row.descricao,
+      CEP: row.cep,
+      Rua: row.logradouro,
+      Número: row.numero,
+      Bairro: row.bairro,
+      Cidade: row.cidade,
+      UF: row.uf,
+      Complemento: row.complemento,
+      Solicitante: row.nome_solicitante,
+      Telefone: row.telefone_solicitante,
+      "E-mail": row.email_solicitante,
+      Status: row.status_nome,
+      Prazo: row.prazo ? format(new Date(row.prazo), "dd/MM/yyyy") : "",
     }));
 
     const workbook = XLSX.utils.book_new();
     const worksheet = XLSX.utils.json_to_sheet(dadosFormatados);
     const wch = (width: number) => ({ wch: width });
-    worksheet['!cols'] = [
-        wch(6), wch(10), wch(15), wch(40), wch(10), wch(30), wch(8),  
-        wch(20), wch(20), wch(5), wch(15), wch(25), wch(15), wch(25), wch(15), wch(12)
+    worksheet["!cols"] = [
+      wch(6),
+      wch(10),
+      wch(15),
+      wch(40),
+      wch(10),
+      wch(30),
+      wch(8),
+      wch(20),
+      wch(20),
+      wch(5),
+      wch(15),
+      wch(25),
+      wch(15),
+      wch(25),
+      wch(15),
+      wch(12),
     ];
-    XLSX.utils.book_append_sheet(workbook, worksheet, 'Demandas da Rota');
-    const buffer = XLSX.write(workbook, { type: 'buffer', bookType: 'xlsx' });
-    const safeName = rotaNome.replace(/[^a-z0-9_\- ]/gi, '').trim().replace(/ /g, '_');
+    XLSX.utils.book_append_sheet(workbook, worksheet, "Demandas da Rota");
+    const buffer = XLSX.write(workbook, { type: "buffer", bookType: "xlsx" });
+    const safeName = rotaNome
+      .replace(/[^a-z0-9_\- ]/gi, "")
+      .trim()
+      .replace(/ /g, "_");
     return { buffer, filename: `Rota_${id}_${safeName}.xlsx` };
   }
 
   async addDemandasToRota(rotaId: number, demandaIds: number[]) {
-        const rota = await RotasRepository.findById(rotaId);
-        if (!rota) throw new Error("Rota não encontrada.");
+    const rota = await RotasRepository.findById(rotaId);
+    if (!rota) throw new Error("Rota não encontrada.");
 
-        const currentDemandas = await RotasRepository.findDemandasByRotaId(rotaId);
-        let maxOrder = currentDemandas.reduce((max: number, d: any) => Math.max(max, d.ordem), -1);
-        
-        const newDemandasWithOrder = demandaIds.map((id) => ({
-            id: id,
-            ordem: ++maxOrder
-        }));
-        
-        await RotasRepository.addDemandasToRota(rotaId, newDemandasWithOrder);
+    const currentDemandas = await RotasRepository.findDemandasByRotaId(rotaId);
+    let maxOrder = currentDemandas.reduce(
+      (max: number, d: any) => Math.max(max, d.ordem),
+      -1
+    );
 
-        return await RotasRepository.findDemandasByRotaId(rotaId);
-    }
+    const newDemandasWithOrder = demandaIds.map((id) => ({
+      id: id,
+      ordem: ++maxOrder,
+    }));
+
+    await RotasRepository.addDemandasToRota(rotaId, newDemandasWithOrder);
+
+    return await RotasRepository.findDemandasByRotaId(rotaId);
+  }
 }
 
 export const rotasService = new RotasService();

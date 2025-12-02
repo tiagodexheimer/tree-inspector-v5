@@ -1,4 +1,3 @@
-// src/app/rotas/[id]/page.tsx
 'use client';
 
 import React, { useState, useCallback, useEffect, useMemo } from 'react';
@@ -6,9 +5,7 @@ import { useParams } from 'next/navigation';
 import {
     Box, Typography, Alert, Button, Paper, Chip, Snackbar, CircularProgress,
     Dialog, DialogTitle, DialogContent, TextField, List, ListItem, ListItemText, Checkbox, DialogActions,
-    InputAdornment, useTheme, useMediaQuery, IconButton,
-    // [NOVO] Imports para o Select
-    FormControl, InputLabel, Select, MenuItem
+    InputAdornment, useTheme, useMediaQuery, IconButton, FormControl, InputLabel, Select, MenuItem
 } from '@mui/material';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import SaveIcon from '@mui/icons-material/Save'; 
@@ -59,7 +56,10 @@ export default function PaginaDetalheRota() {
     const {
         rota, demandas, setDemandas, 
         originalDemandas, originalApiPolyline, setApiPolyline,
-        isLoading, error, hasChanges, routePath, refresh
+        isLoading, error, hasChanges, routePath, refresh,
+        // [NOVO] Extraindo pontos de início e fim (Certifique-se que o hook retorna isso)
+        // Se o hook der erro aqui, adicione startPoint e endPoint no retorno dele.
+        startPoint, endPoint
     } = useRotaDetalhesData(id);
 
     const {
@@ -81,9 +81,7 @@ export default function PaginaDetalheRota() {
     const [editName, setEditName] = useState('');
     const [editResponsavel, setEditResponsavel] = useState('');
     const [isUpdating, setIsUpdating] = useState(false);
-    
-    // [NOVO] Lista de usuários para o dropdown
-    const [usersList, setUsersList] = useState<any[]>([]);
+    const [usersList, setUsersList] = useState<any[]>([]); // Lista de usuários para o dropdown
 
     // 2. Configuração DnD
     const sensors = useSensors(
@@ -150,7 +148,7 @@ export default function PaginaDetalheRota() {
 
     // --- LÓGICA DE EDIÇÃO DA ROTA ---
     
-    // [NOVO] Busca usuários quando o modal abre
+    // Busca usuários quando o modal abre
     useEffect(() => {
         if (editModalOpen) {
             fetch('/api/users/list')
@@ -187,7 +185,7 @@ export default function PaginaDetalheRota() {
         }
     };
 
-    // --- Lógica do Modal de Adição (Mantida) ---
+    // --- Lógica do Modal de Adição ---
     const fetchUndistributedDemandas = useCallback(async () => {
         setLoadingUndistributed(true);
         try {
@@ -362,7 +360,7 @@ export default function PaginaDetalheRota() {
                 </Box>
             </Paper>
 
-            {/* Conteúdo */}
+            {/* Conteúdo Principal */}
             <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 3 }}>
                 <Box sx={{ flexGrow: 1, flexBasis: { xs: '100%', md: '40%' }, minWidth: '300px' }}>
                     <Typography variant="h6" gutterBottom>
@@ -376,6 +374,8 @@ export default function PaginaDetalheRota() {
                         onRemove={handleRemoveDemanda}
                     />
                 </Box>
+                
+                {/* Mapa (Direita) */}
                 <Box sx={{ flexGrow: 1, flexBasis: { xs: '100%', md: '55%' }, minWidth: '400px' }}>
                     <Typography variant="h6" gutterBottom>Visualização</Typography>
                     <Box sx={{ 
@@ -385,7 +385,13 @@ export default function PaginaDetalheRota() {
                         borderRadius: 1, 
                         overflow: 'hidden' 
                     }}>
-                        <RouteMap demandas={demandas as any} path={routePath as any} />
+                        {/* [MODIFICADO] Passando os pontos personalizados para o mapa */}
+                        <RouteMap 
+                            demandas={demandas as any} 
+                            path={routePath as any} 
+                            startPoint={startPoint} 
+                            endPoint={endPoint} 
+                        />
                     </Box>
                 </Box>
             </Box>
@@ -463,7 +469,7 @@ export default function PaginaDetalheRota() {
                 </DialogActions>
             </Dialog>
 
-            {/* Modal de Edição de Rota (ATUALIZADO) */}
+            {/* Modal de Edição de Rota */}
             <Dialog open={editModalOpen} onClose={() => setEditModalOpen(false)} fullWidth maxWidth="sm">
                 <DialogTitle>Editar Detalhes da Rota</DialogTitle>
                 <DialogContent dividers>
@@ -475,7 +481,6 @@ export default function PaginaDetalheRota() {
                             fullWidth
                             disabled={isUpdating}
                         />
-                        {/* [NOVO] Select de Responsável */}
                         <FormControl fullWidth disabled={isUpdating}>
                             <InputLabel id="responsavel-select-label">Responsável</InputLabel>
                             <Select

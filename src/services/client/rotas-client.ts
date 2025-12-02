@@ -1,5 +1,5 @@
 // src/services/client/rotas-client.ts
-// ADICIONADO 'export' na frente da interface
+
 export interface RotaComContagem {
     id: number;
     nome: string;
@@ -10,7 +10,6 @@ export interface RotaComContagem {
     total_demandas: number;
 }
 
-// [NOVO] Interface de resposta (reutilizada de rota-detalhes-client)
 export interface DemandaComOrdem {
     id?: number;
     logradouro?: string | null;
@@ -24,12 +23,14 @@ export interface DemandaComOrdem {
     ordem: number;
 }
 
+// [ATUALIZADO] Interface inclui os pontos de início e fim
 interface RotaDetailsResponse {
     rota: RotaComContagem;
     demandas: DemandaComOrdem[];
     encodedPolyline: string | null; 
+    startPoint?: { latitude: number; longitude: number };
+    endPoint?: { latitude: number; longitude: number };
 }
-
 
 export const RotasClient = {
   async getAll(): Promise<RotaComContagem[]> {
@@ -40,7 +41,6 @@ export const RotasClient = {
     return response.json();
   },
 
-  // [NOVO] Adicionar método para buscar detalhes da rota
   async getRouteDetails(id: number): Promise<RotaDetailsResponse> {
     const response = await fetch(`/api/rotas/${id}`);
     if (!response.ok) {
@@ -49,26 +49,24 @@ export const RotasClient = {
     return response.json();
   },
 
+  async update(id: number, data: { nome?: string; responsavel?: string; status?: string }): Promise<void> {
+    const response = await fetch(`/api/rotas/${id}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data)
+    });
+    if (!response.ok) {
+      const errorData = await response.json();
+      throw new Error(errorData.message || `Erro HTTP ${response.status} ao atualizar rota.`);
+    }
+  },
+
   async delete(id: number): Promise<void> {
     const response = await fetch(`/api/rotas/${id}`, {
       method: 'DELETE'
     });
     if (!response.ok) {
       throw new Error(`Erro HTTP ${response.status} ao deletar rota.`);
-    }
-  },
-  async update(id: number, data: { nome?: string; responsavel?: string; status?: string }): Promise<void> {
-    const response = await fetch(`/api/rotas/${id}`, {
-      method: 'PUT',
-      headers: {
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify(data)
-    });
-
-    if (!response.ok) {
-      const errorData = await response.json();
-      throw new Error(errorData.message || `Erro HTTP ${response.status} ao atualizar rota.`);
     }
   }
 };

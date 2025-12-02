@@ -1,11 +1,10 @@
-// src/hooks/useRotaDetalhesData.ts
 import { useState, useCallback, useEffect, useMemo } from 'react';
 import { RotaDetalhesClient, DemandaComOrdem } from '@/services/client/rota-detalhes-client';
 import { decode } from '@googlemaps/polyline-codec';
 
-const START_END_POINT: [number, number] = [-29.8533191, -51.1789191];
+// Fallback visual (Esteio/RS) - só usado se a API não mandar nada
+const FALLBACK_POINT: [number, number] = [-29.8533191, -51.1789191];
 
-// Tipo que o estado pode assumir (string para codificado, array para decodificado/fallback)
 type PolylineState = string | [number, number][] | null;
 
 export function useRotaDetalhesData(id: string) {
@@ -13,10 +12,13 @@ export function useRotaDetalhesData(id: string) {
   const [demandas, setDemandas] = useState<DemandaComOrdem[]>([]);
   const [originalDemandas, setOriginalDemandas] = useState<DemandaComOrdem[]>([]);
   
-  // [CRÍTICO]: Usamos o tipo ambíguo correto
   const [apiPolyline, setApiPolyline] = useState<PolylineState>(null); 
-  
   const [originalApiPolyline, setOriginalApiPolyline] = useState<PolylineState>(null);
+  
+  // [NOVO] Estados para guardar os pontos de início e fim vindos da API
+  const [startPoint, setStartPoint] = useState<{latitude: number, longitude: number} | null>(null);
+  const [endPoint, setEndPoint] = useState<{latitude: number, longitude: number} | null>(null);
+
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -26,13 +28,18 @@ export function useRotaDetalhesData(id: string) {
     setError(null);
     try {
       const data = await RotaDetalhesClient.getById(id);
+      
       setRota(data.rota);
       setDemandas(data.demandas);
       setOriginalDemandas(data.demandas);
       
-      // O encodedPolyline da API pode ser string ou null
       setApiPolyline(data.encodedPolyline || null); 
       setOriginalApiPolyline(data.encodedPolyline || null);
+
+      // [CORREÇÃO] Captura os pontos retornados pelo Backend
+      if (data.startPoint) setStartPoint(data.startPoint);
+      if (data.endPoint) setEndPoint(data.endPoint);
+
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Erro desconhecido.');
     } finally {
@@ -42,49 +49,53 @@ export function useRotaDetalhesData(id: string) {
 
   useEffect(() => { fetchDetalhes(); }, [fetchDetalhes]);
 
-  // Lógica de cálculo de mudanças
   const hasChanges = useMemo(() => {
      if (demandas.length !== originalDemandas.length) return true;
      return demandas.some((d, i) => d.id !== originalDemandas[i]?.id);
   }, [demandas, originalDemandas]);
 
-  // [CORREÇÃO CRÍTICA] Lógica de cálculo do routePath segura
+  // Calcula o caminho para o mapa (usando os pontos corretos)
   const routePath = useMemo(() => {
-      
-      // 1. Prioridade: Se for um ARRAY DE COORDENADAS (decoded/fallback), use-o.
-      // O erro anterior (linha 62) é resolvido ao usar Array.isArray()
+      // 1. Se tem polyline pronta da API, usa ela
       if (Array.isArray(apiPolyline) && apiPolyline.length > 0) {
           return apiPolyline;
       }
       
-      // 2. Decode: Se for uma STRING (encoded) e não houver mudanças não salvas.
       if (typeof apiPolyline === 'string' && apiPolyline.length > 0 && !hasChanges) {
           try { 
               const decoded = decode(apiPolyline);
               if (decoded.length > 0) return decoded;
-          } catch (e) { 
-              console.error("Erro ao decodificar Polyline:", e); 
-          }
+          } catch (e) { console.error("Erro decode:", e); }
       }
       
-      // 3. Fallback: Caminho manual (linhas retas)
+      // 2. Fallback: Constrói linha reta usando os pontos DINÂMICOS
+      const start: [number, number] = startPoint 
+          ? [startPoint.latitude, startPoint.longitude] 
+          : FALLBACK_POINT;
+          
+      const end: [number, number] = endPoint 
+          ? [endPoint.latitude, endPoint.longitude] 
+          : FALLBACK_POINT;
+
       if (demandas.length === 0) return [];
       
-      // Cria o array de coordenadas manualmente (Start -> Demandas -> End)
       return [
-          START_END_POINT,
+          start,
           ...demandas
-             .filter(d => d.lat !== null && d.lng !== null) // Apenas pontos válidos
+             .filter(d => d.lat !== null && d.lng !== null)
              .map(d => [d.lat!, d.lng!] as [number, number]),
-          START_END_POINT
-      ].filter(p => p !== null && p !== undefined) as [number, number][]; // Filtro defensivo final
+          end
+      ].filter(Boolean) as [number, number][];
 
-  }, [demandas, apiPolyline, hasChanges]);
+  }, [demandas, apiPolyline, hasChanges, startPoint, endPoint]);
 
   return {
     rota, demandas, setDemandas,
     originalDemandas, originalApiPolyline, setApiPolyline,
     isLoading, error, hasChanges, routePath,
-    refresh: fetchDetalhes
+    refresh: fetchDetalhes,
+    // [IMPORTANTE] Exporta os pontos para a página usar no mapa
+    startPoint, 
+    endPoint
   };
 }
