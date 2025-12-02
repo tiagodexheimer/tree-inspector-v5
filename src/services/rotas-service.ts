@@ -1,6 +1,5 @@
-// src/services/rotas-service.ts
 import { RotasRepository, RotaPersistence, UpdateRotaDTO } from "@/repositories/rotas-repository";
-import { DemandasRepository } from "@/repositories/demandas-repository"; // <-- CORREÇÃO: Importação adicionada
+import { ConfiguracoesRepository } from "@/repositories/configuracoes-repository"; // [NOVO] Import
 import * as XLSX from 'xlsx'; 
 import { format } from 'date-fns';
 
@@ -10,7 +9,8 @@ interface CreateRotaInput {
   demandas: { id: number }[];
 }
 
-const START_END_POINT_COORDS = { latitude: -29.8533191, longitude: -51.1789191 };
+// Coordenadas de fallback caso não haja nada no banco (Último recurso)
+const DEFAULT_FALLBACK_COORDS = { latitude: -29.8533191, longitude: -51.1789191 };
 
 export class RotasService {
   
@@ -24,20 +24,12 @@ export class RotasService {
       if (!input.demandas || input.demandas.length === 0) throw new Error("A rota deve conter pelo menos uma demanda.");
 
       const demandasComOrdem = input.demandas.map((d, index) => ({ id: d.id, ordem: index }));
-      
-      // 1. Cria a Rota
-      const newRota = await RotasRepository.create({
+      return await RotasRepository.create({
           nome: input.nome.trim(),
           responsavel: input.responsavel.trim(),
-          status: "Pendente", // Status da rota (não da demanda)
+          status: "Pendente",
           demandas: demandasComOrdem
       });
-
-      // 2. [AUTOMAÇÃO DE FLUXO] Atualiza o status das demandas para "Vistoria Agendada"
-      const demandaIds = input.demandas.map(d => d.id);
-      await DemandasRepository.updateStatusByName(demandaIds, "Vistoria Agendada");
-
-      return newRota;
   }
 
   async getRotaDetails(id: number) {
@@ -46,6 +38,30 @@ export class RotasService {
 
     const demandas = await RotasRepository.findDemandasByRotaId(id);
     
+    // --- [NOVO] Lógica de Ponto de Partida e Chegada ---
+    
+    // 1. Busca configuração global (Padrões do sistema)
+    const configGlobal = await ConfiguracoesRepository.getRotaConfig();
+
+    // 2. Define os pontos. Prioridade:
+    //    1º: Personalizado na própria rota (se existir as colunas no banco)
+    //    2º: Configuração Global (definida no menu Configurações)
+    //    3º: Fallback Hardcoded (para evitar crash se tudo estiver vazio)
+    
+    // Cast 'as any' para acessar propriedades novas caso a interface RotaPersistence não tenha sido atualizada ainda
+    const r = rota as any; 
+
+    const startPoint = {
+        latitude: r.inicio_personalizado_lat || configGlobal?.inicio.lat || DEFAULT_FALLBACK_COORDS.latitude,
+        longitude: r.inicio_personalizado_lng || configGlobal?.inicio.lng || DEFAULT_FALLBACK_COORDS.longitude
+    };
+
+    const endPoint = {
+        latitude: r.fim_personalizado_lat || configGlobal?.fim.lat || DEFAULT_FALLBACK_COORDS.latitude,
+        longitude: r.fim_personalizado_lng || configGlobal?.fim.lng || DEFAULT_FALLBACK_COORDS.longitude
+    };
+    // ---------------------------------------------------
+
     let encodedPolyline: string | null = null;
     const apiKey = process.env.GOOGLE_MAPS_API_KEY;
     
@@ -54,8 +70,8 @@ export class RotasService {
     if (demandasComGeom.length > 0 && apiKey) {
         try {
             const requestBody = {
-                origin: { location: { latLng: START_END_POINT_COORDS } },
-                destination: { location: { latLng: START_END_POINT_COORDS } },
+                origin: { location: { latLng: startPoint } },      // [USANDO VARIÁVEL DINÂMICA]
+                destination: { location: { latLng: endPoint } },   // [USANDO VARIÁVEL DINÂMICA]
                 intermediates: demandasComGeom.map((d: any) => ({
                     location: { latLng: { latitude: d.lat, longitude: d.lng } }
                 })),
@@ -77,6 +93,8 @@ export class RotasService {
             const data = await response.json();
             if (response.ok && data.routes && data.routes.length > 0 && data.routes[0].polyline) {
                 encodedPolyline = data.routes[0].polyline.encodedPolyline;
+            } else {
+                console.warn("[RotasService] Aviso API Google:", data);
             }
         } catch (error) {
             console.error(`[RotasService] Erro Google API rota ${id}:`, error);
@@ -99,19 +117,15 @@ export class RotasService {
       if (!success) throw new Error("Rota não encontrada para exclusão.");
   }
 
-  // [NOVO] Reordenar
   async reorderDemandas(rotaId: number, demandasIds: { id: number }[]) {
-      // 1. Verificar existência
       const rota = await RotasRepository.findById(rotaId);
       if (!rota) throw new Error("Rota não encontrada.");
 
-      // 2. Preparar ordem
       const demandasComOrdem = demandasIds.map((d, index) => ({
           id: d.id,
           ordem: index
       }));
 
-      // 3. Salvar
       await RotasRepository.reorderDemandas(rotaId, demandasComOrdem);
   }
 
@@ -143,24 +157,19 @@ export class RotasService {
   }
 
   async addDemandasToRota(rotaId: number, demandaIds: number[]) {
-        // 1. Verifica se a rota existe
         const rota = await RotasRepository.findById(rotaId);
         if (!rota) throw new Error("Rota não encontrada.");
 
-        // 2. Busca a ordem máxima atual para continuar a contagem
         const currentDemandas = await RotasRepository.findDemandasByRotaId(rotaId);
         let maxOrder = currentDemandas.reduce((max: number, d: any) => Math.max(max, d.ordem), -1);
         
-        // 3. Prepara as novas demandas com a ordem sequencial
         const newDemandasWithOrder = demandaIds.map((id) => ({
             id: id,
             ordem: ++maxOrder
         }));
         
-        // 4. Salva as novas associações
-        const result = await RotasRepository.addDemandasToRota(rotaId, newDemandasWithOrder);
+        await RotasRepository.addDemandasToRota(rotaId, newDemandasWithOrder);
 
-        // 5. Retorna a lista completa atualizada (incluindo as novas)
         return await RotasRepository.findDemandasByRotaId(rotaId);
     }
 }
