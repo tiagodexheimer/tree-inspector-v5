@@ -51,6 +51,19 @@ export interface UpdateDemandaDTO {
 export const DemandasRepository = {
   // ... (mantenha findAll e create aqui) ...
 
+async getNextProtocoloSequence(): Promise<number> {
+        try {
+            // Assume que a sequência 'protocolo_seq' foi criada no banco
+            const result = await pool.query("SELECT nextval('protocolo_seq') as next_val");
+            // Converte o valor retornado (string) para número
+            return parseInt(result.rows[0].next_val, 10);
+        } catch (error) {
+            console.error("Erro ao obter sequência de protocolo:", error);
+            // Retorna 0 ou lança erro dependendo da sua estratégia
+            return 0; 
+        }
+    },
+
   // --- LEITURA (findAll com Filtros) ---
   async findAll(
     params: FindDemandasParams

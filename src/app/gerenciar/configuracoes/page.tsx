@@ -2,13 +2,13 @@
 
 import React, { useEffect, useState } from 'react';
 import { 
-    Box, Typography, Paper, TextField, Button, Grid, Divider, Alert, CircularProgress, Stack, IconButton, InputAdornment
+    Box, Typography, Paper, TextField, Button, Divider, Alert, CircularProgress, Stack, IconButton, InputAdornment
 } from '@mui/material';
 import SaveIcon from '@mui/icons-material/Save';
 import SearchIcon from '@mui/icons-material/Search';
 import dynamic from 'next/dynamic';
 
-// 1. Importação Dinâmica do Mapa (Corrige o erro "window is not defined")
+// Importação Dinâmica do Mapa
 const ConfigMap = dynamic(() => import('@/components/ui/configuracoes/ConfigMap'), {
     ssr: false,
     loading: () => <Box sx={{ height: '100%', minHeight: 400, bgcolor: '#f0f0f0', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><CircularProgress /></Box>
@@ -71,13 +71,12 @@ export default function ConfiguracoesPage() {
         }
     };
 
-    // --- LÓGICA DE BUSCA DE CEP (ViaCEP) ---
+    // Busca endereço pelo CEP (ViaCEP)
     const buscarCep = async (section: 'inicio' | 'fim') => {
         const cep = section === 'inicio' ? endInicio.cep : endFim.cep;
         const cleanCep = cep.replace(/\D/g, '');
 
         if (cleanCep.length !== 8) {
-            // Se o usuário só clicou fora e o campo está vazio, não mostra erro
             if (cleanCep.length > 0) setMessage({ type: 'error', text: 'CEP inválido. Digite 8 números.' });
             return;
         }
@@ -91,7 +90,6 @@ export default function ConfiguracoesPage() {
                 return;
             }
 
-            // Atualiza o estado com o endereço encontrado
             const novoEndereco = {
                 cep: data.cep,
                 logradouro: data.logradouro,
@@ -103,15 +101,12 @@ export default function ConfiguracoesPage() {
             if (section === 'inicio') setEndInicio(novoEndereco);
             else setEndFim(novoEndereco);
 
-            // Feedback visual suave (sem alerta intrusivo)
-            // O endereço aparecerá automaticamente no Typography abaixo do campo
-
         } catch (error) {
             setMessage({ type: 'error', text: 'Erro ao buscar CEP.' });
         }
     };
 
-    // --- LÓGICA DE GEOCoding (Sua API Interna) ---
+    // Busca Coordenadas usando sua API (/api/geocode)
     const buscarCoordenadas = async (section: 'inicio' | 'fim') => {
         const dados = section === 'inicio' ? endInicio : endFim;
 
@@ -121,7 +116,7 @@ export default function ConfiguracoesPage() {
         }
 
         try {
-            // Loading local ou geral
+            setLoading(true);
             const res = await fetch('/api/geocode', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -137,7 +132,6 @@ export default function ConfiguracoesPage() {
 
             const data = await res.json();
             
-            // Atualiza as coordenadas (o Mapa reagirá automaticamente)
             setConfig(prev => ({
                 ...prev,
                 [section]: {
@@ -146,10 +140,12 @@ export default function ConfiguracoesPage() {
                 }
             }));
             
-            setMessage({ type: 'success', text: `Localização de ${section} encontrada!` });
+            setMessage({ type: 'success', text: `Localização de ${section} atualizada!` });
 
         } catch (error) {
             setMessage({ type: 'error', text: 'Endereço não encontrado no mapa.' });
+        } finally {
+            setLoading(false);
         }
     };
 
@@ -197,9 +193,16 @@ export default function ConfiguracoesPage() {
 
                 <Divider sx={{ my: 3 }} />
 
-                <Grid container spacing={4}>
-                    {/* COLUNA DA ESQUERDA: Campos de Endereço e Coordenadas */}
-                    <Grid item xs={12} md={5}>
+                {/* --- LAYOUT RESPONSIVO COM FLEX/STACK (SUBSTITUINDO GRID) --- */}
+                <Box 
+                    sx={{
+                        display: 'flex',
+                        flexDirection: { xs: 'column', md: 'row' }, // Empilha no mobile
+                        gap: 4,
+                    }}
+                >
+                    {/* COLUNA DA ESQUERDA: Formulários (Ocupa 5/12 em desktop) */}
+                    <Box sx={{ flex: { xs: '1 1 100%', md: '0 0 40%' } }}>
                         <Stack spacing={5}>
                             
                             {/* === BLOCO INÍCIO === */}
@@ -269,6 +272,7 @@ export default function ConfiguracoesPage() {
                                     🏁 Ponto de Chegada (Retorno)
                                 </Typography>
 
+                                {/* Linha 1: CEP e Número */}
                                 <Stack direction="row" spacing={1} mb={1}>
                                     <TextField 
                                         label="CEP" size="small" sx={{ width: '130px' }}
@@ -304,6 +308,7 @@ export default function ConfiguracoesPage() {
                                     )}
                                 </Box>
 
+                                {/* Linha 2: Coordenadas */}
                                 <Stack direction="row" spacing={1}>
                                     <TextField
                                         label="Latitude" size="small" fullWidth
@@ -321,15 +326,15 @@ export default function ConfiguracoesPage() {
                                     />
                                 </Stack>
                             </Box>
-
                         </Stack>
-                    </Grid>
+                    </Box>
 
-                    {/* COLUNA DA DIREITA: Mapa */}
-                    <Grid item xs={12} md={7}>
+                    {/* COLUNA DA DIREITA: Mapa (Ocupa o restante) */}
+                    <Box sx={{ flex: 1 }}>
                         <ConfigMap inicio={config.inicio} fim={config.fim} />
-                    </Grid>
-                </Grid>
+                    </Box>
+                </Box>
+                {/* --- FIM LAYOUT RESPONSIVO --- */}
 
                 <Box mt={4} display="flex" justifyContent="flex-start">
                     <Button 

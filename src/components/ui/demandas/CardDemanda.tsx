@@ -1,9 +1,10 @@
+// src/components/ui/demandas/CardDemanda.tsx
 'use client';
 
 import React, { useState } from 'react';
 import {
     Card, CardContent, Typography, Box, Chip, IconButton,
-    Divider, Stack, Tooltip, Menu, MenuItem
+    Divider, Stack, Tooltip, Menu, MenuItem, Checkbox
 } from '@mui/material';
 import EditIcon from '@mui/icons-material/Edit';
 import DeleteIcon from '@mui/icons-material/Delete';
@@ -11,15 +12,15 @@ import LocationOnIcon from '@mui/icons-material/LocationOn';
 import PersonIcon from '@mui/icons-material/Person';
 import DescriptionIcon from '@mui/icons-material/Description';
 import ArrowDropDownIcon from '@mui/icons-material/ArrowDropDown';
-import { DemandaType } from '@/types/demanda';
+import { DemandaType, DemandaComIdStatus } from '@/types/demanda'; 
 import { format } from 'date-fns';
 
 interface CardDemandaProps {
-    demanda: DemandaType;
+    demanda: DemandaComIdStatus;
     selected: boolean;
     onSelect: () => void;
     onDelete: (id: number) => void;
-    onEdit: (demanda: DemandaType) => void;
+    onEdit: (demanda: DemandaComIdStatus) => void;
     onStatusChange: (id: number, newStatus: number) => void;
     availableStatus: any[];
 }
@@ -40,19 +41,17 @@ export default function CardDemanda({
 
     // --- HANDLERS ---
 
-    // 1. Clique no Card (Seleção)
     const handleCardClick = () => {
         onSelect();
     };
 
-    // 2. Menu de Status
     const handleStatusClick = (event: React.MouseEvent<HTMLElement>) => {
-        event.stopPropagation(); // Impede seleção do card
+        event.stopPropagation();
         setAnchorEl(event.currentTarget);
     };
 
-    const handleStatusClose = (event?: React.MouseEvent) => {
-        event?.stopPropagation();
+    // [CORREÇÃO] Função simplificada para fechar o menu (compatível com MUI onClose)
+    const handleMenuClose = () => {
         setAnchorEl(null);
     };
 
@@ -64,7 +63,6 @@ export default function CardDemanda({
         setAnchorEl(null);
     };
 
-    // 3. Botões de Ação
     const handleEditClick = (e: React.MouseEvent) => {
         e.stopPropagation();
         onEdit(demanda);
@@ -75,10 +73,15 @@ export default function CardDemanda({
         if (demanda.id) onDelete(demanda.id);
     };
 
+    const handleCheckboxClick = (e: React.MouseEvent) => {
+        e.stopPropagation();
+        onSelect();
+    };
+
     return (
         <Card
             elevation={selected ? 8 : 2}
-            onClick={handleCardClick} // [MELHORIA] Card inteiro clicável
+            onClick={handleCardClick}
             sx={{
                 width: '100%',
                 minHeight: '380px',
@@ -87,30 +90,35 @@ export default function CardDemanda({
                 borderLeft: `6px solid ${statusColor}`,
                 transition: 'all 0.2s ease',
                 backgroundColor: selected ? '#f0f7ff' : 'white',
-                cursor: 'pointer', // Cursor de mão em todo o card
+                cursor: 'pointer',
                 '&:hover': { boxShadow: 6, transform: 'translateY(-2px)' },
                 position: 'relative',
                 borderRadius: 3,
-                // Borda visual extra quando selecionado
                 outline: selected ? '2px solid #1976d2' : 'none', 
             }}
         >
             <CardContent sx={{ p: 2.5, flexGrow: 1, display: 'flex', flexDirection: 'column' }}>
 
                 {/* CABEÇALHO */}
-                <Box mb={1}>
-                    <Typography variant="body2" color="text.secondary" sx={{ mb: 0.5, fontSize: '0.8rem' }}>
-                        {dataCriacao}
-                    </Typography>
-                    <Typography variant="h6" fontWeight="800" lineHeight={1.3} sx={{ wordBreak: 'break-word', fontSize: '1.1rem' }}>
-                        {demanda.protocolo || 'Sem Protocolo'}
-                    </Typography>
+                <Box display="flex" justifyContent="space-between" alignItems="flex-start" mb={1}>
+                    <Box flex={1}>
+                        <Typography variant="body2" color="text.secondary" sx={{ mb: 0.5, fontSize: '0.8rem' }}>
+                            {dataCriacao}
+                        </Typography>
+                        <Typography variant="h6" fontWeight="800" lineHeight={1.3} sx={{ wordBreak: 'break-word', fontSize: '1.1rem' }}>
+                            {demanda.protocolo || 'Sem Protocolo'}
+                        </Typography>
+                    </Box>
+                    
+                    <Checkbox 
+                        checked={selected}
+                        onClick={handleCheckboxClick}
+                        sx={{ mt: -1, mr: -1 }}
+                    />
                 </Box>
 
                 {/* BARRA DE AÇÕES E STATUS */}
                 <Stack direction="row" justifyContent="space-between" alignItems="center" mb={2}>
-                    
-                    {/* CHIP DE STATUS (Restaurado) */}
                     <Box>
                         <Chip
                             label={demanda.status_nome}
@@ -130,7 +138,7 @@ export default function CardDemanda({
                         <Menu
                             anchorEl={anchorEl}
                             open={openMenu}
-                            onClose={handleStatusClose}
+                            onClose={handleMenuClose} // [CORRIGIDO] Usando o novo handler simples
                             onClick={(e) => e.stopPropagation()}
                         >
                             {availableStatus.map((status) => (

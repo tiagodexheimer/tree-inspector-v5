@@ -17,7 +17,7 @@ import { useDemandasData } from "@/hooks/useDemandasData";
 import { useDemandasOperations } from "@/hooks/useDemandasOperations";
 import { useDemandasMapData } from "@/hooks/useDemandasMapData"; 
 import { DemandasClient } from "@/services/client/demandas-client";
-import { OptimizedRouteData, DemandaType } from "@/types/demanda";
+import { OptimizedRouteData, DemandaComIdStatus } from "@/types/demanda";
 
 const AddDemandaModal = dynamic(() => import("@/components/ui/demandas/AddDemandaModal"), { ssr: false });
 const CriarRotaModal = dynamic(() => import("@/components/ui/demandas/CriarRotaModal"), { ssr: false });
@@ -46,7 +46,7 @@ export default function DemandasPage() {
     
     // [NOVO] Estados para Visualização de Detalhes (via Mapa)
     const [viewDemandaModalOpen, setViewDemandaModalOpen] = useState(false);
-    const [selectedDemandaForView, setSelectedDemandaForView] = useState<DemandaType | null>(null);
+    const [selectedDemandaForView, setSelectedDemandaForView] = useState<DemandaComIdStatus | null>(null);
 
     const [isOptimizing, setIsOptimizing] = useState(false);
     const [optimizedRouteData, setOptimizedRouteData] = useState<OptimizedRouteData | null>(null);
@@ -196,7 +196,7 @@ export default function DemandasPage() {
                     )
                 )}
 
-                {/* Mapa Geral */}
+                {/* MODO MAPA GERAL */}
                 {viewMode === 'map' && (
                     <Paper elevation={2} sx={{ height: '75vh', overflow: 'hidden', borderRadius: 2 }}>
                         {isLoadingMap ? (
@@ -206,11 +206,16 @@ export default function DemandasPage() {
                             </Box>
                         ) : (
                             <RouteMap 
-                                demandas={demandasMap.map(d => ({ ...d, lat: d.lat || null, lng: d.lng || null }))}
+                                // [CORREÇÃO DE BUILD]
+                                // Adicionamos ': any' para o TypeScript aceitar 'd.lat' e 'd.lng'
+                                demandas={demandasMap.map((d: any) => ({ 
+                                    ...d, 
+                                    lat: d.lat || null, 
+                                    lng: d.lng || null 
+                                }))}
                                 path={[]} 
                                 modalIsOpen={true}
                                 viewMode="points"
-                                // [NOVO] Passa o handler de clique
                                 onMarkerClick={handleMapMarkerClick}
                             />
                         )}

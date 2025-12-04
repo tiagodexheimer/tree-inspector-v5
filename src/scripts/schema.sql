@@ -199,3 +199,6 @@ ADD COLUMN inicio_personalizado_lat DOUBLE PRECISION,
 ADD COLUMN inicio_personalizado_lng DOUBLE PRECISION,
 ADD COLUMN fim_personalizado_lat DOUBLE PRECISION,
 ADD COLUMN fim_personalizado_lng DOUBLE PRECISION;
+
+
+CREATE SEQUENCE IF NOT EXISTS protocolo_seq START 1;

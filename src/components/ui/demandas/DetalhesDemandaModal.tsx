@@ -1,80 +1,108 @@
-import { Dialog, DialogTitle, DialogContent, Typography, DialogActions, Button, List, ListItem, ListItemText, Divider, Box } from "@mui/material";
-import { DemandaType } from "@/types/demanda";
+// src/components/ui/demandas/DetalhesDemandaModal.tsx
+import { Dialog, DialogTitle, DialogContent, Typography, DialogActions, Button, List, ListItem, ListItemText, Divider, Box } from "@mui/material"; 
+// [CORREÇÃO] Importamos o tipo completo
+import { DemandaType, DemandaComIdStatus } from "@/types/demanda"; 
 
-// Interface compatível com o que vem do Card
-interface DemandaComCoordenadas extends DemandaType {
-    lat?: number | null;
-    lng?: number | null;
-}
+// A interface local foi removida. Usamos DemandaComIdStatus diretamente.
 
 interface DetalhesDemandaModalProps {
   open: boolean;
   onClose: () => void;
-  demanda: DemandaComCoordenadas | null;
+  // [CORREÇÃO] Usamos o tipo que garante a propriedade status_nome
+  demanda: DemandaComIdStatus | null; 
 }
 
 export default function DetalhesDemandaModal({ open, onClose, demanda }: DetalhesDemandaModalProps) {
-  if (!demanda) return null;
+  if (!demanda) {
+    return null;
+  }
 
+  // Função para formatar o endereço completo
    const formatEnderecoCompleto = (d: DemandaType): string => {
         const parts = [
             d.logradouro,
             d.numero ? `, ${d.numero}` : '',
             d.complemento ? ` - ${d.complemento}` : '',
-            d.bairro ? `\nBairro: ${d.bairro}` : '',
+            d.bairro ? `\nBairro: ${d.bairro}` : '', 
             d.cidade && d.uf ? `\n${d.cidade}/${d.uf}` : (d.cidade || d.uf || ''),
             d.cep ? `\nCEP: ${d.cep}` : ''
         ];
         return parts.filter(Boolean).join('').trim();
     };
 
+    // Função para formatar o prazo
      const formatPrazo = (date: Date | string | null | undefined): string => {
         if (!date) return 'Não definido';
         const d = new Date(date);
         return !isNaN(d.getTime()) ? d.toLocaleDateString('pt-BR') : 'Data inválida';
     };
 
+    // Variáveis de coordenadas
     const lat = demanda.lat;
     const lng = demanda.lng;
-    const hasCoordinates = typeof lat === 'number' && typeof lng === 'number';
+    const hasCoordinates = typeof lat === 'number' && typeof lng === 'number' && lat !== null && lng !== null;
+
 
   return (
     <Dialog open={open} onClose={onClose} fullWidth maxWidth="sm">
       <DialogTitle>Detalhes da Demanda #{demanda.id || 'N/A'}</DialogTitle>
       <DialogContent dividers>
+        {/* Descrição */}
         <Typography gutterBottom variant="h6">Descrição</Typography>
         <Typography paragraph>{demanda.descricao || 'N/A'}</Typography>
         <Divider sx={{ my: 2 }} />
 
+         {/* Endereço Detalhado */}
          <Typography gutterBottom variant="h6">Endereço</Typography>
          <Typography sx={{ whiteSpace: 'pre-line', mb: 2 }}>
              {formatEnderecoCompleto(demanda)}
          </Typography>
         <Divider sx={{ my: 2 }} />
 
-        <Typography gutterBottom variant="h6">Solicitante</Typography>
+
+        {/* Informações do Solicitante */}
+        <Typography gutterBottom variant="h6">Informações do Solicitante</Typography>
         <List dense>
-          <ListItem><ListItemText primary="Nome" secondary={demanda.nome_solicitante || 'N/A'} /></ListItem>
-          <ListItem><ListItemText primary="Telefone" secondary={demanda.telefone_solicitante || 'N/A'} /></ListItem>
-          <ListItem><ListItemText primary="Email" secondary={demanda.email_solicitante || 'N/A'} /></ListItem>
+          <ListItem>
+            <ListItemText primary="Nome" secondary={demanda.nome_solicitante || 'N/A'} />
+          </ListItem>
+          <ListItem>
+            <ListItemText primary="Telefone" secondary={demanda.telefone_solicitante || 'N/A'} />
+          </ListItem>
+          <ListItem>
+            <ListItemText primary="Email" secondary={demanda.email_solicitante || 'N/A'} />
+          </ListItem>
         </List>
         <Divider sx={{ my: 2 }} />
 
+         {/* Outras Informações */}
          <Typography gutterBottom variant="h6">Outras Informações</Typography>
          <List dense>
-            <ListItem><ListItemText primary="Tipo" secondary={demanda.tipo_demanda || 'N/A'} /></ListItem>
-            <ListItem><ListItemText primary="Status" secondary={demanda.status_nome || 'N/A'} /></ListItem>
-             <ListItem><ListItemText primary="Prazo" secondary={formatPrazo(demanda.prazo)} /></ListItem>
-            <ListItem><ListItemText primary="Responsável" secondary={demanda.responsavel || 'N/A'} /></ListItem>
+            <ListItem>
+                <ListItemText primary="Tipo de Demanda" secondary={demanda.tipo_demanda || 'N/A'} />
+            </ListItem>
+            <ListItem>
+                {/* O acesso a status_nome agora está garantido pelo tipo DemandaComIdStatus */}
+                <ListItemText primary="Status" secondary={demanda.status_nome || 'N/A'} /> 
+            </ListItem>
+             <ListItem>
+                 <ListItemText primary="Prazo" secondary={formatPrazo(demanda.prazo)} />
+            </ListItem>
+            <ListItem>
+                <ListItemText primary="Responsável Técnico" secondary={demanda.responsavel || 'N/A'} />
+            </ListItem>
             {demanda.protocolo && <ListItem><ListItemText primary="Protocolo" secondary={demanda.protocolo} /></ListItem> }
          </List>
 
+         {/* Localização */}
          {hasCoordinates && (
              <>
                  <Divider sx={{ my: 2 }} />
-                 <Typography gutterBottom variant="h6">Localização</Typography>
-                 <Box sx={{ p: 2, bgcolor: '#f5f5f5', borderRadius: 1 }}>
-                     <Typography variant="body2">Lat: {lat}, Lon: {lng}</Typography>
+                 <Typography gutterBottom variant="h6">Localização (Aproximada)</Typography>
+                 <Box sx={{ height: 200, backgroundColor: '#eee', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'text.secondary', borderRadius: 1 }}>
+                     <Typography variant="caption">
+                         Lat: {lat!.toFixed(6)}, Lon: {lng!.toFixed(6)}
+                     </Typography>
                  </Box>
              </>
          )}
