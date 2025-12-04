@@ -53,3 +53,5 @@ Verifique se há erros de sintaxe e estilo antes do commit final.
 Bash
 
 npm run lint
+
+npx playwright test tests/multi-tenant.spec.ts --project=chromium --headed

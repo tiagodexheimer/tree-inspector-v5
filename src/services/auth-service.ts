@@ -1,29 +1,44 @@
 // src/services/auth-service.ts
-import { userManagementService } from "@/services/user-management-service";
-import { compare } from "bcrypt";
+import { compare } from 'bcrypt'; // Deve usar o compare
+import { UserRepository, UserPersistence } from '@/repositories/user-repository';
 
-export const AuthService = {
-  async authenticate(credentials: Partial<Record<"email" | "password", unknown>>) {
-    const email = credentials?.email as string;
-    const password = credentials?.password as string;
+// Interface para o objeto de credenciais
+export interface Credentials {
+  email?: string;
+  password?: string;
+}
 
-    if (!email || !password) return null;
+export class AuthService {
+  /**
+   * Tenta autenticar um usuário usando email e senha.
+   * Retorna o objeto UserPersistence completo em caso de sucesso.
+   */
+  async authenticate(credentials: Credentials): Promise<UserPersistence | null> {
+    if (!credentials.email || !credentials.password) {
+      // Lança erro para ser capturado pelo NextAuth
+      throw new Error("Email e senha são obrigatórios."); 
+    }
+    
+    // 1. Buscar o usuário pelo email
+    const user = await UserRepository.findByEmail(credentials.email);
 
-    // Busca usuário
-    const user = await userManagementService.getUserByEmail(email);
-    if (!user || !user.password) return null;
+    // Se o usuário não for encontrado, ou o hash da senha não estiver presente
+    if (!user || !user.password) {
+      return null;
+    }
+    
+    // 2. Comparar a senha fornecida com o hash armazenado
+    // O 'user.password' é o hash que vem do banco.
+    const isMatch = await compare(credentials.password, user.password);
 
-    // Valida senha
-    const isValid = await compare(password, user.password);
-    if (!isValid) return null;
+    // 3. Retornar o objeto user se a senha for válida
+    if (isMatch) {
+      // Retornamos o objeto completo (incluindo orgId e planType) para o NextAuth
+      return user; 
+    }
 
-    // Retorna o objeto usuário limpo (sem a senha)
-    return {
-      id: user.id,
-      name: user.name,
-      email: user.email,
-      role: user.role,
-      image: null, // ou user.image se tiver
-    };
+    return null; // Senha incorreta
   }
-};
+}
+
+export const authService = new AuthService(); // Exporta a instância

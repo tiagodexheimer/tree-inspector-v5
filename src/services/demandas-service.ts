@@ -1,15 +1,19 @@
 import {
   DemandasRepository,
   FindDemandasParams,
-  // [CORREÇÃO] Use os nomes corretos para o que é exportado
+  // [CRÍTICO] Use os nomes corretos para o que é exportado
   CreateDemandaDTO as RepoCreateDemandaInput,
-  DemandaPersistence, // Agora exportado pelo repositório
+  DemandaPersistence, 
   UpdateDemandaDTO as RepoUpdateDemandaInput
 } from "@/repositories/demandas-repository";
 import { StatusRepository } from "@/repositories/status-repository";
-import { DemandasTiposRepository } from "@/repositories/demandas-tipos-repository";
 import { geocodingService } from "@/services/geocoding-service";
 
+// [CRÍTICO] Constantes de Limite
+const DEMANDAS_LIMIT_FREE = 10;
+type PlanType = 'free' | 'pro';
+
+// Interfaces de Entrada
 interface CreateDemandaInput {
   nome_solicitante: string;
   telefone_solicitante?: string | null;
@@ -23,155 +27,185 @@ interface CreateDemandaInput {
   uf?: string | null;
   tipo_demanda: string;
   descricao: string;
-  prazo?: string | null;
+  prazo?: string | null; // Recebe string do front-end
   coordinates?: [number, number] | null;
 }
 
 interface UpdateDemandaInput extends Partial<CreateDemandaInput> {
-    // Permite que qualquer campo seja opcional no update
+    // Permite que o ID seja opcional
 }
 
 export class DemandasService {
   
-  async listDemandas(params: FindDemandasParams, userRole?: string) {
-    if (userRole === "free_user") {
-      params.limit = 10;
-      params.page = 1;
-    }
-    const { demandas, totalCount } = await DemandasRepository.findAll(params);
-    const demandasFormatadas = demandas.map((d) => ({
-      ...d,
-      prazo: d.prazo ? new Date(d.prazo) : null,
-      geom: d.geom ? JSON.parse(d.geom) : null,
-    }));
-    return { demandas: demandasFormatadas, totalCount };
-  }
+  // --- MÉTODOS DE ESCRITA E CRIAÇÃO ---
 
-  async createDemanda(input: CreateDemandaInput) {
-    if (
-      !input.cep ||
-      !input.numero ||
-      !input.tipo_demanda ||
-      !input.descricao
-    ) {
-      throw new Error(
-        "Campos obrigatórios ausentes: CEP, Número, Tipo e Descrição."
-      );
-    }
-
-    // 1. Geração do Protocolo Sequencial
-    const nextId = await DemandasRepository.getNextProtocoloSequence();
-    const protocolo = `${nextId}`; 
-
-    // 2. Geocodificação
-    const coordinates = await geocodingService.getCoordinates({
-        logradouro: input.logradouro,
-        numero: input.numero,
-        cidade: input.cidade,
-        uf: input.uf
-    });
-    
-    const lat = coordinates ? coordinates[0] : null;
-    const lng = coordinates ? coordinates[1] : null;
-
-    // 3. Busca status inicial
-    const statusPendente = await StatusRepository.findByName("Pendente");
-    const initialStatusId = statusPendente?.id || null;
-    
-    // 4. Formata o prazo
-    const prazoDate =
-      input.prazo && input.prazo.trim() !== "" ? new Date(input.prazo) : null;
-    
-    // 5. Cria demanda no Repositório
-    return await DemandasRepository.create({
-      protocolo, 
-      nome_solicitante: input.nome_solicitante,
-      telefone_solicitante: input.telefone_solicitante || null,
-      email_solicitante: input.email_solicitante || null,
-      cep: input.cep.replace(/\D/g, ""),
-      logradouro: input.logradouro || null,
-      numero: input.numero,
-      complemento: input.complemento || null,
-      bairro: input.bairro || null,
-      cidade: input.cidade || null,
-      uf: input.uf ? input.uf.toUpperCase() : null,
-      tipo_demanda: input.tipo_demanda,
-      descricao: input.descricao,
-      id_status: initialStatusId,
-      lat,
-      lng,
-      prazo: prazoDate,
-    } as RepoCreateDemandaInput);
-  }
-
-  async importBatch(rows: any[]) {
-    return { successCount: 0, errors: [] };
-  }
-  
-  private parseDate(d: any) {
-    return null;
-  }
-
-  async updateDemanda(id: number, input: Partial<UpdateDemandaInput>): Promise<DemandaPersistence> {
-    // 1. Coordenadas: Se não forem passadas, tenta geocodificar se os dados de endereço existirem
-    let lat: number | null = input.coordinates ? input.coordinates[0] : null;
-    let lng: number | null = input.coordinates ? input.coordinates[1] : null;
-
-    if (!input.coordinates && input.logradouro && input.numero && input.cidade && input.uf) {
-      const coords = await geocodingService.getCoordinates({
-        logradouro: input.logradouro,
-        numero: input.numero,
-        cidade: input.cidade,
-        uf: input.uf
-      });
-      if (coords) {
-        lat = coords[0];
-        lng = coords[1];
+  /**
+   * Cria uma nova demanda, aplicando o limite de 10 para o Plano Free.
+   */
+  async createDemanda(data: CreateDemandaDTO, organizationId: number, planType: PlanType): Promise<any> {
+      
+      // 1. [CRÍTICO] Implementação do Limite para Plano Free
+      if (planType === 'free') {
+          // Conta quantas demandas existem no total para esta organização
+          const countResult = await DemandasRepository.countAllByOrganization(organizationId);
+          
+          if (countResult >= DEMANDAS_LIMIT_FREE) {
+              throw new Error(`Limite de ${DEMANDAS_LIMIT_FREE} demandas atingido para o plano Free.`);
+          }
       }
-    }
-    
-    // 2. Formato de Prazo
-    const prazoDate =
-      input.prazo && input.prazo.trim() !== "" ? new Date(input.prazo) : null;
+      
+      // Validações básicas (ajustado para ser robusto)
+      if (!data.cep || !data.numero || !data.tipo_demanda || !data.descricao) {
+          throw new Error("Campos obrigatórios ausentes: CEP, Número, Tipo e Descrição.");
+      }
+      
+      // 2. Geração do Protocolo Sequencial
+      const nextId = await DemandasRepository.getNextProtocoloSequence();
+      const protocolo = nextId.toString().padStart(6, '0');
 
-    // 3. Atualizar
-    const updated = await DemandasRepository.update(id, {
-        ...input,
+      // 3. Geocodificação
+      const coordinates = await geocodingService.getCoordinates({
+          logradouro: data.logradouro,
+          numero: data.numero,
+          cidade: data.cidade,
+          uf: data.uf
+      });
+      
+      const lat = coordinates ? coordinates[0] : null;
+      const lng = coordinates ? coordinates[1] : null;
+
+      // 4. Busca status inicial
+      const statusPendente = await StatusRepository.findByName("Pendente");
+      const initialStatusId = statusPendente?.id || null;
+      
+      // 5. [CRÍTICO] Formata o prazo - CORREÇÃO DO ERRO DE DATA
+      const prazoDate = 
+        (data.prazo && data.prazo.trim() !== "") 
+          ? new Date(data.prazo) 
+          : null; // <--- Se a string for vazia, enviamos NULL
+      
+      if (prazoDate && isNaN(prazoDate.getTime())) {
+          throw new Error("Prazo inválido. Formato de data incorreto.");
+      }
+      
+      // 6. Cria demanda no Repositório
+      const newDemanda = await DemandasRepository.create({
+        protocolo, 
+        nome_solicitante: data.nome_solicitante,
+        telefone_solicitante: data.telefone_solicitante || null,
+        email_solicitante: data.email_solicitante || null,
+        cep: data.cep.replace(/\D/g, ""),
+        logradouro: data.logradouro || null,
+        numero: data.numero,
+        complemento: data.complemento || null,
+        bairro: data.bairro || null,
+        cidade: data.cidade || null,
+        uf: data.uf ? data.uf.toUpperCase() : null,
+        tipo_demanda: data.tipo_demanda,
+        descricao: data.descricao,
+        id_status: initialStatusId,
         lat,
         lng,
-        prazo: prazoDate,
-        cep: input.cep ? input.cep.replace(/\D/g, "") : undefined,
-    } as RepoUpdateDemandaInput);
+        prazo: prazoDate, // Envia null ou Date
+      } as RepoCreateDemandaInput, organizationId); // [CRÍTICO] Passa organizationId
 
-    if (!updated) {
-      throw new Error("Demanda não encontrada.");
-    }
+      return newDemanda;
+  }
+  
+  /**
+   * Atualiza uma demanda existente.
+   */
+  async updateDemanda(id: number, input: Partial<UpdateDemandaInput>, organizationId: number): Promise<DemandaPersistence> {
+      // 1. Coordenadas: Se não forem passadas, tenta geocodificar se os dados de endereço existirem
+      let lat: number | null = input.coordinates ? input.coordinates[0] : null;
+      let lng: number | null = input.coordinates ? input.coordinates[1] : null;
 
-    return updated;
+      if (!input.coordinates && input.logradouro && input.numero && input.cidade && input.uf) {
+        const coords = await geocodingService.getCoordinates({
+          logradouro: input.logradouro,
+          numero: input.numero,
+          cidade: input.cidade,
+          uf: input.uf
+        });
+        if (coords) {
+          lat = coords[0];
+          lng = coords[1];
+        }
+      }
+      
+      // 2. [CRÍTICO] Formato de Prazo
+      const prazoDate =
+        (input.prazo && input.prazo.trim() !== "") 
+          ? new Date(input.prazo) 
+          : null; // <--- Se a string for vazia, enviamos NULL
+
+      // 3. Atualizar
+      const updated = await DemandasRepository.update(id, {
+          ...input,
+          lat,
+          lng,
+          prazo: prazoDate, // Envia null ou Date
+          cep: input.cep ? input.cep.replace(/\D/g, "") : undefined,
+      } as RepoUpdateDemandaInput, organizationId); // [CRÍTICO] Passa organizationId
+
+      if (!updated) {
+        throw new Error("Demanda não encontrada.");
+      }
+
+      return updated;
   }
 
-  async deleteDemanda(id: number): Promise<void> {
-    const success = await DemandasRepository.delete(id);
+  /**
+   * Deleta uma demanda existente.
+   */
+  async deleteDemanda(id: number, organizationId: number): Promise<void> {
+    // [CRÍTICO] A exclusão é filtrada pelo organizationId no repositório
+    const success = await DemandasRepository.delete(id, organizationId);
     if (!success) {
       throw new Error("Demanda não encontrada.");
     }
   }
 
-  async updateDemandaStatus(id: number, idStatus: number): Promise<void> {
+  /**
+   * Atualiza o status de uma demanda pelo ID do status.
+   */
+  async updateDemandaStatus(id: number, idStatus: number, organizationId: number): Promise<void> {
     const statusExists = await StatusRepository.findById(idStatus);
     if (!statusExists) {
       throw new Error(`Status com ID ${idStatus} não encontrado.`);
     }
 
-    const updated = await DemandasRepository.updateStatus(id, idStatus);
+    // [CRÍTICO] A atualização é filtrada pelo organizationId no repositório
+    const updated = await DemandasRepository.updateStatus(id, idStatus, organizationId);
 
     if (!updated) {
       throw new Error("Demanda não encontrada para atualização de status.");
     }
   }
   
-  async deleteDemandas(ids: number[]): Promise<void> {
-    await DemandasRepository.deleteMany(ids);
+  /**
+   * Deleta múltiplas demandas.
+   */
+  async deleteDemandas(ids: number[], organizationId: number): Promise<void> {
+    await DemandasRepository.deleteMany(ids, organizationId); // [CRÍTICO] Passa organizationId
+  }
+
+
+  // --- MÉTODOS DE LEITURA ---
+  
+  /**
+   * Lista demandas com paginação e filtros.
+   */
+  async listDemandas(params: FindDemandasParams, organizationId: number): Promise<any> {
+      // O repositório irá usar o organizationId para filtrar a query
+      return DemandasRepository.findAll({...params, organizationId}); // [CRÍTICO] Passa organizationId
+  }
+
+  /**
+   * Busca uma demanda por ID.
+   */
+  async getDemandaById(id: number, organizationId: number): Promise<any> {
+      return DemandasRepository.findById(id, organizationId); // [CRÍTICO] Passa organizationId
   }
 }
 

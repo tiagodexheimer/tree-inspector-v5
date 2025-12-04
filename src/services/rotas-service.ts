@@ -22,34 +22,30 @@ const DEFAULT_FALLBACK_COORDS = {
   longitude: -51.1789191,
 };
 
+const ROTAS_LIMIT_FREE = 1;
+
 export class RotasService {
   async listRotas() {
     return await RotasRepository.findAll();
   }
 
-  async createRota(input: CreateRotaInput) {
-    if (!input.nome || input.nome.trim() === "")
-      throw new Error("O nome da rota é obrigatório.");
-    if (!input.responsavel || input.responsavel.trim() === "")
-      throw new Error("O responsável é obrigatório.");
-    if (!input.demandas || input.demandas.length === 0)
-      throw new Error("A rota deve conter pelo menos uma demanda.");
+  async createRota(data: CreateRotaDTO, organizationId: number, planType: 'free' | 'pro'): Promise<any> {
+        
+        // 1. [CRÍTICO] Implementação do Limite para Plano Free
+        if (planType === 'free') {
+            // Conta quantas rotas existem
+            const countResult = await RotasRepository.countAllByOrganization(organizationId); // [NOVO REPOSITÓRIO]
+            
+            if (countResult >= ROTAS_LIMIT_FREE) {
+                throw new Error(`Limite de ${ROTAS_LIMIT_FREE} rota atingido para o plano Free.`);
+            }
+        }
+        
+        // 2. Continua com a lógica normal
+        const newRota = await RotasRepository.create(data, organizationId); // [ATUALIZADO] Passa organizationId
 
-    const demandasComOrdem = input.demandas.map((d, index) => ({
-      id: d.id,
-      ordem: index,
-    }));
-
-    return await RotasRepository.create({
-      nome: input.nome.trim(),
-      responsavel: input.responsavel.trim(),
-      status: "Pendente",
-      demandas: demandasComOrdem,
-      // [NOVO] Repassa os dados opcionais
-      inicio_personalizado: input.inicio_personalizado || null,
-      fim_personalizado: input.fim_personalizado || null,
-    });
-  }
+        return newRota;
+    }
 
   async getRotaDetails(id: number) {
     const rota = await RotasRepository.findById(id);

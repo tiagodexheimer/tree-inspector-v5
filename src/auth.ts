@@ -1,14 +1,16 @@
 import NextAuth, { type NextAuthConfig } from 'next-auth';
 import CredentialsProvider from 'next-auth/providers/credentials';
 import { NextResponse, type NextRequest } from 'next/server';
-// 💡 CORREÇÃO DE ERRO: Importa o objeto AuthService completo.
-import { AuthService } from '@/services/auth-service'; 
+// Importa a instância do serviço (authService)
+import { authService } from '@/services/auth-service'; 
+
+// [CORREÇÃO] Caminhos que requerem role 'admin'
+// A rota geral '/gerenciar' foi removida para ser acessível a todos os usuários logados.
+// Protegemos apenas a gestão de usuários e APIs de admin.
+const adminRoutes = ['/gerenciar/usuarios', '/api/admin', '/api/gerenciar/usuarios']; 
 
 // Caminhos que não requerem autenticação (incluindo as APIs de autenticação)
 const publicRoutes = ['/login', '/signup', '/api/auth/signup', '/api/mobile-login'];
-
-// Caminhos que requerem role 'admin'
-const adminRoutes = ['/gerenciar', '/api/admin', '/api/gerenciar'];
 
 export const authConfig: NextAuthConfig = {
   // Configurações de Sessão e Páginas
@@ -16,7 +18,7 @@ export const authConfig: NextAuthConfig = {
     strategy: 'jwt', 
   },
   pages: {
-    signIn: '/login', // Redireciona para esta página se não estiver logado
+    signIn: '/login',
   },
   
   // Provedores (Credentials para autenticação por email/senha)
@@ -33,8 +35,8 @@ export const authConfig: NextAuthConfig = {
         }
 
         try {
-          // 💡 CORREÇÃO DE ERRO: Chama o método authenticate dentro do objeto AuthService.
-          const user = await AuthService.authenticate(credentials); 
+          // Chama o método authenticate na INSTÂNCIA
+          const user = await authService.authenticate(credentials); 
           
           if (user) {
             return user;
@@ -42,39 +44,45 @@ export const authConfig: NextAuthConfig = {
           return null;
         } catch (error) {
           console.error('Falha na autenticação:', error);
-          throw new Error('Credenciais inválidas.');
+          // Lançar um erro aqui faz o NextAuth incluir a mensagem no objeto de erro.
+          throw new Error('Email ou senha inválidos.'); 
         }
       },
     }),
   ],
 
-  // Callbacks: Essenciais para a propagação correta do ROLE e proteção de rotas
+  // Callbacks: Essenciais para a propagação correta do ROLE e dados Multi-tenant
   callbacks: {
     /**
-     * 1. JWT Callback: Adiciona 'id' e 'role' do objeto 'user' (vindo do authorize) ao token JWT.
+     * 1. JWT Callback: Adiciona dados da Organização ao token JWT.
      */
     async jwt({ token, user }) {
       if (user) {
         token.id = user.id;
         token.role = user.role as 'admin' | 'paid_user' | 'free_user';
+        // [CRÍTICO] RESTAURAÇÃO DOS CAMPOS MULTI-TENANT
+        token.orgId = (user as any).orgId as number; 
+        token.planType = (user as any).planType as 'free' | 'pro';
       }
       return token;
     },
     
     /**
-     * 2. Session Callback: Lê 'id' e 'role' do token JWT e injeta esses dados no objeto 'session.user'.
+     * 2. Session Callback: Injeta dados Multi-tenant no objeto 'session.user'.
      */
     async session({ session, token }) {
       if (token && session.user) {
         session.user.id = token.id as string;
         session.user.role = token.role as 'admin' | 'paid_user' | 'free_user';
+        // [CRÍTICO] RESTAURAÇÃO DOS CAMPOS MULTI-TENANT
+        session.user.orgId = token.orgId as number; 
+        session.user.planType = token.planType as 'free' | 'pro';
       }
       return session;
     },
     
     /**
      * 3. Authorized Callback (Middleware de Proteção de Rotas)
-     * 💡 CORREÇÃO DE ERRO: Lógica aprimorada para evitar loops de redirecionamento.
      */
     authorized({ auth, request: { nextUrl } }: { auth: any, request: NextRequest }) {
       const isLoggedIn = !!auth?.user;
@@ -83,38 +91,33 @@ export const authConfig: NextAuthConfig = {
       // A) TRATAMENTO DA ROTA RAIZ (/)
       if (pathname === '/') {
           if (isLoggedIn) {
-              // Se logado, vai para /dashboard
               return NextResponse.redirect(new URL('/dashboard', nextUrl));
           }
-          // Se não estiver logado, vai para /login
           return NextResponse.redirect(new URL('/login', nextUrl)); 
       }
       
       // B) ROTAS PÚBLICAS
       if (publicRoutes.some(route => pathname.startsWith(route))) {
-        // Se estiver em uma rota de login/signup e já estiver logado, redireciona para o dashboard
         if (isLoggedIn && (pathname.startsWith('/login') || pathname.startsWith('/signup'))) {
             return NextResponse.redirect(new URL('/dashboard', nextUrl));
         }
         return true;
       }
 
-      // C) ROTAS PROTEGIDAS POR ADMIN
+      // C) ROTAS PROTEGIDAS POR ADMIN (CORRIGIDO)
       const isAdminRoute = adminRoutes.some(route => pathname.startsWith(route));
       if (isAdminRoute) {
+        // Agora, somente rotas sensíveis como /gerenciar/usuarios são protegidas
         if (auth?.user?.role !== 'admin') {
-          // Acesso negado, redireciona para o dashboard
           return NextResponse.redirect(new URL('/dashboard', nextUrl)); 
         }
       }
       
-      // D) ROTAS GERAIS PROTEGIDAS (Ex: /dashboard, /demandas, /rotas)
+      // D) ROTAS GERAIS PROTEGIDAS (inclui /dashboard, /demandas e /gerenciar/status, /gerenciar/tipos-demanda)
       if (!isLoggedIn) {
-        // Redireciona para /login (retorna false para que o NextAuth faça o redirecionamento configurado)
         return false; 
       }
 
-      // Se logado e tudo mais checado, permite o acesso.
       return true;
     },
   },

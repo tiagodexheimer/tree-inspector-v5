@@ -65,15 +65,22 @@ export async function GET(request: NextRequest) {
 // --- POST: CRIAR DEMANDA ---
 export async function POST(request: NextRequest) {
   const session = await auth();
-  if (!session || !session.user) {
-    return NextResponse.json({ message: "Não autenticado" }, { status: 401 });
+  
+  // 1. [CRÍTICO] Verifica se o usuário e o orgId/planType estão na sessão
+  // Nota: A verificação de typeof 'number' é importante, pois o ID não pode ser NULL/undefined
+  if (!session || !session.user || typeof session.user.orgId !== 'number' || !session.user.planType) {
+    return NextResponse.json({ message: "Sessão inválida ou organização não configurada. Tente fazer login novamente." }, { status: 401 });
   }
 
   try {
     const body = await request.json();
 
-    // Delega para o serviço
-    const novaDemanda = await demandasService.createDemanda(body);
+    // 2. [CRÍTICO] Delega para o serviço, passando organizationId e planType
+    const novaDemanda = await demandasService.createDemanda(
+        body, 
+        session.user.orgId, 
+        session.user.planType
+    );
 
     return NextResponse.json(
       {
@@ -91,7 +98,7 @@ export async function POST(request: NextRequest) {
 
     if (error instanceof Error) {
       message = error.message;
-      if (message.includes("obrigatórios")) status = 400;
+      if (message.includes("obrigatórios") || message.includes("Limite")) status = 400; // Limites de Plano
       if ((error as any).code === "23505") {
         status = 409;
         message = "Erro: Protocolo duplicado.";

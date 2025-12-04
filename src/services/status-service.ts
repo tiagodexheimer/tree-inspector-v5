@@ -1,93 +1,83 @@
-import { StatusRepository, StatusPersistence } from "@/repositories/status-repository";
+// src/services/status-service.ts
+import { StatusRepository } from "@/repositories/status-repository";
 
-interface CreateStatusInput {
+// Interfaces DTOs (Data Transfer Objects)
+export interface CreateStatusDTO {
+  nome: string;
+  cor: string;
+}
+
+export interface UpdateStatusDTO {
   nome?: string;
   cor?: string;
 }
 
+// O Plano Free só pode usar as configurações, não alterá-las.
+type PlanType = 'free' | 'pro';
+
 export class StatusService {
-  
-  // --- LISTAGEM E CRIAÇÃO ---
-
-  async listAll(): Promise<StatusPersistence[]> {
-    return await StatusRepository.findAll();
-  }
-
-  async createStatus(input: CreateStatusInput): Promise<StatusPersistence> {
-    this.validateInput(input);
-
-    const nomeLimpo = input.nome!.trim();
-
-    // Verificar duplicidade
-    const existing = await StatusRepository.findByName(nomeLimpo);
-    if (existing) {
-      throw new Error("Já existe um status com este nome.");
-    }
-
-    return await StatusRepository.create({
-      nome: nomeLimpo,
-      cor: input.cor!
-    });
-  }
-
-  // --- ATUALIZAÇÃO E DELEÇÃO ---
-
-  async updateStatus(id: number, input: CreateStatusInput): Promise<StatusPersistence> {
-    this.validateInput(input);
     
-    const nomeLimpo = input.nome!.trim();
+    // --- LEITURA (PERMITIDO A TODOS) ---
+    /**
+     * Lista todos os status de uma organização específica.
+     * Permissão: Todos os usuários (Free e Pro) logados.
+     */
+    async listAll(organizationId: number): Promise<any[]> {
+        // A filtragem por organização já está no repositório
+        return StatusRepository.findAll(organizationId);
+    }
+    
+    // --- ESCRITA/ALTERAÇÃO (RESTRITO AO PLANO PRO) ---
 
-    // 1. Verificar se existe
-    const current = await StatusRepository.findById(id);
-    if (!current) {
-      throw new Error("Status não encontrado.");
+    /**
+     * Cria um novo status para a organização.
+     * Permissão: Apenas Plano Pro.
+     */
+    async createStatus(data: CreateStatusDTO, organizationId: number, planType: PlanType): Promise<any> {
+        if (planType === 'free') {
+            throw new Error("A criação de Status é exclusiva para o Plano Pro.");
+        }
+        
+        // Assumindo que o repositório verifica duplicidade (UNIQUE(organization_id, nome))
+        const newStatus = await StatusRepository.create(data, organizationId);
+        return newStatus;
     }
 
-    // 2. Verificar duplicidade (se mudou o nome)
-    if (current.nome !== nomeLimpo) {
-      const existing = await StatusRepository.findByName(nomeLimpo);
-      if (existing) {
-        throw new Error("Já existe um status com este nome.");
-      }
+    /**
+     * Atualiza um status existente.
+     * Permissão: Apenas Plano Pro.
+     */
+    async updateStatus(id: number, data: UpdateStatusDTO, organizationId: number, planType: PlanType): Promise<any> {
+        if (planType === 'free') {
+            throw new Error("A edição de Status é exclusiva para o Plano Pro.");
+        }
+        
+        // A atualização deve falhar se o ID não for encontrado ou não pertencer à organização (repositório cuida disso)
+        const updatedStatus = await StatusRepository.update(id, data, organizationId);
+        
+        if (!updatedStatus) {
+            throw new Error("Status não encontrado ou você não tem permissão para editá-lo.");
+        }
+        return updatedStatus;
     }
 
-    // 3. Atualizar
-    const updated = await StatusRepository.update(id, {
-      nome: nomeLimpo,
-      cor: input.cor!
-    });
-
-    if (!updated) throw new Error("Erro inesperado ao atualizar.");
-    return updated;
-  }
-
-  async deleteStatus(id: number): Promise<void> {
-    // 1. Verificar existência
-    const current = await StatusRepository.findById(id);
-    if (!current) {
-      throw new Error("Status não encontrado.");
+    /**
+     * Exclui um status.
+     * Permissão: Apenas Plano Pro.
+     */
+    async deleteStatus(id: number, organizationId: number, planType: PlanType): Promise<boolean> {
+        if (planType === 'free') {
+            throw new Error("A exclusão de Status é exclusiva para o Plano Pro.");
+        }
+        
+        // A exclusão deve falhar se o ID não for encontrado ou estiver em uso
+        const success = await StatusRepository.delete(id, organizationId);
+        
+        if (!success) {
+             throw new Error("Status não encontrado ou você não tem permissão para excluí-lo (verifique se não está em uso).");
+        }
+        return success;
     }
-
-    // 2. Integridade Referencial: Verificar se está em uso
-    const usageCount = await StatusRepository.countUsageById(id);
-    if (usageCount > 0) {
-      throw new Error(`Não é possível deletar o status pois ele está associado a ${usageCount} demanda(s).`);
-    }
-
-    // 3. Deletar
-    const success = await StatusRepository.delete(id);
-    if (!success) throw new Error("Erro ao deletar status.");
-  }
-
-  // --- HELPER PRIVADO ---
-  private validateInput(input: CreateStatusInput) {
-    if (!input.nome || input.nome.trim() === '') {
-      throw new Error("O nome do status é obrigatório.");
-    }
-    if (!input.cor || !/^#[0-9A-F]{6}$/i.test(input.cor)) {
-      throw new Error("A cor é obrigatória e deve estar no formato #RRGGBB.");
-    }
-  }
 }
 
 export const statusService = new StatusService();

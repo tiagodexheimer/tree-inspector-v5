@@ -9,6 +9,7 @@ export interface RotaPersistence {
   data_rota: Date | null;
   created_at: Date;
   total_demandas: number;
+  organization_id: number; // [NOVO] Adicionado para clareza
   // [NOVO] Campos de personalização obrigatórios na leitura
   inicio_personalizado_lat?: number;
   inicio_personalizado_lng?: number;
@@ -41,9 +42,9 @@ export interface ExportDataResult {
 export const RotasRepository = {
   // --- LEITURA ---
 
-  async findAll(): Promise<RotaPersistence[]> {
+  async findAll(organizationId: number): Promise<RotaPersistence[]> { // [ATUALIZADO]
     try {
-      // Adicionamos as colunas de personalização no SELECT
+      // Adicionamos organization_id na cláusula WHERE
       const query = `
             SELECT
                 r.id,
@@ -52,6 +53,7 @@ export const RotasRepository = {
                 r.status,
                 r.data_rota,
                 r.created_at,
+                r.organization_id,
                 r.inicio_personalizado_lat,
                 r.inicio_personalizado_lng,
                 r.fim_personalizado_lat,
@@ -61,12 +63,14 @@ export const RotasRepository = {
                 rotas r
             LEFT JOIN
                 rotas_demandas rd ON r.id = rd.rota_id
+            WHERE 
+                r.organization_id = $1 -- [CRÍTICO] Filtro Obrigatório
             GROUP BY
                 r.id
             ORDER BY
                 r.created_at DESC;
         `;
-      const result = await pool.query(query);
+      const result = await pool.query(query, [organizationId]); // [ATUALIZADO]
       return result.rows.map(row => ({
           ...row,
           total_demandas: parseInt(row.total_demandas, 10) || 0
@@ -77,10 +81,10 @@ export const RotasRepository = {
     }
   },
 
-  async findById(id: number): Promise<RotaPersistence | null> {
+  async findById(id: number, organizationId: number): Promise<RotaPersistence | null> { // [ATUALIZADO]
     try {
-      const query = `SELECT * FROM rotas WHERE id = $1`;
-      const result = await pool.query(query, [id]);
+      const query = `SELECT * FROM rotas WHERE id = $1 AND organization_id = $2`; // [CRÍTICO]
+      const result = await pool.query(query, [id, organizationId]); // [ATUALIZADO]
       return result.rows[0] || null;
     } catch (error) {
         console.error("Erro no RotasRepository.findById:", error);
@@ -88,7 +92,7 @@ export const RotasRepository = {
     }
   },
 
-  async findDemandasByRotaId(id: number): Promise<any[]> {
+  async findDemandasByRotaId(id: number, organizationId: number): Promise<any[]> { // [ATUALIZADO]
       try {
           const query = `
             SELECT 
@@ -101,10 +105,10 @@ export const RotasRepository = {
             FROM rotas_demandas dr 
             JOIN demandas d ON dr.demanda_id = d.id
             LEFT JOIN demandas_status s ON d.id_status = s.id
-            WHERE dr.rota_id = $1
+            WHERE dr.rota_id = $1 AND d.organization_id = $2 -- [CRÍTICO] Garante que as demandas pertencem à mesma organização
             ORDER BY dr.ordem ASC
           `;
-          const result = await pool.query(query, [id]);
+          const result = await pool.query(query, [id, organizationId]); // [ATUALIZADO]
           return result.rows;
       } catch (error) {
           console.error("Erro no RotasRepository.findDemandasByRotaId:", error);
@@ -112,14 +116,16 @@ export const RotasRepository = {
       }
   },
 
-  async findExportData(id: number): Promise<ExportDataResult | null> {
+  async findExportData(id: number, organizationId: number): Promise<ExportDataResult | null> { // [ATUALIZADO]
     const client = await pool.connect();
     try {
-      const rotaRes = await client.query('SELECT nome FROM rotas WHERE id = $1', [id]);
+      // 1. Verifica se a rota existe e pertence à organização
+      const rotaRes = await client.query('SELECT nome FROM rotas WHERE id = $1 AND organization_id = $2', [id, organizationId]); // [CRÍTICO]
       if (rotaRes.rowCount === 0) return null;
       
       const rotaNome = rotaRes.rows[0].nome;
 
+      // 2. Busca as demandas vinculadas à rota e à organização
       const query = `
             SELECT 
                 rd.ordem, d.id, d.tipo_demanda, d.descricao, d.cep, d.logradouro,
@@ -128,10 +134,10 @@ export const RotasRepository = {
             FROM demandas d
             JOIN rotas_demandas rd ON d.id = rd.demanda_id
             LEFT JOIN demandas_status s ON d.id_status = s.id
-            WHERE rd.rota_id = $1
+            WHERE rd.rota_id = $1 AND d.organization_id = $2 -- [CRÍTICO]
             ORDER BY rd.ordem ASC;
       `;
-      const demandasRes = await client.query(query, [id]);
+      const demandasRes = await client.query(query, [id, organizationId]); // [ATUALIZADO]
       return { rotaNome, demandas: demandasRes.rows };
     } catch (error) {
        console.error("Erro no RotasRepository.findExportData:", error);
@@ -143,19 +149,20 @@ export const RotasRepository = {
 
   // --- ESCRITA ---
 
-  async create(data: CreateRotaDTO): Promise<{ id: number; nome: string; responsavel: string; status: string }> {
+  async create(data: CreateRotaDTO, organizationId: number): Promise<{ id: number; nome: string; responsavel: string; status: string }> { // [ATUALIZADO]
     const client = await pool.connect();
     try {
       await client.query("BEGIN");
       
-      // [CORREÇÃO CRÍTICA] Incluídos os campos de personalização no INSERT
+      // [CRÍTICO] Incluídos organization_id no INSERT
       const rotaQuery = `
         INSERT INTO rotas (
             nome, responsavel, status, 
             inicio_personalizado_lat, inicio_personalizado_lng, 
-            fim_personalizado_lat, fim_personalizado_lng
+            fim_personalizado_lat, fim_personalizado_lng,
+            organization_id
         )
-        VALUES ($1, $2, $3, $4, $5, $6, $7)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
         RETURNING id, nome, responsavel, status;
       `;
       
@@ -166,7 +173,8 @@ export const RotasRepository = {
           data.inicio_personalizado?.lat || null,
           data.inicio_personalizado?.lng || null,
           data.fim_personalizado?.lat || null,
-          data.fim_personalizado?.lng || null
+          data.fim_personalizado?.lng || null,
+          organizationId // [CRÍTICO] $8
       ];
 
       const rotaResult = await client.query(rotaQuery, values);
@@ -184,17 +192,18 @@ export const RotasRepository = {
           await client.query(insertQuery, paramsDemanda);
       }
       
-      // Atualiza status das demandas
+      // [CRÍTICO] Atualiza status das demandas (Filtrando por Organização no SELECT)
       if (data.demandas.length > 0) {
           const ids = data.demandas.map(d => d.id);
           const placeholders = ids.map((_, i) => `$${i + 1}`).join(', ');
           
           const updateStatusQuery = `
             UPDATE demandas 
-            SET id_status = (SELECT id FROM demandas_status WHERE nome = 'Vistoria Agendada' LIMIT 1), updated_at = NOW()
+            SET id_status = (SELECT id FROM demandas_status WHERE nome = 'Vistoria Agendada' AND organization_id = $${ids.length + 1} LIMIT 1), updated_at = NOW()
             WHERE id IN (${placeholders})
+            AND organization_id = $${ids.length + 1} -- [CRÍTICO] Adiciona o filtro na demanda
           `;
-          await client.query(updateStatusQuery, ids); 
+          await client.query(updateStatusQuery, [...ids, organizationId]); // [ATUALIZADO]
       }
 
       await client.query("COMMIT");
@@ -208,15 +217,15 @@ export const RotasRepository = {
     }
   },
 
-  async update(id: number, data: UpdateRotaDTO): Promise<RotaPersistence | null> {
+  async update(id: number, data: UpdateRotaDTO, organizationId: number): Promise<RotaPersistence | null> { // [ATUALIZADO]
       try {
           const query = `
             UPDATE rotas
             SET nome = $1, responsavel = $2, status = $3, data_rota = $4
-            WHERE id = $5
+            WHERE id = $5 AND organization_id = $6 -- [CRÍTICO]
             RETURNING *;
           `;
-          const values = [data.nome, data.responsavel, data.status, data.data_rota || null, id];
+          const values = [data.nome, data.responsavel, data.status, data.data_rota || null, id, organizationId]; // [ATUALIZADO]
           const result = await pool.query(query, values);
           return result.rows[0] || null;
       } catch (error) {
@@ -225,12 +234,14 @@ export const RotasRepository = {
       }
   },
 
-  async delete(id: number): Promise<boolean> {
+  async delete(id: number, organizationId: number): Promise<boolean> { // [ATUALIZADO]
       const client = await pool.connect();
       try {
           await client.query('BEGIN');
-          await client.query('DELETE FROM rotas_demandas WHERE rota_id = $1', [id]);
-          const result = await client.query('DELETE FROM rotas WHERE id = $1 RETURNING id', [id]);
+          
+          // O DELETE em rotas_demandas é em cascata, mas precisamos garantir que a rota existe e pertence à organização
+          const result = await client.query('DELETE FROM rotas WHERE id = $1 AND organization_id = $2 RETURNING id', [id, organizationId]); // [CRÍTICO]
+          
           await client.query('COMMIT');
           return (result.rowCount ?? 0) > 0;
       } catch (error) {
@@ -242,10 +253,18 @@ export const RotasRepository = {
       }
   },
 
-  async reorderDemandas(rotaId: number, demandas: { id: number; ordem: number }[]): Promise<void> {
+  async reorderDemandas(rotaId: number, demandas: { id: number; ordem: number }[], organizationId: number): Promise<void> { // [ATUALIZADO]
       const client = await pool.connect();
       try {
           await client.query('BEGIN');
+          
+          // 1. Verifica se a rota pertence à organização antes de deletar
+          const rotaCheck = await client.query('SELECT id FROM rotas WHERE id = $1 AND organization_id = $2', [rotaId, organizationId]);
+          if (rotaCheck.rowCount === 0) {
+              throw new Error("Rota não encontrada ou não pertence à organização.");
+          }
+          
+          // 2. Deleta as associações antigas
           await client.query('DELETE FROM rotas_demandas WHERE rota_id = $1', [rotaId]);
 
           if (demandas.length > 0) {
@@ -275,11 +294,18 @@ export const RotasRepository = {
       }
   },
   
-  addDemandasToRota: async (rotaId: number, demandas: { id: number; ordem: number }[]): Promise<void> => {
+  addDemandasToRota: async (rotaId: number, demandas: { id: number; ordem: number }[], organizationId: number): Promise<void> => { // [ATUALIZADO]
     const client = await pool.connect();
     try {
         await client.query('BEGIN');
 
+        // 1. Verifica se a rota pertence à organização
+        const rotaCheck = await client.query('SELECT id FROM rotas WHERE id = $1 AND organization_id = $2', [rotaId, organizationId]);
+        if (rotaCheck.rowCount === 0) {
+            throw new Error("Rota não encontrada ou não pertence à organização.");
+        }
+        
+        // 2. Insere as novas demandas
         if (demandas.length > 0) {
             const values: string[] = [];
             const params: any[] = [rotaId];
@@ -306,4 +332,19 @@ export const RotasRepository = {
         client.release();
     }
   },
+  // [NOVO] Método para contar todas as rotas de uma organização
+    async countAllByOrganization(organizationId: number): Promise<number> {
+        try {
+            const query = `
+                SELECT COUNT(id) as count 
+                FROM rotas 
+                WHERE organization_id = $1
+            `;
+            const result = await pool.query(query, [organizationId]);
+            return parseInt(result.rows[0].count, 10);
+        } catch (error) {
+            console.error("Erro ao contar rotas por organização:", error);
+            return 0; // Falha segura
+        }
+    },
 };
