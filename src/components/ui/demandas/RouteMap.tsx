@@ -7,7 +7,7 @@ import L, { LatLngExpression, LatLngBoundsExpression, DivIcon } from 'leaflet';
 import { DemandaType } from '@/types/demanda';
 
 // Fallback visual apenas se tudo falhar (Esteio/RS)
-const DEFAULT_FALLBACK: LatLngExpression = [-29.8533191, -51.1789191];
+const DEFAULT_FALLBACK: LatLngExpression = [-30.0262602, -51.2229064];
 
 // --- Ícones (Mantidos) ---
 const iconStart = new L.Icon({
