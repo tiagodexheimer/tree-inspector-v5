@@ -2,12 +2,14 @@
 import { UniqueIdentifier } from "@dnd-kit/core";
 import { GeoJsonPoint } from "./common"; // Reuso
 
-export type Status = "Pendente" | "Em andamento" | "Concluído";
+export type Status = "Pendente" | "Em andamento" | "Concluído" | "Vistoria Agendada" | "Em Rota";
 
 // Entidade de Domínio Pura
 export interface DemandaType {
   id?: number;
   protocolo?: string;
+
+  created_at?: string;
   
   // Dados do Solicitante
   nome_solicitante: string;

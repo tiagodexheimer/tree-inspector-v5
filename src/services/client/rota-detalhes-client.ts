@@ -1,7 +1,5 @@
-// src/services/client/rota-detalhes-client.ts
 import { DemandaType } from "@/types/demanda";
 
-// ADICIONADO 'export' AQUI
 export interface DemandaComOrdem extends DemandaType {
     ordem: number;
     status_nome: string;
@@ -10,13 +8,16 @@ export interface DemandaComOrdem extends DemandaType {
     lng: number | null;
 }
 
+// [ATUALIZADO] Adicionado startPoint e endPoint
 interface RotaDetalhesResponse {
     rota: any;
     demandas: DemandaComOrdem[];
     encodedPolyline: string | null; 
+    startPoint?: { latitude: number; longitude: number };
+    endPoint?: { latitude: number; longitude: number };
 }
 
-// [NOVA INTERFACE] para lista de Demandas Não Distribuídas
+// ... (Restante do arquivo, DemandaNaoDistribuida e RotaDetalhesClient, mantidos iguais)
 export interface DemandaNaoDistribuida {
     id: number;
     protocolo: string;
@@ -39,7 +40,7 @@ export const RotaDetalhesClient = {
     if (!response.ok) throw new Error(`Erro ao buscar rota: ${response.status}`);
     return response.json();
   },
-
+  // ... outros métodos mantidos
   async reorder(id: string, demandas: { id: number }[]): Promise<void> {
     const response = await fetch(`/api/rotas/${id}/reorder`, {
         method: 'PUT',
@@ -55,14 +56,12 @@ export const RotaDetalhesClient = {
     return response.blob();
   },
   
-  // [CORRIGIDO] Alterado 'sync' para 'async'
   async getUndistributedDemandas(): Promise<DemandaNaoDistribuida[]> {
     const response = await fetch('/api/demandas/undistributed');
     if (!response.ok) throw new Error("Erro ao buscar demandas disponíveis.");
     return response.json();
   },
 
-  // [NOVO] Adicionar demandas a uma rota
   async addDemandas(rotaId: string, demandaIds: number[]): Promise<DemandaComOrdem[]> {
       const response = await fetch(`/api/rotas/${rotaId}/add-demanda`, {
           method: 'POST',
@@ -74,6 +73,6 @@ export const RotaDetalhesClient = {
           throw new Error(errorData.message || `Erro ao adicionar demandas: ${response.status}`);
       }
       const data = await response.json();
-      return data.demandas; // Espera a nova lista completa
+      return data.demandas;
   }
 };

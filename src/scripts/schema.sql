@@ -180,3 +180,25 @@ CREATE TABLE IF NOT EXISTS vistorias_realizadas (
     UNIQUE(demanda_id) -- Uma demanda só pode ter uma vistoria final
 );
 
+-- 1. Tabela para configurações globais (Padrão do sistema/usuário)
+CREATE TABLE IF NOT EXISTS configuracoes (
+    id SERIAL PRIMARY KEY,
+    chave VARCHAR(50) UNIQUE NOT NULL, -- ex: 'padrao_rota'
+    valor JSONB NOT NULL,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Inserir configuração inicial padrão (Coordenadas que você usava fixas)
+INSERT INTO configuracoes (chave, valor)
+VALUES ('padrao_rota', '{"inicio": {"lat": -30.1087668, "lng": -51.3422914}, "fim": {"lat": -30.1087668, "lng": -51.3422914}}')
+ON CONFLICT (chave) DO NOTHING;
+
+-- 2. Adicionar colunas na tabela 'rotas' para personalização por rota (override)
+ALTER TABLE rotas
+ADD COLUMN inicio_personalizado_lat DOUBLE PRECISION,
+ADD COLUMN inicio_personalizado_lng DOUBLE PRECISION,
+ADD COLUMN fim_personalizado_lat DOUBLE PRECISION,
+ADD COLUMN fim_personalizado_lng DOUBLE PRECISION;
+
+
+CREATE SEQUENCE IF NOT EXISTS protocolo_seq START 1;

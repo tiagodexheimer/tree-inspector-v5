@@ -20,7 +20,7 @@ import { RotaComContagem } from '@/services/client/rotas-client';
 // Carregamento dinâmico dos componentes principais
 const ListaRotas = dynamic(() => import('@/components/ui/rotas/ListaRotas'), {
     loading: () => <RotasSkeleton />,
-    ssr: false 
+    ssr: false
 });
 
 const RouteMap = dynamic(() => import('@/components/ui/demandas/RouteMap'), {
@@ -29,12 +29,13 @@ const RouteMap = dynamic(() => import('@/components/ui/demandas/RouteMap'), {
 });
 
 export default function RotasPage() {
-    // Hooks para dados e operações
-    const { 
-        rotas, isLoading, error, refresh, selectedRouteMap, 
-        isLoadingRouteMap, fetchRouteDetailsForMap 
+    const {
+        rotas, isLoading, error, refresh, selectedRouteMap,
+        isLoadingRouteMap, fetchRouteDetailsForMap,
+        // [NOVO] Recebe a config global
+        globalConfig
     } = useRotasData();
-    
+
     const { deleteRota, isProcessing: isDeleting, opError: deleteError, clearError } = useRotasOperations(refresh);
 
     // Estados para o Modal de Confirmação de Deleção
@@ -43,15 +44,15 @@ export default function RotasPage() {
 
     // Detecção de breakpoint (Mobile/Desktop)
     const theme = useTheme();
-    const isMobile = useMediaQuery(theme.breakpoints.down('sm')); 
-    
+    const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
+
     // Handlers para Deleção
     const iniciarDelecao = useCallback((id: number) => {
         if (typeof id !== 'number' || isNaN(id) || id <= 0) {
             console.error("Deleção bloqueada: ID inválido/ausente recebido:", id);
-            return; 
+            return;
         }
-        
+
         const rota = rotas.find(r => r.id === id) || null;
         if (rota) {
             setRotaParaDeletar(rota);
@@ -69,23 +70,32 @@ export default function RotasPage() {
 
     const confirmarDelecao = useCallback(async () => {
         if (!rotaParaDeletar) {
-             handleCloseDeleteConfirm();
-             return;
+            handleCloseDeleteConfirm();
+            return;
         }
-        
-        await deleteRota(rotaParaDeletar.id); 
+
+        await deleteRota(rotaParaDeletar.id);
         handleCloseDeleteConfirm();
     }, [rotaParaDeletar, deleteRota, handleCloseDeleteConfirm]);
 
     // Handler para clique na linha da tabela / card da rota
-    const handleRowClick = useCallback((rotaId: number) => { 
-        fetchRouteDetailsForMap(rotaId); 
+    const handleRowClick = useCallback((rotaId: number) => {
+        fetchRouteDetailsForMap(rotaId);
     }, [fetchRouteDetailsForMap]);
 
     // Dados para o Mapa
     const mapDemandas = selectedRouteMap?.demandas || [];
     const mapRota = rotas.find(r => r.id === selectedRouteMap?.rota.id);
     const selectedRotaId = selectedRouteMap?.rota.id || null;
+
+    let startPointForMap = selectedRouteMap?.startPoint;
+    let endPointForMap = selectedRouteMap?.endPoint;
+
+    if (!selectedRotaId && globalConfig) {
+        // Converte {lat, lng} para {latitude, longitude} que o RouteMap espera
+        startPointForMap = { latitude: globalConfig.inicio.lat, longitude: globalConfig.inicio.lng };
+        endPointForMap = { latitude: globalConfig.fim.lat, longitude: globalConfig.fim.lng };
+    }
 
     return (
         <Box sx={{ p: isMobile ? 1 : 3 }}>
@@ -104,32 +114,32 @@ export default function RotasPage() {
             )}
 
             {/* Container Principal: Define o Layout Flexível (Lista e Mapa) */}
-            <Box 
-                sx={{ 
-                    display: 'flex', 
-                    gap: 3, 
+            <Box
+                sx={{
+                    display: 'flex',
+                    gap: 3,
                     // Empilha em telas pequenas (mobile/sm) e divide em telas médias+ (desktop/md+)
-                    flexDirection: { xs: 'column', sm: 'column', md: 'row' }, 
-                    alignItems: 'flex-start' 
+                    flexDirection: { xs: 'column', sm: 'column', md: 'row' },
+                    alignItems: 'flex-start'
                 }}
             >
 
                 {/* Coluna da Lista (60% no desktop) */}
-                <Box sx={{ 
-                    flexBasis: { xs: '100%', md: '60%' }, 
+                <Box sx={{
+                    flexBasis: { xs: '100%', md: '60%' },
                     flexGrow: 1,
-                    minWidth: { xs: '100%', md: 400 } 
+                    minWidth: { xs: '100%', md: 400 }
                 }}>
                     <Paper elevation={2}>
                         {isLoading ? (
                             <RotasSkeleton />
                         ) : (
                             rotas.length > 0 ? (
-                                <ListaRotas 
-                                    rotas={rotas} 
-                                    onDelete={iniciarDelecao} 
-                                    onRowClick={handleRowClick} 
-                                    selectedRotaId={selectedRotaId} 
+                                <ListaRotas
+                                    rotas={rotas}
+                                    onDelete={iniciarDelecao}
+                                    onRowClick={handleRowClick}
+                                    selectedRotaId={selectedRotaId}
                                 />
                             ) : !error && (
                                 <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: 400, color: 'grey.600', p: 4 }}>
@@ -141,37 +151,16 @@ export default function RotasPage() {
                     </Paper>
                 </Box>
 
-                {/* Coluna Direita: Mapa (40% no desktop) */}
-                <Box sx={{ 
-                    flexBasis: { xs: '100%', md: '40%' }, 
-                    flexGrow: 1, 
-                    minWidth: { xs: '100%', md: 350 } 
-                }}>
-                    <Paper elevation={2} sx={{ 
-                        height: { xs: 400, md: '50vh' }, 
-                        minHeight: 400, 
-                        overflow: 'hidden',
-                        // [CRITICAL FIX]: Ativa FLEX para gerenciar o espaço interno vertical
-                        display: 'flex',
-                        flexDirection: 'column',
-                    }}>
-                        {/* 1. Header (Fixado no topo) */}
-                        <Typography variant="h6" sx={{ 
-                            p: 2, 
-                            bgcolor: '#f5f5f5', 
-                            borderBottom: '1px solid #ddd',
-                            flexShrink: 0 
-                        }}>
+               {/* Coluna Direita: Mapa */}
+                <Box sx={{ flexBasis: { xs: '100%', md: '40%' }, flexGrow: 1, minWidth: { xs: '100%', md: 350 } }}>
+                    <Paper elevation={2} sx={{ height: { xs: 400, md: '50vh' }, minHeight: 400, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
+                        
+                        <Typography variant="h6" sx={{ p: 2, bgcolor: '#f5f5f5', borderBottom: '1px solid #ddd', flexShrink: 0 }}>
                             Visualização da Rota: {mapRota?.nome || (isLoadingRouteMap ? 'Carregando...' : 'Nenhuma Selecionada')}
                         </Typography>
                         
-                        {/* 2. Map Container (Ocupa o espaço restante) */}
-                        <Box sx={{ 
-                            flexGrow: 1, // Ocupa todo o espaço vertical restante
-                            // Removemos o cálculo de 64px, pois o Flexbox faz isso
-                            height: 'auto', 
-                        }}>
-                            {isLoadingRouteMap || (selectedRotaId && !selectedRouteMap) ? (
+                        <Box sx={{ flexGrow: 1, height: 'auto' }}>
+                            {isLoadingRouteMap ? (
                                 <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100%' }}>
                                      <CircularProgress />
                                 </Box>
@@ -179,6 +168,9 @@ export default function RotasPage() {
                                 <RouteMap 
                                     demandas={mapDemandas as any} 
                                     path={selectedRouteMap?.path as any[]} 
+                                    // [CORREÇÃO] Passa os pontos calculados (Global ou da Rota)
+                                    startPoint={startPointForMap}
+                                    endPoint={endPointForMap}
                                 />
                             )}
                         </Box>
@@ -211,9 +203,9 @@ export default function RotasPage() {
                     <Button onClick={handleCloseDeleteConfirm} color="primary" disabled={isDeleting}>
                         Cancelar
                     </Button>
-                    <Button 
-                        onClick={confirmarDelecao} 
-                        color="error" 
+                    <Button
+                        onClick={confirmarDelecao}
+                        color="error"
                         autoFocus
                         disabled={isDeleting}
                     >

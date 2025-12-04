@@ -1,229 +1,227 @@
 // src/components/ui/demandas/CardDemanda.tsx
 'use client';
 
-import React, { useState, memo, useCallback } from "react";
+import React, { useState } from 'react';
 import {
-  Card,
-  CardHeader,
-  CardContent,
-  Box,
-  Typography,
-  Button,
-  IconButton,
-  useTheme,
-  useMediaQuery
-} from "@mui/material";
-import DeleteIcon from '@mui/icons-material/Delete';
+    Card, CardContent, Typography, Box, Chip, IconButton,
+    Divider, Stack, Tooltip, Menu, MenuItem, Checkbox
+} from '@mui/material';
 import EditIcon from '@mui/icons-material/Edit';
-import dynamic from 'next/dynamic';
+import DeleteIcon from '@mui/icons-material/Delete';
+import LocationOnIcon from '@mui/icons-material/LocationOn';
+import PersonIcon from '@mui/icons-material/Person';
+import DescriptionIcon from '@mui/icons-material/Description';
+import ArrowDropDownIcon from '@mui/icons-material/ArrowDropDown';
+import { DemandaType, DemandaComIdStatus } from '@/types/demanda'; 
+import { format } from 'date-fns';
 
-import StatusDemanda from "./StatusDemanda";
-import DetalhesDemandaModal from "./DetalhesDemandaModal";
-import { DemandaType } from "@/types/demanda";
-
-const MiniMap = dynamic(() => import('./MiniMap'), {
-  ssr: false,
-  loading: () => (
-    <Box sx={{
-      height: '100%',
-      display: 'flex',
-      alignItems: 'center',
-      justifyContent: 'center',
-      backgroundColor: '#eee',
-      color: '#777'
-    }}>
-      Carregando mapa...
-    </Box>
-  )
-});
-
-interface StatusOption {
-  id: number;
-  nome: string;
-  cor: string;
+interface CardDemandaProps {
+    demanda: DemandaComIdStatus;
+    selected: boolean;
+    onSelect: () => void;
+    onDelete: (id: number) => void;
+    onEdit: (demanda: DemandaComIdStatus) => void;
+    onStatusChange: (id: number, newStatus: number) => void;
+    availableStatus: any[];
 }
 
-interface DemandaComIdStatus extends DemandaType {
-  id_status?: number | null;
-  lat: number | null;
-  lng: number | null;
-}
+export default function CardDemanda({
+    demanda, selected, onSelect, onDelete, onEdit, 
+    onStatusChange, availableStatus
+}: CardDemandaProps) {
 
-interface CardDemandaProps extends DemandaComIdStatus {
-  isSelected: boolean;
-  onSelect: (id: number) => void;
-  onDelete: (id: number) => void;
-  onEdit: (demanda: DemandaComIdStatus) => void;
-  onStatusChange: (demandaId: number, newStatusId: number) => Promise<void>;
-  availableStatus: StatusOption[];
-  currentStatusId?: number | null;
-}
+    const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
+    const openMenu = Boolean(anchorEl);
 
-const formatEnderecoCurto = (logradouro?: string | null, numero?: string, bairro?: string | null): string => {
-  const parts = [
-    logradouro || '',
-    numero ? `, ${numero}` : '',
-    bairro ? ` - ${bairro}` : ''
-  ];
-  return parts.join('').trim();
-};
+    const dataCriacao = demanda.created_at
+        ? format(new Date(demanda.created_at), 'dd/MM/yyyy')
+        : '-';
 
-const CardDemanda = memo((props: CardDemandaProps) => {
-  const {
-    id, logradouro, numero, bairro, cidade, uf, tipo_demanda,
-    descricao, prazo,
-    isSelected, onSelect, onDelete, onEdit, onStatusChange,
-    id_status, availableStatus,
-    lat, lng
-  } = props;
+    const statusColor = demanda.status_cor || '#ccc';
 
-  const theme = useTheme();
-  const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
-  const [modalOpen, setModalOpen] = useState(false);
+    // --- HANDLERS ---
 
-  const handleCardClick = () => id && onSelect(id);
+    const handleCardClick = () => {
+        onSelect();
+    };
 
-  const enderecoFormatado = formatEnderecoCurto(logradouro, numero, bairro);
-  const prazoTexto = prazo ? prazo.toLocaleDateString('pt-BR') : 'N/A';
-  const localizacao = cidade && uf ? `${cidade}/${uf}` : '';
+    const handleStatusClick = (event: React.MouseEvent<HTMLElement>) => {
+        event.stopPropagation();
+        setAnchorEl(event.currentTarget);
+    };
 
-  const openModal = (e: any) => {
-    e.stopPropagation();
-    setModalOpen(true);
-  };
+    // [CORREÇÃO] Função simplificada para fechar o menu (compatível com MUI onClose)
+    const handleMenuClose = () => {
+        setAnchorEl(null);
+    };
 
-  return (
-    <>
-      <Card
-        onClick={handleCardClick}
-        sx={{
-          width: { xs: '100%', sm: 300, md: 360 },
-          height: { xs: 420, sm: 460 },
-          display: 'flex',
-          flexDirection: 'column',
-          border: isSelected ? `2px solid ${theme.palette.primary.main}` : '1px solid rgba(0,0,0,0.12)',
-          cursor: 'pointer',
-          transition: '0.2s',
-          boxSizing: 'border-box',
-          '&:hover': { boxShadow: 4 }
-        }}
-      >
-        <CardHeader
-          title={tipo_demanda || `Demanda ${id}`}
-          subheader={enderecoFormatado}
-          action={
-            <Box 
-              sx={{ 
-                display: 'flex', 
-                flexDirection: 'column', 
-                gap: 0.5, 
-                alignItems: 'flex-end', // Alinha Status e Ícones à direita
-                flexShrink: 0 // Impede que este bloco encolha se o título for longo
-              }}
-            >
-              <Box sx={{ display: 'flex', gap: 0.5 }}>
-                <IconButton size="small" onClick={(e) => { e.stopPropagation(); onEdit(props); }}>
-                  <EditIcon fontSize="small" />
-                </IconButton>
-                <IconButton size="small" color="error" onClick={(e) => { e.stopPropagation(); onDelete(id!); }}>
-                  <DeleteIcon fontSize="small" />
-                </IconButton>
-              </Box>
+    const handleSelectStatus = (event: React.MouseEvent, statusId: number) => {
+        event.stopPropagation();
+        if (demanda.id) {
+            onStatusChange(demanda.id, statusId);
+        }
+        setAnchorEl(null);
+    };
 
-              <StatusDemanda
-                demandaId={id!}
-                currentStatusId={id_status}
-                availableStatus={availableStatus}
-                onStatusChange={onStatusChange}
-              />
-            </Box>
-          }
-          
-          titleTypographyProps={{
-            fontWeight: "bold",
-            fontSize: isMobile ? "0.95rem" : "1rem",
-            noWrap: true // Mantém o título curto em uma linha
-          }}
-          
-          // [CORREÇÃO 2: Permite quebra de linha no endereço]
-          subheaderTypographyProps={{
-            variant: "caption",
-            color: "text.secondary",
-            // Remove 'noWrap: true' e permite quebra de linha se necessário
-            sx: { 
-                whiteSpace: 'normal', // Permite quebra de linha
-                display: 'block' // Garante que a quebra ocorra abaixo do título
-            }
-          }}
-          sx={{ pb: 0 }}
-        />
+    const handleEditClick = (e: React.MouseEvent) => {
+        e.stopPropagation();
+        onEdit(demanda);
+    };
 
-        <CardContent sx={{ flexGrow: 1 }}>
-          {/* MAPA RESPONSIVO PEQUENO */}
-          <Box
+    const handleDeleteClick = (e: React.MouseEvent) => {
+        e.stopPropagation();
+        if (demanda.id) onDelete(demanda.id);
+    };
+
+    const handleCheckboxClick = (e: React.MouseEvent) => {
+        e.stopPropagation();
+        onSelect();
+    };
+
+    return (
+        <Card
+            elevation={selected ? 8 : 2}
+            onClick={handleCardClick}
             sx={{
-              height: { xs: 120, sm: 150 },
-              width: "100%",
-              borderRadius: 2,
-              overflow: "hidden",
-              mb: 1,
-              backgroundColor: "#eee"
+                width: '100%',
+                minHeight: '380px',
+                display: 'flex',
+                flexDirection: 'column',
+                borderLeft: `6px solid ${statusColor}`,
+                transition: 'all 0.2s ease',
+                backgroundColor: selected ? '#f0f7ff' : 'white',
+                cursor: 'pointer',
+                '&:hover': { boxShadow: 6, transform: 'translateY(-2px)' },
+                position: 'relative',
+                borderRadius: 3,
+                outline: selected ? '2px solid #1976d2' : 'none', 
             }}
-          >
-            {lat && lng ? (
-              <MiniMap latitude={lat} longitude={lng} popupText={enderecoFormatado} />
-            ) : (
-              <Box sx={{ height: "100%", display: "flex", alignItems: "center", justifyContent: "center", color: "#777" }}>
-                <Typography variant="caption">Sem localização</Typography>
-              </Box>
-            )}
-          </Box>
+        >
+            <CardContent sx={{ p: 2.5, flexGrow: 1, display: 'flex', flexDirection: 'column' }}>
 
-          {/* DESCRIÇÃO CURTA */}
-          <Typography
-            variant="body2"
-            color="text.secondary"
-            sx={{
-              display: "-webkit-box",
-              WebkitLineClamp: 2,
-              WebkitBoxOrient: "vertical",
-              overflow: "hidden",
-              textOverflow: "ellipsis",
-              maxHeight: "44px",
-            }}
-          >
-            {descricao}
-          </Typography>
+                {/* CABEÇALHO */}
+                <Box display="flex" justifyContent="space-between" alignItems="flex-start" mb={1}>
+                    <Box flex={1}>
+                        <Typography variant="body2" color="text.secondary" sx={{ mb: 0.5, fontSize: '0.8rem' }}>
+                            {dataCriacao}
+                        </Typography>
+                        <Typography variant="h6" fontWeight="800" lineHeight={1.3} sx={{ wordBreak: 'break-word', fontSize: '1.1rem' }}>
+                            {demanda.protocolo || 'Sem Protocolo'}
+                        </Typography>
+                    </Box>
+                    
+                    <Checkbox 
+                        checked={selected}
+                        onClick={handleCheckboxClick}
+                        sx={{ mt: -1, mr: -1 }}
+                    />
+                </Box>
 
-          <Typography variant="caption" color="text.secondary">
-            Prazo: {prazoTexto}
-          </Typography>
+                {/* BARRA DE AÇÕES E STATUS */}
+                <Stack direction="row" justifyContent="space-between" alignItems="center" mb={2}>
+                    <Box>
+                        <Chip
+                            label={demanda.status_nome}
+                            onClick={handleStatusClick}
+                            onDelete={handleStatusClick}
+                            deleteIcon={<ArrowDropDownIcon style={{ color: 'white' }} />}
+                            sx={{
+                                bgcolor: statusColor,
+                                color: '#fff',
+                                fontWeight: 'bold',
+                                height: 28,
+                                fontSize: '0.75rem',
+                                '&:hover': { opacity: 0.9 }
+                            }}
+                        />
+                        
+                        <Menu
+                            anchorEl={anchorEl}
+                            open={openMenu}
+                            onClose={handleMenuClose} // [CORRIGIDO] Usando o novo handler simples
+                            onClick={(e) => e.stopPropagation()}
+                        >
+                            {availableStatus.map((status) => (
+                                <MenuItem 
+                                    key={status.id} 
+                                    onClick={(e) => handleSelectStatus(e, status.id)}
+                                    selected={status.nome === demanda.status_nome}
+                                    sx={{ fontSize: '0.9rem' }}
+                                >
+                                    <Box component="span" sx={{ width: 10, height: 10, borderRadius: '50%', bgcolor: status.cor, mr: 1 }} />
+                                    {status.nome}
+                                </MenuItem>
+                            ))}
+                        </Menu>
+                    </Box>
 
-          <Typography variant="caption" color="text.secondary" display="block" noWrap>
-            {localizacao}
-          </Typography>
+                    {/* BOTÕES (Com stopPropagation) */}
+                    <Box>
+                        <IconButton size="small" onClick={handleEditClick} sx={{ color: 'text.primary' }}>
+                            <EditIcon fontSize="small" />
+                        </IconButton>
+                        <IconButton size="small" color="error" onClick={handleDeleteClick}>
+                            <DeleteIcon fontSize="small" />
+                        </IconButton>
+                    </Box>
+                </Stack>
 
-          <Button
-            variant="outlined"
-            size="small"
-            onClick={openModal}
-            sx={{ mt: 1 }}
-          >
-            Detalhes
-          </Button>
-        </CardContent>
-      </Card>
+                <Divider sx={{ my: 1.5 }} />
 
-      {modalOpen && (
-        <DetalhesDemandaModal
-          open={modalOpen}
-          onClose={() => setModalOpen(false)}
-          demanda={props}
-        />
-      )}
-    </>
-  );
-});
+                {/* CORPO */}
+                <Stack spacing={1.5} sx={{ flexGrow: 1 }}>
+                    <Box>
+                        <Chip 
+                            label={demanda.tipo_demanda} 
+                            variant="outlined" 
+                            size="small"
+                            sx={{ mb: 0.5, height: 20, fontSize: '0.7rem', fontWeight: 600 }} 
+                        />
+                        <Box display="flex" alignItems="flex-start" gap={1}>
+                            <PersonIcon color="action" sx={{ fontSize: 20, mt: 0.2 }} />
+                            <Typography variant="body2" sx={{ fontWeight: 600, wordBreak: 'break-word', fontSize: '0.9rem' }}>
+                                {demanda.nome_solicitante || 'Anônimo'}
+                            </Typography>
+                        </Box>
+                    </Box>
 
-CardDemanda.displayName = "CardDemanda";
-export default CardDemanda;
+                    <Box display="flex" alignItems="flex-start" gap={1}>
+                        <LocationOnIcon color="action" sx={{ fontSize: 20, mt: 0.2 }} />
+                        <Box>
+                            <Typography variant="body2" lineHeight={1.2} sx={{ fontWeight: 500, fontSize: '0.9rem' }}>
+                                {demanda.logradouro}, {demanda.numero}
+                            </Typography>
+                            {demanda.bairro && (
+                                <Typography variant="caption" color="text.secondary">
+                                    {demanda.bairro}
+                                </Typography>
+                            )}
+                        </Box>
+                    </Box>
+
+                    {demanda.descricao && (
+                        <Box display="flex" alignItems="flex-start" gap={1} sx={{ bgcolor: '#f5f5f5', p: 1, borderRadius: 2, mt: 'auto' }}>
+                            <DescriptionIcon color="action" sx={{ fontSize: 18, mt: 0.2, flexShrink: 0 }} />
+                            <Tooltip title={demanda.descricao}>
+                                <Typography 
+                                    variant="caption" 
+                                    color="text.secondary"
+                                    sx={{
+                                        display: '-webkit-box',
+                                        WebkitLineClamp: 3,
+                                        WebkitBoxOrient: 'vertical',
+                                        overflow: 'hidden',
+                                        fontStyle: 'italic',
+                                        lineHeight: 1.3
+                                    }}
+                                >
+                                    {demanda.descricao}
+                                </Typography>
+                            </Tooltip>
+                        </Box>
+                    )}
+                </Stack>
+            </CardContent>
+        </Card>
+    );
+}

@@ -1,14 +1,15 @@
 // src/components/ui/demandas/ListaCardDemanda.tsx
+'use client';
+
 import CardDemanda from "./CardDemanda";
 import { Box } from "@mui/material";
+import { DemandaType } from "@/types/demanda";
 
 interface StatusOption {
     id: number;
     nome: string;
     cor: string;
 }
-
-import { DemandaType } from "@/types/demanda";
 
 interface DemandaComIdStatus extends DemandaType {
     id_status?: number | null;
@@ -45,43 +46,45 @@ export default function ListaCardDemanda({
                 display: 'flex',
                 flexDirection: 'row',
                 flexWrap: 'wrap',
-                gap: 4,
+                gap: 2, // Espaço entre os cards (16px)
                 justifyContent: 'flex-start',
                 width: '100%'
             }}
         >
             {demandas.map((demanda) => {
                 const isSelected = demanda.id !== undefined && selectedDemandas.includes(demanda.id);
-                const currentStatusId = demanda.id_status;
 
                 return (
                     <Box
                         key={demanda.id}
                         sx={{
-                            display: 'inline-block',
+                            // Define quantos cards cabem na linha baseado no tamanho da tela
                             width: {
-                                xs: '100%',   // TELAS PEQUENAS → cada card ocupa 100%
-                                sm: '48%',    // TABLET → dois por linha (opcional)
-                                md: '30%',    // DESKTOP → três por linha (opcional)
+                                xs: '100%',                     // Mobile: 1 por linha
+                                sm: 'calc(50% - 16px)',         // Tablet: 2 por linha
+                                md: 'calc(33.333% - 16px)',     // Laptop: 3 por linha
+                                lg: 'calc(25% - 16px)',         // Desktop: 4 por linha
+                                xl: 'calc(20% - 16px)'          // Monitor Grande: 5 por linha
                             },
+                            // Removemos minWidth fixo grande para permitir que caibam mais
+                            minWidth: 250 
                         }}
                     >
                         <CardDemanda
-                            {...demanda}
-                            isSelected={isSelected}
-                            onSelect={onSelectDemanda}
+                            demanda={demanda}
+                            selected={isSelected} 
+                            onSelect={() => demanda.id && onSelectDemanda(demanda.id)}
                             onDelete={onDelete}
-                            onEdit={() => onEdit(demanda)}
-                            currentStatusId={currentStatusId}
-                            availableStatus={availableStatus}
+                            onEdit={onEdit}
                             onStatusChange={onStatusChange}
+                            availableStatus={availableStatus}
                         />
                     </Box>
                 );
             })}
 
             {demandas.length === 0 && (
-                <div style={{ width: '100%', textAlign: 'center', marginTop: '20px', color: 'grey' }}>
+                <div style={{ width: '100%', textAlign: 'center', marginTop: '40px', color: 'grey' }}>
                     <p>Nenhuma demanda encontrada.</p>
                 </div>
             )}

@@ -1,20 +1,15 @@
 // src/components/ui/demandas/DetalhesDemandaModal.tsx
-import { Dialog, DialogTitle, DialogContent, Typography, DialogActions, Button, List, ListItem, ListItemText, Divider, Box } from "@mui/material"; // Adicionado Box
-import { DemandaType } from "@/types/demanda";
+import { Dialog, DialogTitle, DialogContent, Typography, DialogActions, Button, List, ListItem, ListItemText, Divider, Box } from "@mui/material"; 
+// [CORREÇÃO] Importamos o tipo completo
+import { DemandaType, DemandaComIdStatus } from "@/types/demanda"; 
 
-// [CORREÇÃO 1: Estender a interface para reconhecer lat e lng]
-interface DemandaComCoordenadas extends DemandaType {
-    lat?: number | null; // Inclui os novos campos lat/lng
-    lng?: number | null;
-    status_nome?: string;
-    status_cor?: string;
-}
+// A interface local foi removida. Usamos DemandaComIdStatus diretamente.
 
 interface DetalhesDemandaModalProps {
   open: boolean;
   onClose: () => void;
-  // [CORREÇÃO 2: Usar a nova interface]
-  demanda: DemandaComCoordenadas | null; 
+  // [CORREÇÃO] Usamos o tipo que garante a propriedade status_nome
+  demanda: DemandaComIdStatus | null; 
 }
 
 export default function DetalhesDemandaModal({ open, onClose, demanda }: DetalhesDemandaModalProps) {
@@ -22,30 +17,27 @@ export default function DetalhesDemandaModal({ open, onClose, demanda }: Detalhe
     return null;
   }
 
-  // Função para formatar o endereço completo no modal
+  // Função para formatar o endereço completo
    const formatEnderecoCompleto = (d: DemandaType): string => {
         const parts = [
             d.logradouro,
             d.numero ? `, ${d.numero}` : '',
             d.complemento ? ` - ${d.complemento}` : '',
-            d.bairro ? `\nBairro: ${d.bairro}` : '', // Quebra de linha para clareza
+            d.bairro ? `\nBairro: ${d.bairro}` : '', 
             d.cidade && d.uf ? `\n${d.cidade}/${d.uf}` : (d.cidade || d.uf || ''),
             d.cep ? `\nCEP: ${d.cep}` : ''
         ];
-        // Usar whiteSpace: 'pre-line' no sx para respeitar as quebras de linha (\n)
         return parts.filter(Boolean).join('').trim();
     };
 
     // Função para formatar o prazo
-     const formatPrazo = (date: Date | null | undefined): string => {
-        if (date instanceof Date && !isNaN(date.getTime())) {
-             try { return date.toLocaleDateString('pt-BR'); }
-             catch { return 'Data inválida'; }
-        }
-        return 'Não definido';
+     const formatPrazo = (date: Date | string | null | undefined): string => {
+        if (!date) return 'Não definido';
+        const d = new Date(date);
+        return !isNaN(d.getTime()) ? d.toLocaleDateString('pt-BR') : 'Data inválida';
     };
 
-    // Variáveis de coordenadas para uso mais limpo
+    // Variáveis de coordenadas
     const lat = demanda.lat;
     const lng = demanda.lng;
     const hasCoordinates = typeof lat === 'number' && typeof lng === 'number' && lat !== null && lng !== null;
@@ -62,13 +54,13 @@ export default function DetalhesDemandaModal({ open, onClose, demanda }: Detalhe
 
          {/* Endereço Detalhado */}
          <Typography gutterBottom variant="h6">Endereço</Typography>
-         <Typography sx={{ whiteSpace: 'pre-line', mb: 2 }}> {/* Respeita as quebras de linha */}
+         <Typography sx={{ whiteSpace: 'pre-line', mb: 2 }}>
              {formatEnderecoCompleto(demanda)}
          </Typography>
         <Divider sx={{ my: 2 }} />
 
 
-        {/* Informações do Solicitante (usando campos individuais) */}
+        {/* Informações do Solicitante */}
         <Typography gutterBottom variant="h6">Informações do Solicitante</Typography>
         <List dense>
           <ListItem>
@@ -90,6 +82,7 @@ export default function DetalhesDemandaModal({ open, onClose, demanda }: Detalhe
                 <ListItemText primary="Tipo de Demanda" secondary={demanda.tipo_demanda || 'N/A'} />
             </ListItem>
             <ListItem>
+                {/* O acesso a status_nome agora está garantido pelo tipo DemandaComIdStatus */}
                 <ListItemText primary="Status" secondary={demanda.status_nome || 'N/A'} /> 
             </ListItem>
              <ListItem>
@@ -101,15 +94,14 @@ export default function DetalhesDemandaModal({ open, onClose, demanda }: Detalhe
             {demanda.protocolo && <ListItem><ListItemText primary="Protocolo" secondary={demanda.protocolo} /></ListItem> }
          </List>
 
-         {/* [CORREÇÃO 3: Usar lat e lng, e remover a dependência de demanda.geom] */}
+         {/* Localização */}
          {hasCoordinates && (
              <>
                  <Divider sx={{ my: 2 }} />
                  <Typography gutterBottom variant="h6">Localização (Aproximada)</Typography>
                  <Box sx={{ height: 200, backgroundColor: '#eee', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'text.secondary', borderRadius: 1 }}>
-                      {/* Aqui poderia integrar um mapa real (Leaflet, Google Maps API) */}
                      <Typography variant="caption">
-                         Lat: {lat.toFixed(6)}, Lon: {lng.toFixed(6)}
+                         Lat: {lat!.toFixed(6)}, Lon: {lng!.toFixed(6)}
                      </Typography>
                  </Box>
              </>

@@ -20,6 +20,7 @@ const formatEnderecoCurto = (demanda: DemandaType): string => {
 
 export default function ListDemanda({
     id,
+    protocolo,
     // ***** CORREÇÃO AQUI: Remover 'endereco' e adicionar campos individuais *****
     logradouro,
     numero,
@@ -67,7 +68,7 @@ export default function ListDemanda({
     // Vamos mantê-lo assim, mas poderia ser adaptado para renderizar um ListItem ou outro elemento.
     return (
         <TableRow hover> {/* Adicionado hover para consistência */}
-            <TableCell>{id ?? 'N/A'}</TableCell> {/* Mostra N/A se id for undefined */}
+            <TableCell>{protocolo ?? 'N/A'}</TableCell> {/* Mostra N/A se id for undefined */}
             {/* ***** CORREÇÃO AQUI: Usar os campos de endereço formatados ***** */}
             <TableCell>{formatEnderecoCurto({ logradouro, numero, bairro } as DemandaType)}</TableCell>
             {/* ***** FIM DA CORREÇÃO ***** */}

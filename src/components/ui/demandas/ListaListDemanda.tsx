@@ -90,29 +90,24 @@ export default function ListaListDemanda({
                             }}
                             onClick={() => onSelectDemanda(demandaId)}
                         >
-                            {/* TÍTULO */}
+                            {/* TÍTULO - PROTOCOLO */}
                             <Box sx={{ fontWeight: 700, fontSize: "1rem", mb: 1 }}>
-                                Demanda #{demanda.id}
+                                {demanda.protocolo || `ID: ${demanda.id}`}
                             </Box>
 
-                            {/* ENDEREÇO */}
                             <Box sx={{ mb: 1 }}>
-                                <strong>Endereço:</strong>
-                                <br />
+                                <strong>Endereço:</strong><br />
                                 {formatEnderecoCompleto(demanda)}
                             </Box>
 
-                            {/* TIPO */}
                             <Box sx={{ mb: 1 }}>
                                 <strong>Tipo:</strong> {demanda.tipo_demanda}
                             </Box>
 
-                            {/* PRAZO */}
                             <Box sx={{ mb: 1 }}>
                                 <strong>Prazo:</strong> {formatPrazo(demanda.prazo)}
                             </Box>
 
-                            {/* STATUS */}
                             <Box sx={{ mb: 2 }}>
                                 <strong>Status:</strong>
                                 <Box sx={{ mt: 0.5 }}>
@@ -125,37 +120,18 @@ export default function ListaListDemanda({
                                 </Box>
                             </Box>
 
-                            {/* AÇÕES */}
                             <Box sx={{ display: "flex", justifyContent: "flex-end", gap: 1 }}>
-                                <IconButton
-                                    color="primary"
-                                    onClick={(e) => {
-                                        e.stopPropagation();
-                                        onEdit(demanda);
-                                    }}
-                                >
+                                <IconButton color="primary" onClick={(e) => { e.stopPropagation(); onEdit(demanda); }}>
                                     <EditIcon />
                                 </IconButton>
-
-                                <IconButton
-                                    color="error"
-                                    onClick={(e) => {
-                                        e.stopPropagation();
-                                        onDelete(demandaId);
-                                    }}
-                                >
+                                <IconButton color="error" onClick={(e) => { e.stopPropagation(); onDelete(demandaId); }}>
                                     <DeleteIcon />
                                 </IconButton>
                             </Box>
                         </Paper>
                     );
                 })}
-
-                {demandas.length === 0 && (
-                    <Box sx={{ textAlign: "center", mt: 4, color: "text.secondary" }}>
-                        Nenhuma demanda encontrada.
-                    </Box>
-                )}
+                {demandas.length === 0 && <Box sx={{ textAlign: "center", mt: 4, color: "text.secondary" }}>Nenhuma demanda encontrada.</Box>}
             </Box>
         );
     }
@@ -164,18 +140,12 @@ export default function ListaListDemanda({
     // 🖥️ DESKTOP VIEW — Tabela completa
     // ============================================================
     return (
-        <TableContainer
-            component={Paper}
-            sx={{
-                boxShadow: 'none',
-                overflowX: 'auto',
-                overflowY: 'visible'
-            }}
-        >
+        <TableContainer component={Paper} sx={{ boxShadow: 'none', overflowX: 'auto', overflowY: 'visible' }}>
             <Table stickyHeader aria-label="Tabela de Demandas">
                 <TableHead>
                     <TableRow>
-                        <TableCell sx={{ fontWeight: 'bold' }}>ID</TableCell>
+                        {/* [ALTERADO] ID -> Protocolo */}
+                        <TableCell sx={{ fontWeight: 'bold' }}>Protocolo</TableCell>
                         <TableCell sx={{ fontWeight: 'bold' }}>Endereço Completo</TableCell>
                         <TableCell sx={{ fontWeight: 'bold' }}>Tipo</TableCell>
                         <TableCell sx={{ fontWeight: 'bold' }}>Prazo</TableCell>
@@ -194,25 +164,30 @@ export default function ListaListDemanda({
                                 key={demanda.id}
                                 hover
                                 selected={isSelected}
-                                sx={{ '& td': { borderColor: 'rgba(224, 224, 224, 1)' } }}
+                                onClick={() => onSelectDemanda(demandaId)} // Seleciona ao clicar na linha
+                                sx={{ 
+                                    cursor: 'pointer',
+                                    '& td': { borderColor: 'rgba(224, 224, 224, 1)' } 
+                                }}
                             >
-                                <TableCell onClick={() => onSelectDemanda(demandaId)} sx={{ cursor: 'pointer' }}>
-                                    {demanda.id}
-                                </TableCell>
-
-                                <TableCell onClick={() => onSelectDemanda(demandaId)} sx={{ cursor: 'pointer' }}>
-                                    {formatEnderecoCompleto(demanda)}
-                                </TableCell>
-
-                                <TableCell onClick={() => onSelectDemanda(demandaId)} sx={{ cursor: 'pointer' }}>
-                                    {demanda.tipo_demanda}
-                                </TableCell>
-
-                                <TableCell onClick={() => onSelectDemanda(demandaId)} sx={{ cursor: 'pointer' }}>
-                                    {formatPrazo(demanda.prazo)}
+                                {/* [ALTERADO] Exibe Protocolo (ou ID se não tiver protocolo) */}
+                                <TableCell>
+                                    {demanda.protocolo || demanda.id}
                                 </TableCell>
 
                                 <TableCell>
+                                    {formatEnderecoCompleto(demanda)}
+                                </TableCell>
+
+                                <TableCell>
+                                    {demanda.tipo_demanda}
+                                </TableCell>
+
+                                <TableCell>
+                                    {formatPrazo(demanda.prazo)}
+                                </TableCell>
+
+                                <TableCell onClick={(e) => e.stopPropagation()}> {/* Evita selecionar ao trocar status */}
                                     <StatusDemanda
                                         demandaId={demandaId}
                                         currentStatusId={demanda.id_status}
@@ -221,24 +196,11 @@ export default function ListaListDemanda({
                                     />
                                 </TableCell>
 
-                                <TableCell align="right">
-                                    <IconButton
-                                        color="primary"
-                                        onClick={(e) => {
-                                            e.stopPropagation();
-                                            onEdit(demanda);
-                                        }}
-                                    >
+                                <TableCell align="right" onClick={(e) => e.stopPropagation()}> {/* Evita selecionar ao clicar ações */}
+                                    <IconButton color="primary" onClick={() => onEdit(demanda)}>
                                         <EditIcon />
                                     </IconButton>
-
-                                    <IconButton
-                                        color="error"
-                                        onClick={(e) => {
-                                            e.stopPropagation();
-                                            onDelete(demandaId);
-                                        }}
-                                    >
+                                    <IconButton color="error" onClick={() => onDelete(demandaId)}>
                                         <DeleteIcon />
                                     </IconButton>
                                 </TableCell>

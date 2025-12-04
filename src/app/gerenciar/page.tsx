@@ -1,74 +1,116 @@
-// src/app/gerenciar/page.tsx
-import { Card } from "@mui/material";
-import Link from "next/link";
-import ForestIcon from '@mui/icons-material/Forest';
-import DescriptionIcon from '@mui/icons-material/Description';
-import PlaylistAddCheckIcon from '@mui/icons-material/PlaylistAddCheck';
+'use client';
+
+import React from 'react';
+import { 
+    Box, Typography, Card, CardContent, CardActionArea, Divider,
+} from '@mui/material';
+import Link from 'next/link';
+import GroupIcon from '@mui/icons-material/Group';
 import AssignmentIcon from '@mui/icons-material/Assignment';
-import CategoryIcon from '@mui/icons-material/Category'; 
-// [NOVO] Importe um ícone para usuários
-import PeopleIcon from '@mui/icons-material/People';
+import FlagIcon from '@mui/icons-material/Flag';
+import ForestIcon from '@mui/icons-material/Forest';
+import FormatListBulletedIcon from '@mui/icons-material/FormatListBulleted';
+import SettingsSuggestIcon from '@mui/icons-material/SettingsSuggest'; 
+
+const manageItems = [
+    { title: 'Usuários', icon: <GroupIcon fontSize="large" />, href: '/gerenciar/usuarios', desc: 'Gerenciar contas e acessos' },
+    { title: 'Tipos de Demanda', icon: <AssignmentIcon fontSize="large" />, href: '/gerenciar/tipos-demanda', desc: 'Categorias de serviço' },
+    { title: 'Status', icon: <FlagIcon fontSize="large" />, href: '/gerenciar/status', desc: 'Fluxo de trabalho' },
+    { title: 'Espécies', icon: <ForestIcon fontSize="large" />, href: '/gerenciar/especies', desc: 'Catálogo de árvores' },
+    { title: 'Formulários', icon: <FormatListBulletedIcon fontSize="large" />, href: '/gerenciar/formularios', desc: 'Campos personalizados' },
+    { 
+        title: 'Configurações', 
+        icon: <SettingsSuggestIcon fontSize="large" />, 
+        href: '/gerenciar/configuracoes', 
+        desc: 'Parâmetros globais do sistema' 
+    },
+];
 
 export default function GerenciarPage() {
+    
+    const cardGap = 3; 
+
     return (
-        <div>
-            <h1 className="text-2xl font-bold mb-4 p-4">Gerenciamento</h1>
-
-            <div className="flex items-center justify-start p-4 gap-8 flex-wrap">
-
-                {/* ... (Cards de Espécies, Laudos, Demandas, Status, Tipos permanecem iguais) ... */}
-                
-                {/* Card de Espécies */}
-                <Card sx={{ width: 250, height: 150 }} className="p-4 mb-4 flex items-center justify-center hover:shadow-lg transition-shadow">
-                    <Link href="/gerenciar/especies" className="flex flex-col items-center gap-2 text-xl font-bold text-[#257e1a] no-underline hover:opacity-80">
-                        <ForestIcon sx={{ fontSize: 60, color: '#257e1a' }} />
-                        Gerenciar Espécies
-                    </Link>
-                </Card>
-
-                {/* Card de Laudos/Formulários */}
-                <Card sx={{ width: 250, height: 150 }} className="p-4 mb-4 flex items-center justify-center hover:shadow-lg transition-shadow">
-                    <Link href="/gerenciar/formularios" className="flex flex-col items-center gap-2 text-xl font-bold text-[#257e1a] no-underline hover:opacity-80">
-                        <DescriptionIcon sx={{ fontSize: 60, color: '#257e1a' }} />
-                        Gerenciar Laudos
-                    </Link>
-                </Card>
-
-                 {/* Card de Demandas */}
-                 <Card sx={{ width: 250, height: 150 }} className="p-4 mb-4 flex items-center justify-center hover:shadow-lg transition-shadow">
-                     <Link href="/gerenciar/demandas" className="flex flex-col items-center gap-2 text-xl font-bold text-[#257e1a] no-underline hover:opacity-80">
-                         <AssignmentIcon sx={{ fontSize: 60, color: '#257e1a' }} />
-                        Gerenciar Demandas
-                    </Link>
-                 </Card>
-
-                {/* Card de Status */}
-                <Card sx={{ width: 250, height: 150 }} className="p-4 mb-4 flex items-center justify-center hover:shadow-lg transition-shadow">
-                    <Link href="/gerenciar/status" className="flex flex-col items-center gap-2 text-xl font-bold text-[#257e1a] no-underline hover:opacity-80">
-                        <PlaylistAddCheckIcon sx={{ fontSize: 60, color: '#257e1a' }} />
-                        Gerenciar Status
-                    </Link>
-                </Card>
-
-                 {/* Card de Tipos de Demanda */}
-                <Card sx={{ width: 250, height: 150 }} className="p-4 mb-4 flex items-center justify-center hover:shadow-lg transition-shadow">
-                    <Link href="/gerenciar/tipos-demanda" className="flex flex-col items-center gap-2 text-xl font-bold text-[#257e1a] no-underline hover:opacity-80">
-                        <CategoryIcon sx={{ fontSize: 60, color: '#257e1a' }} />
-                        Gerenciar Tipos
-                    </Link>
-                </Card>
-                
-                {/* +++ INÍCIO DO NOVO CARD DE USUÁRIOS +++ */}
-                <Card sx={{ width: 250, height: 150 }} className="p-4 mb-4 flex items-center justify-center hover:shadow-lg transition-shadow">
-                    <Link href="/gerenciar/usuarios" className="flex flex-col items-center gap-2 text-xl font-bold text-[#257e1a] no-underline hover:opacity-80">
-                        <PeopleIcon sx={{ fontSize: 60, color: '#257e1a' }} />
-                        Gerenciar Usuários
-                    </Link>
-                </Card>
-                {/* +++ FIM DO NOVO CARD +++ */}
-
-
-            </div>
-        </div>
+        <Box sx={{ p: 4 }}>
+            <Typography variant="h4" gutterBottom sx={{ mb: 4, fontWeight: 'bold' }}>
+                Gerenciamento do Sistema
+            </Typography>
+            
+            {/* --- LAYOUT FLEXÍVEL COM TAMANHO FIXO --- */}
+            <Box 
+                sx={{ 
+                    display: 'flex', 
+                    flexWrap: 'wrap', 
+                    gap: theme => theme.spacing(cardGap)
+                }}
+            >
+                {manageItems.map((item) => (
+                    <Box 
+                        key={item.title}
+                        // [CORREÇÃO] Define a largura fixa de 250px (o flex-wrap cuida da quebra)
+                        sx={{
+                            width: 250, 
+                            minWidth: 250,
+                            maxWidth: 250, 
+                            mb: theme => theme.spacing(cardGap) 
+                        }}
+                    >
+                        <Card 
+                            elevation={4} 
+                            sx={{ 
+                                // [CORREÇÃO] Define a altura fixa de 200px
+                                height: 200, 
+                                transition: '0.3s', 
+                                '&:hover': { 
+                                    transform: 'translateY(-5px)',
+                                    boxShadow: theme => theme.shadows[10]
+                                },
+                            }}
+                        >
+                            <CardActionArea 
+                                component={Link} 
+                                href={item.href} 
+                                sx={{ 
+                                    p: 0, 
+                                    height: '100%',
+                                }}
+                            >
+                                <Box 
+                                    sx={{
+                                        width: '100%',
+                                        height: '100%', // Ocupa os 200px
+                                        position: 'relative',
+                                    }}
+                                >
+                                    <CardContent 
+                                        sx={{ 
+                                            position: 'absolute', 
+                                            width: '100%', 
+                                            height: '100%', 
+                                            display: 'flex', 
+                                            flexDirection: 'column',
+                                            justifyContent: 'center', 
+                                            alignItems: 'center',
+                                            textAlign: 'center',
+                                            p: 2
+                                        }}
+                                    >
+                                        <Box sx={{ color: 'primary.main', mb: 1 }}>
+                                            {React.cloneElement(item.icon, { sx: { fontSize: 48 } })}
+                                        </Box>
+                                        <Typography variant="h6" component="div" sx={{ fontWeight: 'bold' }}>
+                                            {item.title}
+                                        </Typography>
+                                        <Typography variant="body2" color="text.secondary">
+                                            {item.desc}
+                                        </Typography>
+                                    </CardContent>
+                                </Box>
+                            </CardActionArea>
+                        </Card>
+                    </Box>
+                ))}
+            </Box>
+        </Box>
     );
 }
