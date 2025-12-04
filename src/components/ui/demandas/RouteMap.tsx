@@ -6,10 +6,14 @@ import 'leaflet/dist/leaflet.css';
 import L, { LatLngExpression, LatLngBoundsExpression, DivIcon } from 'leaflet';
 import { DemandaType } from '@/types/demanda';
 
-// Fallback visual apenas se tudo falhar (Esteio/RS)
-const DEFAULT_FALLBACK: LatLngExpression = [-30.0262602, -51.2229064];
+const DEFAULT_FALLBACK: LatLngExpression = [-29.8533191, -51.1789191];
 
-// --- Ícones (Mantidos) ---
+const iconDefault = new L.Icon({
+    iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-blue.png',
+    shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-shadow.png',
+    iconSize: [25, 41], iconAnchor: [12, 41], popupAnchor: [1, -34], shadowSize: [41, 41]
+});
+
 const iconStart = new L.Icon({
     iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-green.png',
     shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-shadow.png',
@@ -22,7 +26,6 @@ const iconEnd = new L.Icon({
     iconSize: [25, 41], iconAnchor: [12, 41], popupAnchor: [1, -34], shadowSize: [41, 41]
 });
 
-// Componentes Auxiliares (Mantidos)
 const InvalidateSize: React.FC<{ trigger: boolean }> = ({ trigger }) => {
     const map = useMap();
     useEffect(() => {
@@ -44,7 +47,6 @@ const FitBounds: React.FC<{ bounds: LatLngBoundsExpression }> = ({ bounds }) => 
     return null;
 };
 
-// Interfaces
 interface DemandaComCoordenadas extends DemandaType {
     lat: number | null;
     lng: number | null;
@@ -52,17 +54,19 @@ interface DemandaComCoordenadas extends DemandaType {
 
 interface RouteMapProps {
     demandas: DemandaComCoordenadas[];
-    path?: [number, number][]; // Opcional (se vier da API)
+    path?: [number, number][];
     startPoint?: { latitude: number; longitude: number } | null;
     endPoint?: { latitude: number; longitude: number } | null;
     modalIsOpen?: boolean;
+    viewMode?: 'route' | 'points';
+    // [NOVO] Callback de clique no marcador
+    onMarkerClick?: (demanda: DemandaComCoordenadas) => void;
 }
 
 const RouteMap: React.FC<RouteMapProps> = ({ 
-    demandas, path, modalIsOpen = true, startPoint, endPoint 
+    demandas, path, modalIsOpen = true, startPoint, endPoint, viewMode = 'route', onMarkerClick
 }) => {
 
-    // 1. Resolve Coordenadas de Início e Fim (Ou usa fallback)
     const startPos: [number, number] = startPoint 
         ? [startPoint.latitude, startPoint.longitude] 
         : (DEFAULT_FALLBACK as [number, number]);
@@ -71,56 +75,84 @@ const RouteMap: React.FC<RouteMapProps> = ({
         ? [endPoint.latitude, endPoint.longitude] 
         : (DEFAULT_FALLBACK as [number, number]);
 
-    // 2. Calcula a Linha (Path)
-    // Se "path" (da API) foi passado, usa ele. Se não, desenha linhas retas (Start -> Demandas -> End)
     const polylinePositions = useMemo(() => {
+        if (viewMode === 'points') return [];
         if (path && path.length > 0) return path;
-
-        // Constrói linha reta visual
         const points: [number, number][] = [startPos];
         demandas.forEach(d => {
-            if (d.lat !== null && d.lng !== null) {
-                points.push([d.lat, d.lng]);
-            }
+            if (d.lat !== null && d.lng !== null) points.push([d.lat, d.lng]);
         });
         points.push(endPos);
         return points;
-    }, [path, demandas, startPos, endPos]);
+    }, [path, demandas, startPos, endPos, viewMode]);
 
-    // 3. Marcadores das Demandas
     const demandMarkers = demandas.map((demanda, index) => {
         if (typeof demanda.lat !== 'number' || typeof demanda.lng !== 'number') return null;
-        const numberedIcon = new DivIcon({
-            className: 'numbered-marker-icon',
-            html: `<b>${index + 1}</b>`,
-            iconSize: [20, 20], iconAnchor: [10, 10]
-        });
+        
+        let iconToUse;
+        if (viewMode === 'points') {
+            iconToUse = iconDefault;
+        } else {
+            iconToUse = new DivIcon({
+                className: 'numbered-marker-icon',
+                html: `<b>${index + 1}</b>`,
+                iconSize: [20, 20], iconAnchor: [10, 10]
+            });
+        }
+
         return (
-            <Marker key={demanda.id} position={[demanda.lat, demanda.lng]} icon={numberedIcon}>
-                <Popup><b>{`Parada ${index + 1}`}</b><br />{demanda.logradouro}</Popup>
+            <Marker 
+                key={demanda.id} 
+                position={[demanda.lat, demanda.lng]} 
+                icon={iconToUse}
+                // [NOVO] Evento de clique
+                eventHandlers={{
+                    click: () => {
+                        if (onMarkerClick) onMarkerClick(demanda);
+                    }
+                }}
+            >
+                {/* Popup opcional (pode remover se quiser que só abra o modal) */}
+                <Popup>
+                    <b>{viewMode === 'route' ? `Parada ${index + 1}` : `Demanda #${demanda.id}`}</b><br />
+                    {demanda.logradouro}, {demanda.numero}<br />
+                    <span style={{ fontSize: '0.8em', color: '#666', cursor: 'pointer' }}>
+                        Clique para detalhes
+                    </span>
+                </Popup>
             </Marker>
         );
     }).filter(Boolean);
 
-    // 4. Limites para Zoom
-    const bounds: LatLngBoundsExpression = [startPos, endPos, ...polylinePositions] as any;
+    const pointsForBounds: [number, number][] = demandas
+        .filter(d => d.lat !== null && d.lng !== null)
+        .map(d => [d.lat!, d.lng!] as [number, number]);
+
+    if (viewMode === 'route') {
+        pointsForBounds.push(startPos);
+        pointsForBounds.push(endPos);
+    }
+
+    const bounds: LatLngBoundsExpression = pointsForBounds.length > 0 
+        ? pointsForBounds as any 
+        : [DEFAULT_FALLBACK];
 
     return (
-        <MapContainer center={startPos} zoom={13} style={{ height: '100%', width: '100%', borderRadius: '8px' }}>
+        <MapContainer center={DEFAULT_FALLBACK as LatLngExpression} zoom={13} style={{ height: '100%', width: '100%', borderRadius: '8px' }}>
             <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" attribution='&copy; OpenStreetMap' />
 
-            {/* Marcadores Início/Fim */}
-            <Marker position={startPos} icon={iconStart}>
-                <Popup><b>Início</b></Popup>
-            </Marker>
-            <Marker position={endPos} icon={iconEnd}>
-                <Popup><b>Fim</b></Popup>
-            </Marker>
+            {viewMode === 'route' && (
+                <>
+                    <Marker position={startPos} icon={iconStart}><Popup><b>Início</b></Popup></Marker>
+                    <Marker position={endPos} icon={iconEnd}><Popup><b>Fim</b></Popup></Marker>
+                </>
+            )}
 
             {demandMarkers}
             
-            {/* Linha da Rota */}
-            <Polyline positions={polylinePositions as LatLngExpression[]} color="blue" />
+            {viewMode === 'route' && polylinePositions.length > 0 && (
+                <Polyline positions={polylinePositions as LatLngExpression[]} color="blue" />
+            )}
 
             <InvalidateSize trigger={!!modalIsOpen} />
             <FitBounds bounds={bounds} />

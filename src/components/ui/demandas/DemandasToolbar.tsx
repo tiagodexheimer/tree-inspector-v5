@@ -1,195 +1,168 @@
-// src/components/ui/demandas/DemandasToolbar.tsx
 'use client';
 
 import React from 'react';
-import {
-    Box, Button, IconButton, TextField,
-    FormControl, InputLabel, Select, MenuItem, OutlinedInput, Checkbox, ListItemText, SelectChangeEvent,
-    CircularProgress
-} from "@mui/material";
-import ViewListIcon from '@mui/icons-material/ViewList';
+import { 
+    Box, TextField, MenuItem, Select, FormControl, InputLabel, 
+    Button, Stack, IconButton, InputAdornment, Chip, ToggleButton, ToggleButtonGroup,
+    Paper, Divider
+} from '@mui/material';
+import SearchIcon from '@mui/icons-material/Search';
+import AddCircleOutlineIcon from '@mui/icons-material/AddCircleOutline';
+import RouteIcon from '@mui/icons-material/Route';
+import DeleteIcon from '@mui/icons-material/Delete';
+import FilterListOffIcon from '@mui/icons-material/FilterListOff';
+import MapIcon from '@mui/icons-material/Map';
 import ViewModuleIcon from '@mui/icons-material/ViewModule';
-import UploadFileIcon from '@mui/icons-material/UploadFile';
-import DeleteIcon from '@mui/icons-material/Delete'; // <-- Importar ícone de lixeira
-import Link from 'next/link';
+import ViewListIcon from '@mui/icons-material/ViewList';
+import { CircularProgress } from '@mui/material';
 
-// ... (Interfaces StatusOption, TipoDemandaOption e MenuProps permanecem iguais) ...
-interface StatusOption {
-    id: number;
-    nome: string;
-    cor: string;
-}
-interface TipoDemandaOption {
-    id: number;
-    nome: string;
-}
-const ITEM_HEIGHT = 48;
-const ITEM_PADDING_TOP = 8;
-const MenuProps = {
-  PaperProps: {
-    style: {
-      maxHeight: ITEM_HEIGHT * 4.5 + ITEM_PADDING_TOP,
-      width: 250,
-    },
-  },
-};
-
-// Props que o componente da Toolbar irá receber
 interface DemandasToolbarProps {
     filtro: string;
-    onFiltroChange: (value: string) => void;
+    onFiltroChange: (val: string) => void;
+    
     filtroStatusIds: number[];
-    onFiltroStatusChange: (event: SelectChangeEvent<number[]>) => void;
-    availableStatus: StatusOption[];
-    statusError: string | null;
+    onFiltroStatusChange: (e: any) => void;
+    availableStatus: any[];
+    statusError: any;
+
     filtroTipoNomes: string[];
-    onFiltroTipoChange: (event: SelectChangeEvent<string[]>) => void;
-    availableTipos: TipoDemandaOption[];
-    tiposError: string | null;
-    viewMode: 'card' | 'list';
-    onViewModeChange: (mode: 'card' | 'list') => void;
+    onFiltroTipoChange: (e: any) => void;
+    availableTipos: any[];
+    tiposError: any;
+
+    viewMode: 'card' | 'list' | 'map'; 
+    onViewModeChange: (mode: 'card' | 'list' | 'map') => void;
+
     onAddDemandaClick: () => void;
     onCreateRotaClick: () => void;
-    onDeleteSelectedClick: () => void; // <-- NOVA PROP
+    onDeleteSelectedClick: () => void;
+    
     selectedDemandasCount: number;
-    onClearStatusFilter: () => void; 
-    onClearTipoFilter: () => void;  
-    isOptimizing: boolean; 
+    onClearStatusFilter: () => void;
+    onClearTipoFilter: () => void;
+    isOptimizing: boolean;
 }
 
-export default function DemandasToolbar({
-    filtro,
-    onFiltroChange,
-    filtroStatusIds,
-    onFiltroStatusChange,
-    availableStatus,
-    statusError,
-    filtroTipoNomes,
-    onFiltroTipoChange,
-    availableTipos,
-    tiposError,
-    viewMode,
-    onViewModeChange,
-    onAddDemandaClick,
-    onCreateRotaClick,
-    onDeleteSelectedClick, // <-- NOVA PROP
-    selectedDemandasCount,
-    onClearStatusFilter,
-    onClearTipoFilter,
-    isOptimizing 
-}: DemandasToolbarProps) {
-
-    const hasSelection = selectedDemandasCount > 0;
+export default function DemandasToolbar(props: DemandasToolbarProps) {
+    
+    const handleViewChange = (event: React.MouseEvent<HTMLElement>, newView: 'card' | 'list' | 'map' | null) => {
+        if (newView !== null) {
+            props.onViewModeChange(newView);
+        }
+    };
 
     return (
-        <Box sx={{ p: 2, display: 'flex', flexWrap: 'wrap', gap: 1.5, alignItems: 'center', borderBottom: '1px solid #ddd' }}>
-            {/* Botão Adicionar Demanda */}
-            <Button variant="contained" sx={{ backgroundColor: '#257e1a', '&:hover': { backgroundColor: '#1a5912' } }} onClick={onAddDemandaClick} disabled={isOptimizing || hasSelection}>
-                Adicionar Demanda
-            </Button>
+        <Paper elevation={0} sx={{ p: 2, mb: 2, bgcolor: 'background.paper', border: '1px solid #eee' }}>
+            <Stack direction={{ xs: 'column', lg: 'row' }} spacing={2} alignItems="center" justifyContent="space-between">
+                
+                {/* ESQUERDA: Busca e Filtros */}
+                <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2} sx={{ width: { xs: '100%', lg: 'auto' }, flexGrow: 1 }}>
+                    <TextField
+                        placeholder="Buscar por protocolo, endereço..."
+                        size="small"
+                        value={props.filtro}
+                        onChange={(e) => props.onFiltroChange(e.target.value)}
+                        sx={{ minWidth: 220, flexGrow: { xs: 1, sm: 0 } }}
+                        InputProps={{
+                            startAdornment: <InputAdornment position="start"><SearchIcon color="action" /></InputAdornment>
+                        }}
+                    />
 
-            {/* Botão Importar Planilha */}
-            <Button
-                variant="outlined"
-                startIcon={<UploadFileIcon />}
-                sx={{ color: '#555', borderColor: '#ccc', '&:hover': { borderColor: '#aaa', backgroundColor: 'rgba(0,0,0,0.04)' } }}
-                component={Link}
-                href="/demandas/importar"
-                disabled={isOptimizing || hasSelection}
-            >
-                Importar Planilha
-            </Button>
+                    <FormControl size="small" sx={{ minWidth: 160, flexGrow: { xs: 1, sm: 0 } }}>
+                        <InputLabel>Status</InputLabel>
+                        <Select
+                            multiple
+                            value={props.filtroStatusIds}
+                            onChange={props.onFiltroStatusChange}
+                            label="Status"
+                            renderValue={(selected) => (
+                                <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
+                                    {(selected as number[]).map((id) => {
+                                        const st = props.availableStatus.find(s => s.id === id);
+                                        return <Chip key={id} label={st?.nome} size="small" sx={{ height: 20 }} />;
+                                    })}
+                                </Box>
+                            )}
+                        >
+                            {props.availableStatus.map((status) => (
+                                <MenuItem key={status.id} value={status.id}>
+                                    {status.nome}
+                                </MenuItem>
+                            ))}
+                        </Select>
+                    </FormControl>
 
-            {/* --- NOVO BOTÃO DE DELETAR --- */}
-            <Button
-                variant="contained"
-                color="error"
-                startIcon={<DeleteIcon />}
-                onClick={onDeleteSelectedClick}
-                disabled={!hasSelection || isOptimizing}
-                sx={{ 
-                    // Mostra o botão apenas se houver seleção
-                    display: hasSelection ? 'inline-flex' : 'none',
-                    ml: 1 // Margem à esquerda para separar
-                }}
-            >
-                Excluir ({selectedDemandasCount})
-            </Button>
-            {/* --- FIM DO NOVO BOTÃO --- */}
+                    {(props.filtro || props.filtroStatusIds.length > 0 || props.filtroTipoNomes.length > 0) && (
+                        <IconButton onClick={() => { props.onFiltroChange(''); props.onClearStatusFilter(); props.onClearTipoFilter(); }} title="Limpar Filtros">
+                            <FilterListOffIcon />
+                        </IconButton>
+                    )}
+                </Stack>
 
+                {/* DIREITA: Ações e Visualização */}
+                <Stack direction="row" spacing={2} alignItems="center" sx={{ width: { xs: '100%', lg: 'auto' }, justifyContent: { xs: 'space-between', lg: 'flex-end' } }}>
+                    
+                    {/* Botão EXCLUIR (Vermelho Destaque) */}
+                    {props.selectedDemandasCount > 0 && (
+                        <Button 
+                            variant="contained" // [ALTERADO] Para destaque sólido
+                            color="error" 
+                            startIcon={<DeleteIcon />} 
+                            onClick={props.onDeleteSelectedClick}
+                            size="small"
+                            sx={{ fontWeight: 'bold' }}
+                        >
+                            Excluir ({props.selectedDemandasCount})
+                        </Button>
+                    )}
 
-            {/* Filtro Status (adiciona 'ml: hasSelection ? 0 : 'auto'' para empurrar filtros para a direita) */}
-            <FormControl 
-                sx={{ 
-                    minWidth: 180,
-                    // Empurra os filtros para a direita se o botão de deletar NÃO estiver visível
-                    marginLeft: hasSelection ? 0 : { xs: 0, sm: 'auto' } 
-                }} 
-                size="small"
-            >
-                <InputLabel id="filtro-status-label">Status</InputLabel>
-                <Select
-                    labelId="filtro-status-label"
-                    multiple
-                    value={filtroStatusIds}
-                    onChange={onFiltroStatusChange}
-                    input={<OutlinedInput label="Status" />}
-                    renderValue={(selectedIds) => selectedIds.length === 0 ? <em>Todos Status</em> : availableStatus.filter(s => selectedIds.includes(s.id)).map(s => s.nome).join(', ')}
-                    MenuProps={MenuProps}
-                    disabled={availableStatus.length === 0 || !!statusError || isOptimizing}
-                >
-                    <MenuItem value={-1} onClick={onClearStatusFilter}><Checkbox checked={filtroStatusIds.length === 0} readOnly /><ListItemText primary="Todos Status" /></MenuItem>
-                    {availableStatus.map((status) => (<MenuItem key={status.id} value={status.id}><Checkbox checked={filtroStatusIds.includes(status.id)} /><Box sx={{ width: 14, height: 14, borderRadius: '50%', backgroundColor: status.cor, mr: 1, border: '1px solid #ccc' }} /><ListItemText primary={status.nome} /></MenuItem>))}
-                    {statusError && <MenuItem disabled>Erro ao carregar</MenuItem>}
-                </Select>
-            </FormControl>
+                    <Stack direction="row" spacing={1} alignItems="center">
+                        {/* Botão CRIAR ROTA (Azul Destaque) */}
+                        <Button 
+                            variant="contained" // [ALTERADO] Para destaque sólido
+                            color="info"        // [ALTERADO] 'info' geralmente é um azul agradável, ou use 'primary'
+                            startIcon={props.isOptimizing ? <CircularProgress size={20} color="inherit" /> : <RouteIcon />} 
+                            onClick={props.onCreateRotaClick}
+                            disabled={props.selectedDemandasCount === 0 || props.isOptimizing}
+                            size="small"
+                            sx={{ fontWeight: 'bold' }}
+                        >
+                            Criar Rota
+                        </Button>
 
-            {/* Filtro Tipo */}
-            <FormControl sx={{ minWidth: 180 }} size="small">
-                <InputLabel id="filtro-tipo-label">Tipo</InputLabel>
-                <Select
-                    labelId="filtro-tipo-label"
-                    multiple
-                    value={filtroTipoNomes}
-                    onChange={onFiltroTipoChange}
-                    input={<OutlinedInput label="Tipo" />}
-                    renderValue={(selectedNames) => selectedNames.length === 0 ? <em>Todos Tipos</em> : selectedNames.join(', ')}
-                    MenuProps={MenuProps}
-                    disabled={availableTipos.length === 0 || !!tiposError || isOptimizing}
-                >
-                    <MenuItem value="" onClick={onClearTipoFilter}><Checkbox checked={filtroTipoNomes.length === 0} readOnly /><ListItemText primary="Todos Tipos" /></MenuItem>
-                    {availableTipos.map((tipo) => (<MenuItem key={tipo.id} value={tipo.nome}><Checkbox checked={filtroTipoNomes.includes(tipo.nome)} /><ListItemText primary={tipo.nome} /></MenuItem>))}
-                    {tiposError && <MenuItem disabled>Erro ao carregar</MenuItem>}
-                </Select>
-            </FormControl>
+                        <Button 
+                            variant="outlined" // [ALTERADO] Nova Demanda fica outlined para dar contraste com os de ação em lote
+                            color="primary" 
+                            startIcon={<AddCircleOutlineIcon />} 
+                            onClick={props.onAddDemandaClick}
+                            size="small"
+                        >
+                            Nova Demanda
+                        </Button>
 
-            {/* Filtro Texto (remove 'marginLeft: auto') */}
-            <TextField
-                label="Buscar..."
-                variant="outlined"
-                size="small"
-                value={filtro}
-                onChange={(e) => onFiltroChange(e.target.value)}
-                sx={{ minWidth: 250 }} // Removido marginLeft: 'auto'
-                disabled={isOptimizing}
-            />
-            {/* Botões de View */}
-            <IconButton onClick={() => onViewModeChange('card')} title="Visualizar em Cards" sx={{ color: viewMode === 'card' ? '#257e1a' : 'default' }} disabled={isOptimizing}>
-                <ViewModuleIcon />
-            </IconButton>
-            <IconButton onClick={() => onViewModeChange('list')} title="Visualizar em Lista" sx={{ color: viewMode === 'list' ? '#257e1a' : 'default' }} disabled={isOptimizing}>
-                <ViewListIcon />
-            </IconButton>
-            
-            {/* Botão Criar Rota */}
-            <Button
-                variant="contained"
-                disabled={!hasSelection || isOptimizing}
-                onClick={onCreateRotaClick}
-                sx={{ backgroundColor: '#1976d2', '&:hover': { backgroundColor: '#115293' }, minWidth: 150 }}
-            >
-                {isOptimizing ? <CircularProgress size={24} color="inherit" /> : `Criar Rota (${selectedDemandasCount})`}
-            </Button>
-        </Box>
+                        <Divider orientation="vertical" flexItem sx={{ mx: 1 }} />
+
+                        <ToggleButtonGroup
+                            value={props.viewMode}
+                            exclusive
+                            onChange={handleViewChange}
+                            aria-label="modo de visualização"
+                            size="small"
+                        >
+                            <ToggleButton value="card" aria-label="cards" title="Cards">
+                                <ViewModuleIcon />
+                            </ToggleButton>
+                            <ToggleButton value="list" aria-label="lista" title="Lista">
+                                <ViewListIcon />
+                            </ToggleButton>
+                            <ToggleButton value="map" aria-label="mapa" title="Mapa">
+                                <MapIcon />
+                            </ToggleButton>
+                        </ToggleButtonGroup>
+                    </Stack>
+
+                </Stack>
+            </Stack>
+        </Paper>
     );
 }

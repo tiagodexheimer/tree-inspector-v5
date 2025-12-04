@@ -2,100 +2,61 @@
 import React, { useState, useEffect } from "react";
 import { 
     Box, Alert, Pagination, Typography, 
-    Dialog, DialogTitle, DialogContent, DialogContentText, DialogActions, Button 
+    Dialog, DialogTitle, DialogContent, DialogContentText, DialogActions, Button,
+    Paper, CircularProgress
 } from "@mui/material";
 import dynamic from 'next/dynamic';
 
-// Componentes UI Leves
 import ListaCardDemanda from "@/components/ui/demandas/ListaCardDemanda";
 import ListaListDemanda from "@/components/ui/demandas/ListaListDemanda";
 import DemandasToolbar from "@/components/ui/demandas/DemandasToolbar";
 import DemandasSkeleton from "@/components/ui/demandas/DemandasSkeleton";
+import DetalhesDemandaModal from "@/components/ui/demandas/DetalhesDemandaModal"; // [NOVO IMPORT]
 
-// Hooks e Serviços
 import { useDemandasData } from "@/hooks/useDemandasData";
 import { useDemandasOperations } from "@/hooks/useDemandasOperations";
+import { useDemandasMapData } from "@/hooks/useDemandasMapData"; 
 import { DemandasClient } from "@/services/client/demandas-client";
-import { OptimizedRouteData } from "@/types/demanda";
+import { OptimizedRouteData, DemandaType } from "@/types/demanda";
 
-// Modais Pesados
 const AddDemandaModal = dynamic(() => import("@/components/ui/demandas/AddDemandaModal"), { ssr: false });
 const CriarRotaModal = dynamic(() => import("@/components/ui/demandas/CriarRotaModal"), { ssr: false });
+const RouteMap = dynamic(() => import("@/components/ui/demandas/RouteMap"), { 
+    loading: () => <Box sx={{height: 600, bgcolor: '#eee'}} />, 
+    ssr: false 
+});
 
 export default function DemandasPage() {
-    const [viewMode, setViewMode] = useState<'card' | 'list'>('card');
+    const [viewMode, setViewMode] = useState<'card' | 'list' | 'map'>('card');
+
+    const handleViewModeChange = (mode: 'card' | 'list' | 'map') => {
+        setViewMode(mode);
+        if (mode === 'map') fetchMapData();
+    };
+
+    const { demandas, setDemandas, totalCount, isLoading, error, page, limit, setPage, filters, refresh } = useDemandasData();
+    const { demandasMap, isLoadingMap, fetchMapData } = useDemandasMapData();
+    const { deleteDemandas, isProcessing: isDeleting, opError, clearError } = useDemandasOperations(refresh);
+
+    // Estados Modais
     const [addModalOpen, setAddModalOpen] = useState(false);
     const [editModalOpen, setEditModalOpen] = useState(false);
     const [demandaParaEditar, setDemandaParaEditar] = useState<any>(null);
     const [selectedDemandas, setSelectedDemandas] = useState<number[]>([]);
     
+    // [NOVO] Estados para Visualização de Detalhes (via Mapa)
+    const [viewDemandaModalOpen, setViewDemandaModalOpen] = useState(false);
+    const [selectedDemandaForView, setSelectedDemandaForView] = useState<DemandaType | null>(null);
+
     const [isOptimizing, setIsOptimizing] = useState(false);
     const [optimizedRouteData, setOptimizedRouteData] = useState<OptimizedRouteData | null>(null);
     const [criarRotaModalOpen, setCriarRotaModalOpen] = useState(false);
 
-    // --- NOVO ESTADO PARA CONFIRMAÇÃO ---
     const [deleteConfirmationOpen, setDeleteConfirmationOpen] = useState(false);
-    const [itemToDelete, setItemToDelete] = useState<number | null>(null); // Caso seja deleção unitária
+    const [itemToDelete, setItemToDelete] = useState<number | null>(null);
 
     const [availableStatus, setAvailableStatus] = useState<any[]>([]);
     const [availableTipos, setAvailableTipos] = useState<any[]>([]);
-
-    const { 
-        demandas, setDemandas, totalCount, isLoading, error, page, limit, setPage, filters, refresh 
-    } = useDemandasData();
-
-    const { 
-        deleteDemandas, isProcessing: isDeleting, opError, clearError 
-    } = useDemandasOperations(refresh);
-
-    // --- HANDLERS DE DELEÇÃO ---
-
-    // 1. Acionado pelo botão "Lixeira" na Toolbar (Lote)
-    const handleRequestDeleteSelected = () => {
-        if (selectedDemandas.length === 0) return;
-        setItemToDelete(null); // Indica que é lote
-        setDeleteConfirmationOpen(true);
-    };
-
-    // 2. Acionado pelo botão "Lixeira" no Card/Linha (Individual)
-    const handleRequestDeleteSingle = (id: number) => {
-        setItemToDelete(id);
-        setDeleteConfirmationOpen(true);
-    };
-
-    // 3. Executa a exclusão real após confirmação
-    const executeDelete = async () => {
-        setDeleteConfirmationOpen(false);
-        
-        const idsToDelete = itemToDelete ? [itemToDelete] : selectedDemandas;
-        
-        if (idsToDelete.length === 0) return;
-
-        await deleteDemandas(idsToDelete);
-        
-        // Limpa seleção se foi sucesso (opcional, o refresh já deve cuidar)
-        setSelectedDemandas([]);
-        setItemToDelete(null);
-    };
-
-    // --- OUTROS HANDLERS ---
-    const handleStatusUpdateLocal = async (demandaId: number, newStatusId: number) => {
-        const statusInfo = availableStatus.find(s => s.id === newStatusId);
-        if (!statusInfo) return;
-
-        try {
-            await DemandasClient.updateStatus(demandaId, newStatusId);
-            setDemandas((prev) => prev.map((d) => {
-                if (d.id === demandaId) {
-                    return { ...d, id_status: newStatusId, status_nome: statusInfo.nome, status_cor: statusInfo.cor };
-                }
-                return d;
-            }));
-        } catch (err) {
-            console.error("Erro status:", err);
-            alert("Erro ao atualizar status.");
-        }
-    };
 
     useEffect(() => {
         Promise.all([
@@ -107,8 +68,35 @@ export default function DemandasPage() {
         }).catch(console.error);
     }, []);
 
+    // Handlers
     const handleSelectDemanda = (id: number) => {
          setSelectedDemandas(prev => prev.includes(id) ? prev.filter(i => i !== id) : [...prev, id]);
+    };
+
+    // [NOVO] Handler para clique no mapa
+    const handleMapMarkerClick = (demanda: any) => {
+        setSelectedDemandaForView(demanda);
+        setViewDemandaModalOpen(true);
+    };
+
+    const handleRequestDeleteSelected = () => {
+        if (selectedDemandas.length === 0) return;
+        setItemToDelete(null);
+        setDeleteConfirmationOpen(true);
+    };
+
+    const handleRequestDeleteSingle = (id: number) => {
+        setItemToDelete(id);
+        setDeleteConfirmationOpen(true);
+    };
+
+    const executeDelete = async () => {
+        setDeleteConfirmationOpen(false);
+        const idsToDelete = itemToDelete ? [itemToDelete] : selectedDemandas;
+        if (idsToDelete.length === 0) return;
+        await deleteDemandas(idsToDelete);
+        setSelectedDemandas([]);
+        setItemToDelete(null);
     };
 
     const handlePrepareRota = async () => {
@@ -122,130 +110,148 @@ export default function DemandasPage() {
         finally { setIsOptimizing(false); }
     };
 
+    const handleStatusUpdateLocal = async (demandaId: number, newStatusId: number) => {
+        const statusInfo = availableStatus.find(s => s.id === newStatusId);
+        if (!statusInfo) return;
+        try {
+            await DemandasClient.updateStatus(demandaId, newStatusId);
+            setDemandas((prev) => prev.map((d) => {
+                if (d.id === demandaId) return { ...d, id_status: newStatusId, status_nome: statusInfo.nome, status_cor: statusInfo.cor };
+                return d;
+            }));
+        } catch (err) { alert("Erro ao atualizar status."); }
+    };
+
     return (
-        <div>
-            <h1 className="text-2xl font-bold mb-4 p-4">Demandas ({totalCount})</h1>
-            
-            <DemandasToolbar
-                filtro={filters.texto}
-                onFiltroChange={filters.setTexto}
-                filtroStatusIds={filters.status}
-                onFiltroStatusChange={(e) => filters.setStatus(e.target.value as any)}
-                availableStatus={availableStatus}
-                statusError={null}
-                filtroTipoNomes={filters.tipos}
-                onFiltroTipoChange={(e) => filters.setTipos(e.target.value as any)}
-                availableTipos={availableTipos}
-                tiposError={null}
-                viewMode={viewMode}
-                onViewModeChange={setViewMode}
-                onAddDemandaClick={() => setAddModalOpen(true)}
-                onCreateRotaClick={handlePrepareRota}
-                onDeleteSelectedClick={handleRequestDeleteSelected} // Alterado aqui
-                selectedDemandasCount={selectedDemandas.length}
-                onClearStatusFilter={() => filters.setStatus([])}
-                onClearTipoFilter={() => filters.setTipos([])}
-                isOptimizing={isOptimizing}
-            />
+        <Box>
+            <Box sx={{ px: 3, pt: 3 }}>
+                <Typography variant="h4" fontWeight="bold" gutterBottom>
+                    Gestão de Demandas ({totalCount})
+                </Typography>
 
-            {/* Mostra erro de operação (ex: bloqueio de rota) */}
-            {opError && (
-                <Box p={2}>
-                    <Alert severity="error" onClose={clearError}>{opError}</Alert>
-                </Box>
-            )}
-            
-            {error && <Box p={2}><Alert severity="error">{error}</Alert></Box>}
+                <DemandasToolbar
+                    filtro={filters.texto}
+                    onFiltroChange={filters.setTexto}
+                    filtroStatusIds={filters.status}
+                    onFiltroStatusChange={(e) => filters.setStatus(e.target.value as any)}
+                    availableStatus={availableStatus}
+                    statusError={null}
+                    filtroTipoNomes={filters.tipos}
+                    onFiltroTipoChange={(e) => filters.setTipos(e.target.value as any)}
+                    availableTipos={availableTipos}
+                    tiposError={null}
+                    viewMode={viewMode}
+                    onViewModeChange={handleViewModeChange}
+                    onAddDemandaClick={() => setAddModalOpen(true)}
+                    onCreateRotaClick={handlePrepareRota}
+                    onDeleteSelectedClick={handleRequestDeleteSelected}
+                    selectedDemandasCount={selectedDemandas.length}
+                    onClearStatusFilter={() => filters.setStatus([])}
+                    onClearTipoFilter={() => filters.setTipos([])}
+                    isOptimizing={isOptimizing}
+                />
+            </Box>
 
-            {isLoading ? (
-                <DemandasSkeleton viewMode={viewMode} />
-            ) : (
-                <>
-                    {viewMode === 'card' ? (
-                        <ListaCardDemanda
-                            demandas={demandas}
-                            selectedDemandas={selectedDemandas}
-                            onSelectDemanda={handleSelectDemanda}
-                            onDelete={handleRequestDeleteSingle} // Alterado aqui
-                            onEdit={(d) => { setDemandaParaEditar(d); setEditModalOpen(true); }}
-                            onStatusChange={handleStatusUpdateLocal}
-                            availableStatus={availableStatus}
-                        />
-                    ) : (
-                        <ListaListDemanda
-                            demandas={demandas}
-                            selectedDemandas={selectedDemandas}
-                            onSelectDemanda={handleSelectDemanda}
-                            onDelete={handleRequestDeleteSingle} // Alterado aqui
-                            onEdit={(d) => { setDemandaParaEditar(d); setEditModalOpen(true); }}
-                            onStatusChange={handleStatusUpdateLocal}
-                            availableStatus={availableStatus}
-                        />
-                    )}
-                    
-                    <Box sx={{ display: 'flex', justifyContent: 'center', p: 2 }}>
-                        <Pagination 
-                            count={Math.ceil(totalCount / limit) || 1} 
-                            page={page} 
-                            onChange={(_, v) => setPage(v)} 
-                            color="primary"
-                        />
-                    </Box>
-                </>
-            )}
+            <Box sx={{ px: 3, pb: 3 }}>
+                {opError && <Alert severity="error" onClose={clearError} sx={{ mb: 2 }}>{opError}</Alert>}
+                {error && <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>}
 
-            {/* --- DIALOG DE CONFIRMAÇÃO --- */}
-            <Dialog
-                open={deleteConfirmationOpen}
-                onClose={() => setDeleteConfirmationOpen(false)}
-            >
+                {/* Cards */}
+                {viewMode === 'card' && (
+                    isLoading ? <DemandasSkeleton viewMode="card" /> : (
+                        <>
+                            <ListaCardDemanda
+                                demandas={demandas}
+                                selectedDemandas={selectedDemandas}
+                                onSelectDemanda={handleSelectDemanda}
+                                onDelete={handleRequestDeleteSingle}
+                                onEdit={(d) => { setDemandaParaEditar(d); setEditModalOpen(true); }}
+                                onStatusChange={handleStatusUpdateLocal}
+                                availableStatus={availableStatus}
+                            />
+                            <Box sx={{ display: 'flex', justifyContent: 'center', mt: 3 }}>
+                                <Pagination count={Math.ceil(totalCount / limit) || 1} page={page} onChange={(_, v) => setPage(v)} color="primary" size="large" />
+                            </Box>
+                        </>
+                    )
+                )}
+
+                {/* Lista */}
+                {viewMode === 'list' && (
+                    isLoading ? <DemandasSkeleton viewMode="list" /> : (
+                        <>
+                            <ListaListDemanda
+                                demandas={demandas}
+                                selectedDemandas={selectedDemandas}
+                                onSelectDemanda={handleSelectDemanda}
+                                onDelete={handleRequestDeleteSingle}
+                                onEdit={(d) => { setDemandaParaEditar(d); setEditModalOpen(true); }}
+                                onStatusChange={handleStatusUpdateLocal}
+                                availableStatus={availableStatus}
+                            />
+                            <Box sx={{ display: 'flex', justifyContent: 'center', mt: 3 }}>
+                                <Pagination count={Math.ceil(totalCount / limit) || 1} page={page} onChange={(_, v) => setPage(v)} color="primary" size="large" />
+                            </Box>
+                        </>
+                    )
+                )}
+
+                {/* Mapa Geral */}
+                {viewMode === 'map' && (
+                    <Paper elevation={2} sx={{ height: '75vh', overflow: 'hidden', borderRadius: 2 }}>
+                        {isLoadingMap ? (
+                            <Box sx={{ height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column' }}>
+                                <CircularProgress />
+                                <Typography sx={{ mt: 2 }} color="text.secondary">Carregando todas as demandas no mapa...</Typography>
+                            </Box>
+                        ) : (
+                            <RouteMap 
+                                demandas={demandasMap.map(d => ({ ...d, lat: d.lat || null, lng: d.lng || null }))}
+                                path={[]} 
+                                modalIsOpen={true}
+                                viewMode="points"
+                                // [NOVO] Passa o handler de clique
+                                onMarkerClick={handleMapMarkerClick}
+                            />
+                        )}
+                    </Paper>
+                )}
+            </Box>
+
+            {/* Modais */}
+            <Dialog open={deleteConfirmationOpen} onClose={() => setDeleteConfirmationOpen(false)}>
                 <DialogTitle>Confirmar Exclusão</DialogTitle>
                 <DialogContent>
                     <DialogContentText>
-                        {itemToDelete 
-                            ? "Tem certeza que deseja excluir esta demanda? Esta ação não pode ser desfeita."
-                            : `Tem certeza que deseja excluir ${selectedDemandas.length} demanda(s) selecionada(s)?`
-                        }
+                        {itemToDelete ? "Excluir esta demanda?" : `Excluir ${selectedDemandas.length} demanda(s)?`}
                     </DialogContentText>
                 </DialogContent>
                 <DialogActions>
-                    <Button onClick={() => setDeleteConfirmationOpen(false)} color="primary">
-                        Cancelar
-                    </Button>
-                    <Button onClick={executeDelete} color="error" variant="contained" autoFocus>
-                        Excluir
-                    </Button>
+                    <Button onClick={() => setDeleteConfirmationOpen(false)}>Cancelar</Button>
+                    <Button onClick={executeDelete} color="error" variant="contained">Excluir</Button>
                 </DialogActions>
             </Dialog>
 
-            {/* Modais existentes */}
             {addModalOpen && (
-                <AddDemandaModal 
-                    open={addModalOpen} 
-                    onClose={() => { setAddModalOpen(false); refresh(); }} 
-                    availableTipos={availableTipos} 
-                />
+                <AddDemandaModal open={addModalOpen} onClose={() => { setAddModalOpen(false); refresh(); }} availableTipos={availableTipos} />
             )}
             
             {editModalOpen && demandaParaEditar && (
-                <AddDemandaModal 
-                    key={demandaParaEditar.id} 
-                    open={editModalOpen} 
-                    onClose={() => setEditModalOpen(false)} 
-                    demandaInicial={demandaParaEditar} 
-                    onSuccess={() => { setEditModalOpen(false); refresh(); }} 
-                    availableTipos={availableTipos} 
-                />
+                <AddDemandaModal key={demandaParaEditar.id} open={editModalOpen} onClose={() => setEditModalOpen(false)} demandaInicial={demandaParaEditar} onSuccess={() => { setEditModalOpen(false); refresh(); }} availableTipos={availableTipos} />
             )}
 
             {criarRotaModalOpen && (
-                <CriarRotaModal
-                    open={criarRotaModalOpen}
-                    onClose={() => setCriarRotaModalOpen(false)}
-                    routeData={optimizedRouteData}
-                    onRotaCriada={() => { setCriarRotaModalOpen(false); refresh(); }}
+                <CriarRotaModal open={criarRotaModalOpen} onClose={() => setCriarRotaModalOpen(false)} routeData={optimizedRouteData} onRotaCriada={() => setCriarRotaModalOpen(false)} />
+            )}
+
+            {/* [NOVO] Modal de Detalhes (acionado pelo Mapa) */}
+            {viewDemandaModalOpen && selectedDemandaForView && (
+                <DetalhesDemandaModal 
+                    open={viewDemandaModalOpen} 
+                    onClose={() => setViewDemandaModalOpen(false)} 
+                    demanda={selectedDemandaForView} 
                 />
             )}
-        </div>
+        </Box>
     );
 }

@@ -1,116 +1,80 @@
-// src/components/ui/demandas/DetalhesDemandaModal.tsx
-import { Dialog, DialogTitle, DialogContent, Typography, DialogActions, Button, List, ListItem, ListItemText, Divider, Box } from "@mui/material"; // Adicionado Box
+import { Dialog, DialogTitle, DialogContent, Typography, DialogActions, Button, List, ListItem, ListItemText, Divider, Box } from "@mui/material";
 import { DemandaType } from "@/types/demanda";
 
-// [CORREÇÃO 1: Estender a interface para reconhecer lat e lng]
+// Interface compatível com o que vem do Card
 interface DemandaComCoordenadas extends DemandaType {
-    lat?: number | null; // Inclui os novos campos lat/lng
+    lat?: number | null;
     lng?: number | null;
-    status_nome?: string;
-    status_cor?: string;
 }
 
 interface DetalhesDemandaModalProps {
   open: boolean;
   onClose: () => void;
-  // [CORREÇÃO 2: Usar a nova interface]
-  demanda: DemandaComCoordenadas | null; 
+  demanda: DemandaComCoordenadas | null;
 }
 
 export default function DetalhesDemandaModal({ open, onClose, demanda }: DetalhesDemandaModalProps) {
-  if (!demanda) {
-    return null;
-  }
+  if (!demanda) return null;
 
-  // Função para formatar o endereço completo no modal
    const formatEnderecoCompleto = (d: DemandaType): string => {
         const parts = [
             d.logradouro,
             d.numero ? `, ${d.numero}` : '',
             d.complemento ? ` - ${d.complemento}` : '',
-            d.bairro ? `\nBairro: ${d.bairro}` : '', // Quebra de linha para clareza
+            d.bairro ? `\nBairro: ${d.bairro}` : '',
             d.cidade && d.uf ? `\n${d.cidade}/${d.uf}` : (d.cidade || d.uf || ''),
             d.cep ? `\nCEP: ${d.cep}` : ''
         ];
-        // Usar whiteSpace: 'pre-line' no sx para respeitar as quebras de linha (\n)
         return parts.filter(Boolean).join('').trim();
     };
 
-    // Função para formatar o prazo
-     const formatPrazo = (date: Date | null | undefined): string => {
-        if (date instanceof Date && !isNaN(date.getTime())) {
-             try { return date.toLocaleDateString('pt-BR'); }
-             catch { return 'Data inválida'; }
-        }
-        return 'Não definido';
+     const formatPrazo = (date: Date | string | null | undefined): string => {
+        if (!date) return 'Não definido';
+        const d = new Date(date);
+        return !isNaN(d.getTime()) ? d.toLocaleDateString('pt-BR') : 'Data inválida';
     };
 
-    // Variáveis de coordenadas para uso mais limpo
     const lat = demanda.lat;
     const lng = demanda.lng;
-    const hasCoordinates = typeof lat === 'number' && typeof lng === 'number' && lat !== null && lng !== null;
-
+    const hasCoordinates = typeof lat === 'number' && typeof lng === 'number';
 
   return (
     <Dialog open={open} onClose={onClose} fullWidth maxWidth="sm">
       <DialogTitle>Detalhes da Demanda #{demanda.id || 'N/A'}</DialogTitle>
       <DialogContent dividers>
-        {/* Descrição */}
         <Typography gutterBottom variant="h6">Descrição</Typography>
         <Typography paragraph>{demanda.descricao || 'N/A'}</Typography>
         <Divider sx={{ my: 2 }} />
 
-         {/* Endereço Detalhado */}
          <Typography gutterBottom variant="h6">Endereço</Typography>
-         <Typography sx={{ whiteSpace: 'pre-line', mb: 2 }}> {/* Respeita as quebras de linha */}
+         <Typography sx={{ whiteSpace: 'pre-line', mb: 2 }}>
              {formatEnderecoCompleto(demanda)}
          </Typography>
         <Divider sx={{ my: 2 }} />
 
-
-        {/* Informações do Solicitante (usando campos individuais) */}
-        <Typography gutterBottom variant="h6">Informações do Solicitante</Typography>
+        <Typography gutterBottom variant="h6">Solicitante</Typography>
         <List dense>
-          <ListItem>
-            <ListItemText primary="Nome" secondary={demanda.nome_solicitante || 'N/A'} />
-          </ListItem>
-          <ListItem>
-            <ListItemText primary="Telefone" secondary={demanda.telefone_solicitante || 'N/A'} />
-          </ListItem>
-          <ListItem>
-            <ListItemText primary="Email" secondary={demanda.email_solicitante || 'N/A'} />
-          </ListItem>
+          <ListItem><ListItemText primary="Nome" secondary={demanda.nome_solicitante || 'N/A'} /></ListItem>
+          <ListItem><ListItemText primary="Telefone" secondary={demanda.telefone_solicitante || 'N/A'} /></ListItem>
+          <ListItem><ListItemText primary="Email" secondary={demanda.email_solicitante || 'N/A'} /></ListItem>
         </List>
         <Divider sx={{ my: 2 }} />
 
-         {/* Outras Informações */}
          <Typography gutterBottom variant="h6">Outras Informações</Typography>
          <List dense>
-            <ListItem>
-                <ListItemText primary="Tipo de Demanda" secondary={demanda.tipo_demanda || 'N/A'} />
-            </ListItem>
-            <ListItem>
-                <ListItemText primary="Status" secondary={demanda.status_nome || 'N/A'} /> 
-            </ListItem>
-             <ListItem>
-                 <ListItemText primary="Prazo" secondary={formatPrazo(demanda.prazo)} />
-            </ListItem>
-            <ListItem>
-                <ListItemText primary="Responsável Técnico" secondary={demanda.responsavel || 'N/A'} />
-            </ListItem>
+            <ListItem><ListItemText primary="Tipo" secondary={demanda.tipo_demanda || 'N/A'} /></ListItem>
+            <ListItem><ListItemText primary="Status" secondary={demanda.status_nome || 'N/A'} /></ListItem>
+             <ListItem><ListItemText primary="Prazo" secondary={formatPrazo(demanda.prazo)} /></ListItem>
+            <ListItem><ListItemText primary="Responsável" secondary={demanda.responsavel || 'N/A'} /></ListItem>
             {demanda.protocolo && <ListItem><ListItemText primary="Protocolo" secondary={demanda.protocolo} /></ListItem> }
          </List>
 
-         {/* [CORREÇÃO 3: Usar lat e lng, e remover a dependência de demanda.geom] */}
          {hasCoordinates && (
              <>
                  <Divider sx={{ my: 2 }} />
-                 <Typography gutterBottom variant="h6">Localização (Aproximada)</Typography>
-                 <Box sx={{ height: 200, backgroundColor: '#eee', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'text.secondary', borderRadius: 1 }}>
-                      {/* Aqui poderia integrar um mapa real (Leaflet, Google Maps API) */}
-                     <Typography variant="caption">
-                         Lat: {lat.toFixed(6)}, Lon: {lng.toFixed(6)}
-                     </Typography>
+                 <Typography gutterBottom variant="h6">Localização</Typography>
+                 <Box sx={{ p: 2, bgcolor: '#f5f5f5', borderRadius: 1 }}>
+                     <Typography variant="body2">Lat: {lat}, Lon: {lng}</Typography>
                  </Box>
              </>
          )}
