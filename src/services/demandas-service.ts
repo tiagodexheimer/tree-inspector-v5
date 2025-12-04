@@ -1,7 +1,9 @@
 import {
   DemandasRepository,
   FindDemandasParams,
-  CreateDemandaDTO  as RepoCreateDemandaInput,
+  // [CORREÇÃO] Use os nomes corretos para o que é exportado
+  CreateDemandaDTO as RepoCreateDemandaInput,
+  DemandaPersistence, // Agora exportado pelo repositório
   UpdateDemandaDTO as RepoUpdateDemandaInput
 } from "@/repositories/demandas-repository";
 import { StatusRepository } from "@/repositories/status-repository";
@@ -26,7 +28,7 @@ interface CreateDemandaInput {
 }
 
 interface UpdateDemandaInput extends Partial<CreateDemandaInput> {
-    // Permite que qualquer campo seja opcional
+    // Permite que qualquer campo seja opcional no update
 }
 
 export class DemandasService {
@@ -110,7 +112,7 @@ export class DemandasService {
     return null;
   }
 
-  async updateDemanda(id: number, input: Partial<UpdateDemandaInput>): Promise<any> {
+  async updateDemanda(id: number, input: Partial<UpdateDemandaInput>): Promise<DemandaPersistence> {
     // 1. Coordenadas: Se não forem passadas, tenta geocodificar se os dados de endereço existirem
     let lat: number | null = input.coordinates ? input.coordinates[0] : null;
     let lng: number | null = input.coordinates ? input.coordinates[1] : null;
@@ -139,7 +141,7 @@ export class DemandasService {
         lng,
         prazo: prazoDate,
         cep: input.cep ? input.cep.replace(/\D/g, "") : undefined,
-    } as RepoUpdateDemandaInput); // Cast para o tipo de update do repositório
+    } as RepoUpdateDemandaInput);
 
     if (!updated) {
       throw new Error("Demanda não encontrada.");

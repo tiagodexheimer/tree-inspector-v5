@@ -21,6 +21,21 @@ export interface CreateDemandaDTO {
   prazo: Date | null;
 }
 
+export interface DemandaPersistence {
+    id: number;
+    protocolo: string;
+    nome_solicitante: string;
+    // ... todos os campos da tabela demandas + os campos lat, lng, status_nome, status_cor
+    lat: number | null; 
+    lng: number | null;
+    status_nome: string | null;
+    status_cor: string | null;
+    created_at: Date;
+    updated_at: Date;
+    prazo: Date | null;
+    geom: any;
+}
+
 export interface FindDemandasParams {
   page: number;
   limit: number;
