@@ -5,7 +5,6 @@ import {
 } from "@/repositories/rotas-repository";
 import { ConfiguracoesRepository } from "@/repositories/configuracoes-repository";
 import * as XLSX from "xlsx";
-import { format } from "date-fns";
 
 interface CreateRotaInput {
   nome: string;
@@ -20,6 +19,11 @@ const DEFAULT_FALLBACK_COORDS = {
   latitude: -29.8533191,
   longitude: -51.1789191,
 };
+
+const session = await getServerSession(authOptions);
+const organizationId = Number(session?.user?.organizationId); // Pegando do usuário logado
+
+const { buffer, filename } = await rotasService.generateExport(Number(id), organizationId);
 
 export class RotasService {
   // [ALTERADO] Recebe e repassa organizationId

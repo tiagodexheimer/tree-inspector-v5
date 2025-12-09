@@ -37,7 +37,7 @@ export async function GET(request: NextRequest, context: ExpectedContext) {
     if (isNaN(id)) return NextResponse.json({ message: "ID inválido" }, { status: 400 });
 
     // [NOVO] Extrai organizationId da sessão
-    const user = authCheck.session.user as any;
+    const user = authCheck.session!.user as any;
     const organizationId = parseInt(user.organizationId, 10);
 
     if (!organizationId) {

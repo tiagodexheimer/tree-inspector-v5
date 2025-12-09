@@ -338,22 +338,28 @@ export const DemandasRepository = {
 
   // 10. Listar Demandas Sem Rota (Para o modal de Criar Rota)
   async findUndistributed(organizationId: number): Promise<any[]> {
+    try {
         const query = `
             SELECT
                 d.id, d.protocolo, d.nome_solicitante, d.tipo_demanda, d.descricao,
                 d.logradouro, d.numero, d.bairro, d.cidade, d.uf,
                 s.nome as status_nome, 
                 s.cor as status_cor,   
-                ST_Y(d.geom::geometry) as lat, 
-                ST_X(d.geom::geometry) as lng
+                ST_Y(d.geom) as lat, 
+                ST_X(d.geom) as lng
             FROM demandas d
             LEFT JOIN rotas_demandas rd ON d.id = rd.demanda_id
             LEFT JOIN demandas_status s ON d.id_status = s.id
-            WHERE rd.demanda_id IS NULL 
-              AND d.organization_id = $1
+            WHERE rd.demanda_id IS NULL -- Filtra onde não há associação com rotas
+            AND d.organization_id = $1  -- [NOVO] Filtra pela organização
             ORDER BY d.created_at DESC;
         `;
+        // Passamos o organizationId como parâmetro para a query
         const result = await pool.query(query, [organizationId]);
         return result.rows;
+    } catch (error) {
+        console.error("Erro no DemandasRepository.findUndistributed:", error);
+        throw new Error("Falha ao buscar demandas não distribuídas.");
+    }
   },
 };

@@ -3,6 +3,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { auth } from "@/auth";
 import { rotasService } from "@/services/rotas-service";
 import { DemandasRepository } from '@/repositories/demandas-repository';
+// Importação opcional (Depende se você a usa no seu auth helper)
+// import { getToken } from "next-auth/jwt"; 
 
 type ExpectedContext = {
     params: Promise<{ id: string }>;
@@ -16,6 +18,13 @@ export async function PATCH(request: NextRequest, context: ExpectedContext) {
         return NextResponse.json({ message: "Não autenticado" }, { status: 401 });
     }
 
+    // [CORREÇÃO 1] 0. Extrai e valida o organizationId da sessão
+    const organizationId = Number((session.user as any).organizationId); 
+
+    if (isNaN(organizationId) || organizationId <= 0) {
+        return NextResponse.json({ message: "Organização não definida para o usuário." }, { status: 403 });
+    }
+
     try {
         const params = await context.params;
         const rotaId = parseInt(params.id, 10);
@@ -24,9 +33,11 @@ export async function PATCH(request: NextRequest, context: ExpectedContext) {
             return NextResponse.json({ message: 'ID da rota inválido.' }, { status: 400 });
         }
         
-        // 1. Busca as demandas da rota
-        const rotaDetails = await rotasService.getRotaDetails(rotaId);
+        // [CORREÇÃO 2] 1. Busca as demandas da rota (Passando o organizationId)
+        const rotaDetails = await rotasService.getRotaDetails(rotaId, organizationId);
+        
         if (!rotaDetails || !rotaDetails.rota) {
+             // Esta mensagem agora cobre a falha de 'rota não encontrada na organização'
              return NextResponse.json({ message: "Rota não encontrada." }, { status: 404 });
         }
         
