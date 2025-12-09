@@ -4,38 +4,29 @@ import pool from "@/lib/db";
 
 export async function GET() {
     const session = await auth();
-    
-    // Verificação de segurança
-    if (!session || !session.user?.id) {
+    if (!session) {
         return NextResponse.json({ message: "Não autenticado" }, { status: 401 });
     }
-
-    const userId = session.user.id; // Pegamos o ID do usuário logado
 
     try {
         const client = await pool.connect();
 
         try {
-            // 1. Busca KPIs Gerais (FILTRADO POR USUÁRIO)
-            // Adicionamos "WHERE id_criador = $1" para isolar os dados
+            // 1. Busca KPIs Gerais
+            // Contamos total, e usamos FILTER para contar status específicos numa única query
             const kpiQuery = `
                 SELECT 
                     COUNT(*) as total,
                     COUNT(*) FILTER (WHERE id_status = (SELECT id FROM demandas_status WHERE nome = 'Pendente' LIMIT 1)) as pendentes,
                     COUNT(*) FILTER (WHERE id_status = (SELECT id FROM demandas_status WHERE nome = 'Concluído' LIMIT 1)) as concluidas
-                FROM demandas
-                WHERE id_criador = $1; 
+                FROM demandas;
             `;
-            // Passamos o userId como parâmetro ($1) para evitar SQL Injection e fazer o filtro
-            const kpiRes = await client.query(kpiQuery, [userId]);
+            const kpiRes = await client.query(kpiQuery);
             
-            // Contagem de rotas (FILTRADO POR USUÁRIO)
-            const rotasRes = await client.query(
-                'SELECT COUNT(*) as total FROM rotas WHERE id_criador = $1', 
-                [userId]
-            );
+            // Contagem de rotas
+            const rotasRes = await client.query('SELECT COUNT(*) as total FROM rotas');
 
-            // 2. Busca Distribuição por Status para o Gráfico (FILTRADO POR USUÁRIO)
+            // 2. Busca Distribuição por Status para o Gráfico
             const chartQuery = `
                 SELECT 
                     s.nome as name, 
@@ -43,11 +34,10 @@ export async function GET() {
                     COUNT(d.id) as value
                 FROM demandas d
                 JOIN demandas_status s ON d.id_status = s.id
-                WHERE d.id_criador = $1 
                 GROUP BY s.nome, s.cor
                 ORDER BY value DESC
             `;
-            const chartRes = await client.query(chartQuery, [userId]);
+            const chartRes = await client.query(chartQuery);
 
             const data = {
                 kpis: {
