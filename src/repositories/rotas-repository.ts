@@ -94,21 +94,23 @@ export const RotasRepository = {
     }
   },
 
-  async deleteAllByOrganization(organizationId: number): Promise<number> {
-    try {
-      // O DELETE em cascade cuidará das dependências se configurado,
-      // caso contrário, rotas_demandas deve ser limpa antes.
-      // Assumindo que o banco tem ON DELETE CASCADE ou limpamos manualmente:
-      const result = await pool.query(
-        `DELETE FROM rotas WHERE organization_id = $1`,
-        [organizationId]
-      );
-      return result.rowCount || 0;
-    } catch (error) {
-      console.error("Erro SQL ao excluir rotas:", error);
-      throw error;
-    }
-  },
+  async deleteAllByOrganization(_organizationId: number): Promise<void> {
+        const client = await pool.connect();
+        try {
+            await client.query('BEGIN');
+            // Deleta a tabela de junção (embora o ON DELETE CASCADE já deva cuidar)
+            await client.query('DELETE FROM rotas_demandas');
+            // Deleta Rotas
+            await client.query('DELETE FROM rotas');
+            await client.query('COMMIT');
+        } catch (error) {
+            await client.query('ROLLBACK');
+            console.error("Erro no deleteAllByOrganization (Rotas):", error);
+            throw new Error("Falha ao limpar rotas de teste.");
+        } finally {
+            client.release();
+        }
+    },
 
   async findDemandasByRotaId(
     id: number,
@@ -405,4 +407,6 @@ export const RotasRepository = {
       return 0; // Falha segura
     }
   },
+
+  
 };

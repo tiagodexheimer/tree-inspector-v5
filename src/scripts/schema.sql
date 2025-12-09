@@ -27,6 +27,7 @@ CREATE TABLE IF NOT EXISTS users (
     
     -- Cache do ID da organização atual/principal para acesso rápido
     organization_id INT, 
+    org_id INT,
     
     created_at TIMESTAMPTZ DEFAULT NOW(),
     updated_at TIMESTAMPTZ DEFAULT NOW()

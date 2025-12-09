@@ -374,4 +374,24 @@ export const DemandasRepository = {
             throw new Error("Falha ao buscar demandas não distribuídas.");
         }
     },
+    async deleteAllByOrganization(_organizationId: number): Promise<void> {
+        console.warn("ATENÇÃO: Deletando TODAS as demandas (e rotas/vistorias relacionadas) para fins de teste. Implementar filtro por organizationId na tabela 'demandas'!");
+        const client = await pool.connect();
+        try {
+            await client.query('BEGIN');
+            // Deleta Vistorias
+            await client.query('DELETE FROM vistorias_realizadas');
+            // Deleta Rotas_Demandas (para quebrar o FK antes de apagar as Demandas)
+            await client.query('DELETE FROM rotas_demandas');
+            // Deleta Demandas
+            await client.query('DELETE FROM demandas');
+            await client.query('COMMIT');
+        } catch (error) {
+            await client.query('ROLLBACK');
+            console.error("Erro no deleteAllByOrganization (Demandas):", error);
+            throw new Error("Falha ao limpar demandas de teste.");
+        } finally {
+            client.release();
+        }
+    },
 };

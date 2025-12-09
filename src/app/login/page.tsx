@@ -100,7 +100,8 @@ export default function LoginPage() {
             disabled={isSubmitting}
           />
           <Button
-            type="submit"
+            type="button" // MUDE AQUI DE 'submit' PARA 'button'
+            onClick={(e) => handleSubmit(e as any)} // Força a chamada JS
             fullWidth
             variant="contained"
             sx={{ mt: 3, mb: 2, backgroundColor: '#257e1a', '&:hover': { backgroundColor: '#1a5912' } }}

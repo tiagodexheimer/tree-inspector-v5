@@ -7,33 +7,38 @@ import MenuIcon from '@mui/icons-material/Menu';
 import { signOut } from "next-auth/react";
 import LogoutIcon from '@mui/icons-material/Logout';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation'; // Opcional, mas vamos usar window.location para limpar estado
 
 interface HeaderProps {
     onMenuClick: () => void;
 }
 
-const SIDEBAR_WIDTH = 240;
-
 export default function Header({ onMenuClick }: HeaderProps) {
     const theme = useTheme();
-
-    // AGORA MOBILE OU TABLET = width < 900px
     const isMobile = useMediaQuery(theme.breakpoints.down('md'));
+
+    // Função de Logout Limpo
+    const handleLogout = async () => {
+        // 1. Avisa o NextAuth para destruir a sessão e NÃO redirecionar ainda
+        await signOut({ redirect: false });
+        
+        // 2. Força o navegador a ir para o login. 
+        // Usar window.location.href é melhor que router.push aqui pois 
+        // garante um refresh total da página, limpando qualquer estado de memória (Redux, Context, etc).
+        window.location.href = '/login';
+    };
 
     return (
         <AppBar
             position="fixed"
             sx={{
                 zIndex: (theme) => theme.zIndex.drawer + 1,
-                // [CORREÇÃO AQUI]
-                // Remove a lógica condicional para forçar 100% da largura da viewport (edge-to-edge)
                 width: '100%',
                 ml: 0,
             }}
         >
             <Toolbar sx={{ justifyContent: 'space-between' }}>
 
-                {/* Botão Hamburguer – agora aparece em mobile + tablet */}
                 {isMobile && (
                     <IconButton
                         color="inherit"
@@ -53,7 +58,8 @@ export default function Header({ onMenuClick }: HeaderProps) {
                 </Typography>
 
                 <Box sx={{ flexGrow: 0 }}>
-                    <IconButton color="inherit" onClick={() => signOut()} title="Sair">
+                    {/* AQUI ESTÁ A CORREÇÃO NO ONCLICK */}
+                    <IconButton color="inherit" onClick={handleLogout} title="Sair">
                         <LogoutIcon />
                     </IconButton>
                 </Box>
