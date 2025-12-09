@@ -1,44 +1,40 @@
 // src/services/auth-service.ts
-import { compare } from 'bcrypt'; // Deve usar o compare
-import { UserRepository, UserPersistence } from '@/repositories/user-repository';
+import { userManagementService } from "@/services/user-management-service";
+import { compare } from "bcrypt";
+// Importar o tipo UserPersistence que você definiu no repositório
+import { UserPersistence } from "@/repositories/user-repository";
+import { User } from "next-auth"; // Tipo padrão do NextAuth
 
-// Interface para o objeto de credenciais
-export interface Credentials {
-  email?: string;
-  password?: string;
-}
+export const AuthService = {
+  // Garantimos que o retorno é compatível com o tipo User do NextAuth
+  async authenticate(credentials: Partial<Record<"email" | "password", unknown>>): Promise<User | null> {
+    const email = credentials?.email as string;
+    const password = credentials?.password as string;
 
-export class AuthService {
-  /**
-   * Tenta autenticar um usuário usando email e senha.
-   * Retorna o objeto UserPersistence completo em caso de sucesso.
-   */
-  async authenticate(credentials: Credentials): Promise<UserPersistence | null> {
-    if (!credentials.email || !credentials.password) {
-      // Lança erro para ser capturado pelo NextAuth
-      throw new Error("Email e senha são obrigatórios."); 
-    }
+    if (!email || !password) return null;
+
+    // Busca usuário e faz o cast para UserPersistence para acessar os campos extras
+    const user = await userManagementService.getUserByEmail(email) as (UserPersistence & { organizationName: string }) | null;
     
-    // 1. Buscar o usuário pelo email
-    const user = await UserRepository.findByEmail(credentials.email);
+    if (!user || !user.password) return null;
 
-    // Se o usuário não for encontrado, ou o hash da senha não estiver presente
-    if (!user || !user.password) {
-      return null;
-    }
-    
-    // 2. Comparar a senha fornecida com o hash armazenado
-    // O 'user.password' é o hash que vem do banco.
-    const isMatch = await compare(credentials.password, user.password);
+    // Valida senha
+    const isValid = await compare(password, user.password);
+    if (!isValid) return null;
 
-    // 3. Retornar o objeto user se a senha for válida
-    if (isMatch) {
-      // Retornamos o objeto completo (incluindo orgId e planType) para o NextAuth
-      return user; 
-    }
-
-    return null; // Senha incorreta
+    // Retorna o objeto compatível com NextAuth.User, com organizationId como string.
+    return {
+      id: user.id,
+      name: user.name,
+      email: user.email,
+      role: user.role,
+      image: null, 
+      // ✅ CORREÇÃO CRÍTICA: Converte number para string
+      organizationId: String(user.organizationId),
+      organizationName: user.organizationName, // Já está na sessão
+      // ⚠️ FALTAVA: Adiciona o planType para as validações nas rotas API
+      planType: user.plan_type, 
+    } as User; 
   }
-}
-
-export const authService = new AuthService(); // Exporta a instância
+};
+export const authService = AuthService;

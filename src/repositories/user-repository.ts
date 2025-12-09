@@ -9,7 +9,7 @@ export interface UserPersistence {
   role: "admin" | "paid_user" | "free_user";
   // [IMPORTANTE] Renomeado para camelCase para bater com o NextAuth
   organizationId: number;
-  plan_type?: string;
+  plan_type: string;
 }
 
 export interface CreateUserRepoDTO {

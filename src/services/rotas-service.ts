@@ -10,9 +10,10 @@ interface CreateRotaInput {
   nome: string;
   responsavel: string;
   demandas: { id: number }[];
-  organizationId: number; // [NOVO] Obrigatório
   inicio_personalizado?: { lat: number; lng: number };
   fim_personalizado?: { lat: number; lng: number };
+  organizationId: number; 
+  planType: string;
 }
 
 const DEFAULT_FALLBACK_COORDS = {

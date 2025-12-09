@@ -1,3 +1,4 @@
+// src/types/next-auth.d.ts
 import 'next-auth';
 
 declare module 'next-auth' {
@@ -5,7 +6,8 @@ declare module 'next-auth' {
     id: string;
     role: 'admin' | 'paid_user' | 'free_user';
     organizationId: string;
-    organizationName?: string; // [NOVO]
+    organizationName?: string; 
+    planType: string; 
   }
 
   interface Session {
@@ -18,6 +20,7 @@ declare module 'next-auth/jwt' {
     id: string;
     role: 'admin' | 'paid_user' | 'free_user';
     organizationId: string;
-    organizationName?: string; // [NOVO]
+    organizationName?: string; 
+    planType: string; 
   }
 }
