@@ -1,4 +1,5 @@
 import pool from "@/lib/db";
+import db from "@/lib/db";
 
 // Interfaces
 export interface RotaPersistence {
@@ -91,6 +92,22 @@ export const RotasRepository = {
         throw new Error("Falha ao buscar rota.");
     }
   },
+  async deleteAllByOrganization(organizationId: number): Promise<number> {
+        // [CRÍTICO]: A lógica real de exclusão SQL vai aqui.
+        try {
+            // Supondo que você use um módulo 'db' para interagir com o Neon DB:
+            // IMPORTANTE: Se houver rotas-demandas (tabela de junção), ela deve ser limpa primeiro
+            // no CleanupService, ou a FK deve ser ON DELETE CASCADE.
+            const result = await db.query(
+                `DELETE FROM rotas WHERE organization_id = $1`,
+                [organizationId]
+            );
+            return result.rowCount; 
+        } catch (error) {
+            console.error("Erro SQL ao excluir rotas:", error);
+            throw error; // Propaga o erro para ser tratado no serviço de limpeza.
+        }
+    },
 
   async findDemandasByRotaId(id: number, organizationId: number): Promise<any[]> { // [ATUALIZADO]
       try {

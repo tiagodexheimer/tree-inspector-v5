@@ -1,4 +1,3 @@
-// src/app/gerenciar/status/page.tsx
 'use client';
 
 import React, { useState, useEffect } from 'react';
@@ -10,12 +9,10 @@ import {
 import AddIcon from '@mui/icons-material/Add';
 import EditIcon from '@mui/icons-material/Edit';
 import DeleteIcon from '@mui/icons-material/Delete';
-import ColorLensIcon from '@mui/icons-material/ColorLens'; // Para o seletor de cor
-// [NOVO] Importações de Autenticação
+import ColorLensIcon from '@mui/icons-material/ColorLens';
 import { useSession } from 'next-auth/react';
 import LockIcon from '@mui/icons-material/Lock';
 
-// Interface para o tipo Status
 interface StatusType {
     id: number;
     nome: string;
@@ -23,9 +20,9 @@ interface StatusType {
 }
 
 export default function GerenciarStatusPage() {
-    // [NOVO] Verificação de Admin
     const { data: session, status } = useSession();
-    // Usamos session?.user?.role (safe navigation)
+    
+    // Verifica se é admin para controlar a habilitação dos botões
     const isAdmin = status === 'authenticated' && session?.user?.role === 'admin';
 
     const [statusList, setStatusList] = useState<StatusType[]>([]);
@@ -41,16 +38,13 @@ export default function GerenciarStatusPage() {
     const [isDeleting, setIsDeleting] = useState<boolean>(false);
     const [deleteError, setDeleteError] = useState<string | null>(null);
 
-    // --- Busca Inicial ---
+    // --- Busca Inicial (Alterado) ---
     useEffect(() => {
-        // [MODIFICADO] Só busca os dados se for admin
-        if (isAdmin) {
+        // Agora busca os dados para QUALQUER usuário autenticado
+        if (status === 'authenticated') {
             fetchStatus();
-        } else if (status === 'authenticated') {
-            // Se está logado mas não é admin, para o loading
-            setIsLoading(false);
         }
-    }, [isAdmin, status]); // Depende de isAdmin e status
+    }, [status]);
 
     // --- Funções API ---
     const fetchStatus = async () => {
@@ -97,7 +91,7 @@ export default function GerenciarStatusPage() {
                 throw new Error(result.message || result.error || `Erro ${response.status}`);
             }
             handleCloseModal();
-            fetchStatus(); // Recarrega a lista
+            fetchStatus();
         } catch (err) {
             setModalError(err instanceof Error ? err.message : `Erro ao ${isEditing ? 'salvar' : 'criar'} status.`);
         } finally {
@@ -111,12 +105,12 @@ export default function GerenciarStatusPage() {
         setDeleteError(null);
         try {
             const response = await fetch(`/api/demandas-status/${statusToDelete.id}`, { method: 'DELETE' });
-             const result = await response.json().catch(() => ({})); // Pega JSON mesmo se não for OK
+             const result = await response.json().catch(() => ({})); 
             if (!response.ok) {
                 throw new Error(result.message || `Erro ${response.status}`);
             }
             handleCloseDeleteConfirm();
-            fetchStatus(); // Recarrega
+            fetchStatus(); 
         } catch (err) {
             setDeleteError(err instanceof Error ? err.message : 'Erro ao deletar status.');
         } finally {
@@ -124,11 +118,10 @@ export default function GerenciarStatusPage() {
         }
     };
 
-
     // --- Handlers Modal ---
     const handleOpenModal = (status: Partial<StatusType> | null = null) => {
         setIsEditing(!!status);
-        setCurrentStatus(status ? { ...status } : { nome: '', cor: '#808080' }); // Define cor padrão cinza para novo
+        setCurrentStatus(status ? { ...status } : { nome: '', cor: '#808080' }); 
         setModalError(null);
         setOpenModal(true);
     };
@@ -136,13 +129,12 @@ export default function GerenciarStatusPage() {
     const handleCloseModal = () => {
         setOpenModal(false);
         setCurrentStatus(null);
-        setIsSaving(false); // Garante reset do loading
+        setIsSaving(false);
     };
 
     const handleModalChange = (event: React.ChangeEvent<HTMLInputElement>) => {
         const { name, value } = event.target;
         setCurrentStatus(prev => prev ? { ...prev, [name]: value } : null);
-         // Limpa erro ao digitar
          if (modalError) setModalError(null);
     };
 
@@ -163,7 +155,7 @@ export default function GerenciarStatusPage() {
          setIsDeleting(false);
     };
 
-    // --- [NOVO] Renderização de Segurança ---
+    // --- Renderização ---
     if (status === 'loading') {
         return (
             <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '80vh' }}>
@@ -172,31 +164,23 @@ export default function GerenciarStatusPage() {
         );
     }
 
-    // A verificação de !isAdmin já cobre o 'status !== 'authenticated''
-    if (!isAdmin) {
-        return (
-            <Box sx={{ p: 4, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2 }}>
-                <LockIcon color="error" sx={{ fontSize: 60 }} />
-                <Typography variant="h5" color="error">Acesso Negado</Typography>
-                <Typography>Você precisa ser um administrador para acessar esta página.</Typography>
-            </Box>
-        );
+    if (status === 'unauthenticated') {
+        return null; // O middleware deve tratar redirecionamento, mas por segurança não renderizamos nada
     }
-    // --- [FIM NOVO] ---
 
-
-    // --- Renderização (Se for admin) ---
     return (
         <div className="p-4">
             <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
                 <Typography variant="h4" component="h1" gutterBottom>
                     Gerenciar Status das Demandas
                 </Typography>
-                {/* O botão "Adicionar" só é renderizado se for admin, o que já foi checado */}
+                
+                {/* [ALTERADO] Botão visível para todos, mas desabilitado se não for Admin */}
                 <Button
                     variant="contained"
                     startIcon={<AddIcon />}
                     onClick={() => handleOpenModal()}
+                    disabled={!isAdmin} 
                     sx={{ backgroundColor: '#257e1a', '&:hover': { backgroundColor: '#1a5912' } }}
                 >
                     Adicionar Status
@@ -204,6 +188,13 @@ export default function GerenciarStatusPage() {
             </Box>
 
             {error && <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>}
+
+            {/* Aviso visual para usuários sem permissão de escrita */}
+            {!isAdmin && (
+                <Alert severity="info" sx={{ mb: 2 }}>
+                    Modo de visualização. Apenas administradores podem criar ou editar status.
+                </Alert>
+            )}
 
             {isLoading ? (
                 <Box sx={{ display: 'flex', justifyContent: 'center', p: 4 }}>
@@ -232,11 +223,21 @@ export default function GerenciarStatusPage() {
                                         </Box>
                                     </TableCell>
                                     <TableCell align="right">
-                                        {/* Ações só renderizam se for admin, o que já foi checado */}
-                                        <IconButton onClick={() => handleOpenModal(status)} color="primary" title="Editar Status">
+                                        {/* [ALTERADO] Botões de ação desabilitados se não for Admin */}
+                                        <IconButton 
+                                            onClick={() => handleOpenModal(status)} 
+                                            color="primary" 
+                                            title="Editar Status"
+                                            disabled={!isAdmin}
+                                        >
                                             <EditIcon />
                                         </IconButton>
-                                        <IconButton onClick={() => handleOpenDeleteConfirm(status)} color="error" title="Deletar Status">
+                                        <IconButton 
+                                            onClick={() => handleOpenDeleteConfirm(status)} 
+                                            color="error" 
+                                            title="Deletar Status"
+                                            disabled={!isAdmin}
+                                        >
                                             <DeleteIcon />
                                         </IconButton>
                                     </TableCell>
@@ -266,7 +267,7 @@ export default function GerenciarStatusPage() {
                             variant="outlined"
                             fullWidth
                             required
-                            error={!!modalError && !currentStatus?.nome?.trim()} // Exemplo de validação visual
+                            error={!!modalError && !currentStatus?.nome?.trim()} 
                         />
                         <TextField
                             label="Cor"
@@ -276,34 +277,31 @@ export default function GerenciarStatusPage() {
                             variant="outlined"
                             fullWidth
                             required
-                            type="color" // Usa o input de cor nativo do HTML
+                            type="color" 
                             InputProps={{
                                 startAdornment: (
                                     <InputAdornment position="start">
                                         <ColorLensIcon />
                                     </InputAdornment>
                                 ),
-                                style: { padding: '8px' } // Ajusta padding para o input color
+                                style: { padding: '8px' } 
                             }}
-                            error={!!modalError && !/^#[0-9A-F]{6}$/i.test(currentStatus?.cor || '')} // Exemplo validação visual
+                            error={!!modalError && !/^#[0-9A-F]{6}$/i.test(currentStatus?.cor || '')} 
                             sx={{
-                                // Melhora a aparência do input color
                                 '& input[type="color"]': {
                                     height: '40px',
                                     cursor: 'pointer',
                                     border: 'none',
                                     padding: 0,
-                                    width: '100%' // Ocupa espaço disponível no Adornment
+                                    width: '100%' 
                                 }
                             }}
                          />
-                         {/* Mostra a cor selecionada */}
                         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mt: -1 }}>
                             <Typography variant='caption'>Prévia:</Typography>
                             <Box sx={{ width: 24, height: 24, backgroundColor: currentStatus?.cor || '#808080', borderRadius: '4px', border: '1px solid #ccc' }} />
                              <Typography variant='caption'>{currentStatus?.cor || '#808080'}</Typography>
                         </Box>
-
                     </Box>
                 </DialogContent>
                 <DialogActions>

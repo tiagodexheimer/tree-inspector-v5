@@ -1,4 +1,6 @@
 import pool from "@/lib/db";
+import db from "@/lib/db";
+
 
 // Interfaces DTOs e Persistência
 export interface CreateDemandaDTO {
@@ -78,6 +80,18 @@ export const DemandasRepository = {
         } catch (error) {
             console.error("Erro ao contar demandas por organização:", error);
             return 0; 
+        }
+    },
+    async deleteAllByOrganization(organizationId: number): Promise<number> {
+        try {
+            // A variável 'db' agora estará definida neste escopo
+            const result = await db.query(
+                `DELETE FROM demandas WHERE organization_id = $1`,
+                [organizationId]
+            );
+            return result.rowCount; 
+        } catch (error) {
+            // ...
         }
     },
     

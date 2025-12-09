@@ -23,39 +23,39 @@ export default function LoginPage() {
 
     // Verifica campos mínimos no frontend
     if (!email || !password) {
-        setError('Email e senha são obrigatórios.');
-        setIsSubmitting(false);
-        return;
+      setError('Email e senha são obrigatórios.');
+      setIsSubmitting(false);
+      return;
     }
 
     // [CRÍTICO] Chama signIn com redirect: false para capturar o resultado
     const loginResult = await signIn('credentials', {
-        redirect: false, 
-        email: email,
-        password: password,
+      redirect: false,
+      email: email,
+      password: password,
     });
-    
+
     setIsSubmitting(false);
 
     if (loginResult?.error) {
-        // Mapeia erros do NextAuth ou os erros lançados no auth.ts
-        let errorMessage = 'Falha ao fazer login. Tente novamente.';
+      // Mapeia erros do NextAuth ou os erros lançados no auth.ts
+      let errorMessage = 'Falha ao fazer login. Tente novamente.';
 
-        if (loginResult.error.includes('Email ou senha inválidos.')) {
-            // Mensagem lançada pelo AuthService/Repository
-            errorMessage = 'Email ou senha inválidos.';
-        } else if (loginResult.error.includes('CredentialsSignin')) {
-            // Erro genérico do NextAuth (se o customize for desligado)
-            errorMessage = 'Credenciais inválidas. Verifique seu email e senha.';
-        }
-        
-        setError(errorMessage);
+      if (loginResult.error.includes('Email ou senha inválidos.')) {
+        // Mensagem lançada pelo AuthService/Repository
+        errorMessage = 'Email ou senha inválidos.';
+      } else if (loginResult.error.includes('CredentialsSignin')) {
+        // Erro genérico do NextAuth (se o customize for desligado)
+        errorMessage = 'Credenciais inválidas. Verifique seu email e senha.';
+      }
+
+      setError(errorMessage);
     } else if (loginResult?.ok) {
-        // Login bem-sucedido: Redireciona para o dashboard
-        router.push('/dashboard'); 
+      // Login bem-sucedido: Redireciona para o dashboard
+      router.push('/dashboard');
     } else {
-        // Fallback para respostas não esperadas
-        setError('Ocorreu um erro desconhecido.');
+      // Fallback para respostas não esperadas
+      setError('Ocorreu um erro desconhecido.');
     }
   };
 
@@ -66,7 +66,7 @@ export default function LoginPage() {
           Fazer Login
         </Typography>
         <Box component="form" onSubmit={handleSubmit} noValidate sx={{ mt: 2, width: '100%' }}>
-          
+
           {/* [CRÍTICO] Renderiza a mensagem de erro */}
           {error && (
             <Alert severity="error" sx={{ mb: 2, width: '100%' }}>
@@ -108,11 +108,11 @@ export default function LoginPage() {
           >
             {isSubmitting ? <CircularProgress size={24} color="inherit" /> : 'Entrar'}
           </Button>
-          
-          <Typography variant="body2" align="center" sx={{ mt: 2 }}>
+
+          <Typography component="div" variant="body2" align="center" sx={{ mt: 2 }}>
             Não tem uma conta?{' '}
             <Button component={Link} href="/signup" variant="text" size="small">
-                Criar Conta
+              Criar Conta
             </Button>
           </Typography>
         </Box>
