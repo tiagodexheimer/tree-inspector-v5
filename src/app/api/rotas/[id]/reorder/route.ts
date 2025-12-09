@@ -13,6 +13,12 @@ export async function PUT(request: NextRequest, context: ExpectedContext) {
         return NextResponse.json({ message: "Não autenticado" }, { status: 401 });
     }
 
+    // ✅ FIX 1: Extrai e valida o organizationId da sessão
+    const organizationId = Number((session.user as any).organizationId);
+    if (isNaN(organizationId) || organizationId <= 0) {
+        return NextResponse.json({ message: "Organização não definida para o usuário." }, { status: 403 });
+    }
+    
     // Definimos a variável fora do try para ser acessível no catch
     let idForLog: string | number = 'unknown';
 
@@ -32,8 +38,8 @@ export async function PUT(request: NextRequest, context: ExpectedContext) {
              return NextResponse.json({ message: 'Lista de demandas inválida.' }, { status: 400 });
         }
 
-        // Chamada ao serviço
-        await rotasService.reorderDemandas(id, demandas);
+        // ✅ FIX 2: Chamada ao serviço com o organizationId
+        await rotasService.reorderDemandas(id, organizationId, demandas);
 
         return NextResponse.json({
             message: 'Ordem da rota atualizada com sucesso!'

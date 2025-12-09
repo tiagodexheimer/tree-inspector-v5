@@ -1,11 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/auth";
 import { rotasService } from "@/services/rotas-service";
-import { getToken } from "next-auth/jwt"; // <--- OBRIGATÓRIO
+import { getToken } from "next-auth/jwt"; 
 
 type ExpectedContext = { params: Promise<{ id: string }> };
 
-// Helper de Auth Robusto (Com Logs de Diagnóstico)
+// Helper de Auth Robusto (Com Logs de Diagnóstico) - Mantido inalterado
 async function checkAuth(req: NextRequest) {
   // LOG 1: Verificamos o que está chegando
   console.log(`[API Auth] Verificando acesso a: ${req.nextUrl.pathname}`);
@@ -43,18 +43,25 @@ async function checkAuth(req: NextRequest) {
   };
 }
 
-// --- GET: Detalhes da Rota ---
+// --- GET: Detalhes da Rota (CORRIGIDO) ---
 export async function GET(request: NextRequest, context: ExpectedContext) {
-  // Passamos 'request' para o checkAuth poder ler os cookies
   const authCheck = await checkAuth(request); 
   if (!authCheck.authorized) return authCheck.response!;
+
+  // Extrai organizationId
+  const user = authCheck.session!.user as any;
+  const organizationId = Number(user.organizationId);
+  if (isNaN(organizationId) || organizationId <= 0) {
+      return NextResponse.json({ message: "Organização não definida para o usuário." }, { status: 403 });
+  }
 
   try {
     const params = await context.params;
     const id = parseInt(params.id, 10);
     if (isNaN(id)) return NextResponse.json({ message: "ID inválido" }, { status: 400 });
 
-    const result = await rotasService.getRotaDetails(id);
+    // ✅ CORREÇÃO: Passa organizationId como o segundo argumento
+    const result = await rotasService.getRotaDetails(id, organizationId);
 
     if (!result) {
         return NextResponse.json({ message: "Rota não encontrada" }, { status: 404 });
@@ -68,10 +75,17 @@ export async function GET(request: NextRequest, context: ExpectedContext) {
   }
 }
 
-// --- PUT: Atualizar Rota ---
+// --- PUT: Atualizar Rota (CORRIGIDO) ---
 export async function PUT(request: NextRequest, context: ExpectedContext) {
   const authCheck = await checkAuth(request);
   if (!authCheck.authorized) return authCheck.response!;
+  
+  // Extrai organizationId
+  const user = authCheck.session!.user as any;
+  const organizationId = Number(user.organizationId);
+  if (isNaN(organizationId) || organizationId <= 0) {
+      return NextResponse.json({ message: "Organização não definida para o usuário." }, { status: 403 });
+  }
 
   try {
     const params = await context.params;
@@ -81,7 +95,8 @@ export async function PUT(request: NextRequest, context: ExpectedContext) {
     const body = await request.json();
     const { nome, responsavel, status, data_rota } = body;
 
-    const updatedRota = await rotasService.updateRota(id, {
+    // ✅ CORREÇÃO: Passa organizationId como o segundo argumento
+    const updatedRota = await rotasService.updateRota(id, organizationId, {
         nome,
         responsavel,
         status,
@@ -98,17 +113,25 @@ export async function PUT(request: NextRequest, context: ExpectedContext) {
   }
 }
 
-// --- DELETE: Deletar Rota ---
+// --- DELETE: Deletar Rota (CORRIGIDO) ---
 export async function DELETE(request: NextRequest, context: ExpectedContext) {
   const authCheck = await checkAuth(request);
   if (!authCheck.authorized) return authCheck.response!;
 
+  // Extrai organizationId
+  const user = authCheck.session!.user as any;
+  const organizationId = Number(user.organizationId);
+  if (isNaN(organizationId) || organizationId <= 0) {
+      return NextResponse.json({ message: "Organização não definida para o usuário." }, { status: 403 });
+  }
+  
   try {
     const params = await context.params;
     const id = parseInt(params.id, 10);
     if (isNaN(id)) return NextResponse.json({ message: "ID inválido" }, { status: 400 });
 
-    await rotasService.deleteRota(id);
+    // ✅ CORREÇÃO: Passa organizationId como o segundo argumento
+    await rotasService.deleteRota(id, organizationId);
 
     return NextResponse.json({ message: "Rota deletada com sucesso." }, { status: 200 });
 

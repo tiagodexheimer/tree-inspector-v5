@@ -16,6 +16,14 @@ export async function PATCH(request: NextRequest, context: ExpectedContext) {
         return NextResponse.json({ message: "Não autenticado" }, { status: 401 });
     }
 
+    // ✅ FIX 1: Extrai e valida o organizationId da sessão
+    const user = session.user as any;
+    const organizationId = Number(user.organizationId);
+
+    if (isNaN(organizationId) || organizationId <= 0) {
+        return NextResponse.json({ message: "Organização não definida para o usuário." }, { status: 403 });
+    }
+    
     try {
         const params = await context.params;
         const rotaId = parseInt(params.id, 10);
@@ -24,9 +32,10 @@ export async function PATCH(request: NextRequest, context: ExpectedContext) {
             return NextResponse.json({ message: 'ID da rota inválido.' }, { status: 400 });
         }
         
-        // 1. Busca as demandas da rota
-        const rotaDetails = await rotasService.getRotaDetails(rotaId);
+        // ✅ FIX 2: Busca os detalhes da rota, filtrando pela organização
+        const rotaDetails = await rotasService.getRotaDetails(rotaId, organizationId);
         if (!rotaDetails || !rotaDetails.rota) {
+             // Rota não encontrada ou não pertence a esta organização
              return NextResponse.json({ message: "Rota não encontrada." }, { status: 404 });
         }
         
@@ -37,10 +46,11 @@ export async function PATCH(request: NextRequest, context: ExpectedContext) {
         }
         
         // 2. [AUTOMAÇÃO DE FLUXO] Atualiza o status das demandas para "Em Rota"
+        // Nota: O DemandasRepository também precisa ser atualizado para filtrar por organizationId se o status de uma demanda de outra org puder ser alterado.
         await DemandasRepository.updateStatusByName(demandaIds, "Em Rota");
 
-        // 3. Opcional: Atualiza o status da ROTA para "Em Andamento"
-        await rotasService.updateRota(rotaId, { status: "Em Andamento" });
+        // ✅ FIX 3: Atualiza o status da ROTA, passando o organizationId
+        await rotasService.updateRota(rotaId, organizationId, { status: "Em Andamento" });
 
 
         return NextResponse.json({

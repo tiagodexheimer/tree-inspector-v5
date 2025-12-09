@@ -1,21 +1,29 @@
-// src/app/api/demandas/undistributed/route.ts
 import { NextResponse } from "next/server";
 import { auth } from "@/auth";
 import { DemandasRepository } from "@/repositories/demandas-repository";
 
-// Endpoint para listar demandas que não estão em nenhuma rota
+// [DICA] Adicione isso para evitar cache estático agressivo se necessário
+export const dynamic = 'force-dynamic';
+
 export async function GET() {
     const session = await auth();
-    // Requer autenticação
+
     if (!session || !session.user) {
         return NextResponse.json({ message: "Não autenticado" }, { status: 401 });
     }
 
-    try {
-        const demandas = await DemandasRepository.findUndistributed();
+    // 1. Extrair o organizationId da sessão
+    const organizationId = parseInt((session.user as any).organizationId || "0", 10);
 
-        // Mapeamos para garantir que 'prazo' (se existisse) estivesse como Date, 
-        // mas o repositório já retorna campos simples para este endpoint.
+    // Validação de segurança simples
+    if (isNaN(organizationId) || organizationId === 0) {
+         return NextResponse.json({ message: "Organização inválida." }, { status: 403 });
+    }
+
+    try {
+        // 2. Passar o organizationId para a função
+        const demandas = await DemandasRepository.findUndistributed(organizationId);
+
         return NextResponse.json(demandas, { status: 200 });
 
     } catch (error) {

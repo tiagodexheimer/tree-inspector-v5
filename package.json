@@ -1,6 +1,6 @@
 {
-  "name": "tree-inspector-v4",
-  "version": "0.1.0",
+  "name": "tree-inspector",
+  "version": "0.6.0",
   "private": true,
   "scripts": {
     "dev": "next dev",
@@ -12,7 +12,8 @@
     "test:coverage": "jest --coverage",
     "perf:server": "cross-env POSTGRES_URL=postgresql://test_user:test_password@localhost:5433/test_db next dev -p 3001",
     "setup:db:test": "cross-env POSTGRES_URL=postgresql://test_user:test_password@localhost:5433/test_db node setup-test-db-robust.js",
-    "test:e2e:server": "npm run setup:db:test && npm run dev"
+    "test:e2e:server": "npm run setup:db:test && npm run dev",
+    "reset:neon": "node setup-test-db-robust.js"
   },
   "dependencies": {
     "@auth/pg-adapter": "^1.11.1",
@@ -31,6 +32,7 @@
     "bcrypt": "^6.0.0",
     "bcryptjs": "^3.0.3",
     "date-fns": "^4.1.0",
+    "dotenv": "^17.2.3",
     "google-auth-library": "^10.4.2",
     "google-spreadsheet": "^5.0.2",
     "leaflet": "^1.9.4",

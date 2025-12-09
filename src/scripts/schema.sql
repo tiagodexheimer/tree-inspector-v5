@@ -1,119 +1,59 @@
--- scripts/schema.sql
+-- ============================================================================
+-- ARQUIVO: src/scripts/schema.sql
+-- DESCRIÇÃO: Schema Multi-tenant Otimizado para Tree Inspector V5
+-- ============================================================================
 
--- Habilita a extensão PostGIS, essencial para suas demandas
+-- 1. EXTENSÕES E UTILITÁRIOS
+-- ==========================================
 CREATE EXTENSION IF NOT EXISTS postgis;
+CREATE EXTENSION IF NOT EXISTS "uuid-ossp"; 
 
--- Tabela para os Status das Demandas (Ex: Pendente, Concluído)
-CREATE TABLE IF NOT EXISTS demandas_status (
-    id SERIAL PRIMARY KEY,
-    nome TEXT UNIQUE NOT NULL,
-    cor TEXT NOT NULL DEFAULT '#808080'
-);
+-- Sequência global para protocolos
+CREATE SEQUENCE IF NOT EXISTS protocolo_seq START 1;
 
--- Tabela para os Tipos de Demandas (Ex: Poda, Avaliação)
-CREATE TABLE IF NOT EXISTS demandas_tipos (
-    id SERIAL PRIMARY KEY,
-    nome TEXT UNIQUE NOT NULL
-);
 
--- Tabela principal de Demandas
-CREATE TABLE IF NOT EXISTS demandas (
+-- 2. ORGANIZAÇÕES (TENANTS)
+-- Criamos antes dos usuários para poder referenciar
+-- ==========================================
+CREATE TABLE IF NOT EXISTS organizations (
     id SERIAL PRIMARY KEY,
-    protocolo TEXT UNIQUE NOT NULL,
-    nome_solicitante TEXT,
-    telefone_solicitante TEXT,
-    email_solicitante TEXT,
-    cep TEXT,
-    logradouro TEXT,
-    numero TEXT,
-    complemento TEXT,
-    bairro TEXT,
-    cidade TEXT,
-    uf VARCHAR(2),
+    name TEXT NOT NULL,
+    slug TEXT UNIQUE, -- Útil para URLs (ex: app.com/empresa-x)
+    plan_type TEXT NOT NULL DEFAULT 'Free', -- 'Free', 'Pro', 'Enterprise'
     
-    -- Este campo é uma string que referencia 'demandas_tipos.nome'.
-    -- Recomendo fortemente refatorar isso para um Integer (id_tipo) no futuro.
-    tipo_demanda TEXT NOT NULL, 
-    
-    descricao TEXT NOT NULL,
-    
-    -- Chave estrangeira para a tabela de status
-    id_status INT REFERENCES demandas_status(id) ON DELETE SET NULL,
-    
-    -- Armazena a geolocalização (Longitude, Latitude)
-    geom GEOMETRY(Point, 4326),
-    
-    prazo DATE,
     created_at TIMESTAMPTZ DEFAULT NOW(),
     updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 
--- Tabela para as Rotas
-CREATE TABLE IF NOT EXISTS rotas (
-    id SERIAL PRIMARY KEY,
-    nome TEXT NOT NULL,
-    responsavel TEXT,
-    status TEXT,
-    data_rota TIMESTAMPTZ,
-    created_at TIMESTAMPTZ DEFAULT NOW()
-);
 
--- Tabela de junção entre Rotas e Demandas
-CREATE TABLE IF NOT EXISTS rotas_demandas (
-    rota_id INT NOT NULL REFERENCES rotas(id) ON DELETE CASCADE,
-    demanda_id INT NOT NULL REFERENCES demandas(id) ON DELETE CASCADE,
-    ordem INT,
-    
-    -- Chave primária composta
-    PRIMARY KEY (rota_id, demanda_id),
-    
-    -- Garante que uma demanda só pode estar em uma rota
-    UNIQUE(demanda_id) 
-);
+-- 3. AUTENTICAÇÃO E USUÁRIOS
+-- ==========================================
 
--- Função para atualizar automaticamente o 'updated_at'
-CREATE OR REPLACE FUNCTION trigger_set_timestamp()
-RETURNS TRIGGER AS $$
-BEGIN
-  NEW.updated_at = NOW();
-  RETURN NEW;
-END;
-$$ LANGUAGE plpgsql;
-
--- Trigger para a tabela 'demandas'
-CREATE TRIGGER set_demandas_timestamp
-BEFORE UPDATE ON demandas
-FOR EACH ROW
-EXECUTE FUNCTION trigger_set_timestamp();
-
-
--- +++ INÍCIO DA CORREÇÃO: TABELA USERS FALTANTE +++
--- Tabela de Usuários (NextAuth com senha e role)
+-- Tabela de Usuários (Global)
 CREATE TABLE IF NOT EXISTS users (
-    id TEXT PRIMARY KEY,
+    id TEXT PRIMARY KEY DEFAULT uuid_generate_v4(), 
     name TEXT,
     email TEXT UNIQUE NOT NULL,
     email_verified TIMESTAMPTZ,
-    password TEXT NOT NULL, -- <--- COLUNA CORRIGIDA
-    role TEXT NOT NULL DEFAULT 'free_user'
-);
--- +++ FIM DA CORREÇÃO +++
-
-
--- Tabela de Sessões (Corrigida)
--- Alteramos user_id de INTEGER para TEXT
-CREATE TABLE IF NOT EXISTS sessions (
-    id TEXT PRIMARY KEY,
-    session_token TEXT UNIQUE NOT NULL,
-    user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE, -- <-- CORRIGIDO
-    expires TIMESTAMPTZ NOT NULL
+    password TEXT NOT NULL, 
+    role TEXT NOT NULL DEFAULT 'free_user', -- Role do Sistema: 'admin' (dev), 'user'
+    image TEXT,
+    
+    -- Organização ativa/principal do usuário
+    organization_id INT REFERENCES organizations(id) ON DELETE SET NULL, 
+    
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 
--- Tabela de Contas (Corrigida)
--- Alteramos user_id de INTEGER para TEXT
+-- Atualiza organizations para ter um dono (referência circular resolvida com Alter Table depois, ou mantendo nullable)
+ALTER TABLE organizations 
+ADD COLUMN IF NOT EXISTS owner_id TEXT REFERENCES users(id) ON DELETE SET NULL;
+
+-- Tabela de Contas (NextAuth)
 CREATE TABLE IF NOT EXISTS accounts (
     id SERIAL PRIMARY KEY,
-    user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE, -- <-- CORRIGIDO
+    user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     type TEXT NOT NULL,
     provider TEXT NOT NULL,
     provider_account_id TEXT NOT NULL,
@@ -127,78 +67,246 @@ CREATE TABLE IF NOT EXISTS accounts (
     UNIQUE(provider, provider_account_id)
 );
 
--- Inserção de dados iniciais (opcional, mas recomendado)
-INSERT INTO demandas_status (nome, cor) VALUES
-('Pendente', '#FFA500'),          -- Início do Fluxo
-('Vistoria Agendada', '#1976D2'), -- NOVO - Acionado na Criação da Rota
-('Em Rota', '#9c27b0'),           -- NOVO - Acionado no Início da Rota (Android)
-('Concluído', '#2E7D32')          -- Fim do Fluxo
-ON CONFLICT (nome) DO NOTHING;
+-- Tabela de Sessões (NextAuth)
+CREATE TABLE IF NOT EXISTS sessions (
+    id TEXT PRIMARY KEY DEFAULT uuid_generate_v4(),
+    session_token TEXT UNIQUE NOT NULL,
+    user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    expires TIMESTAMPTZ NOT NULL
+);
 
-INSERT INTO demandas_tipos (nome) VALUES
-('Avaliação'),
-('Poda'),
-('Supressão'),
-('Fiscalização')
-ON CONFLICT (nome) DO NOTHING;
+-- Membros da Organização (RBAC por Organização)
+CREATE TABLE IF NOT EXISTS organization_members (
+    id SERIAL PRIMARY KEY,
+    organization_id INT NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+    user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    role TEXT DEFAULT 'member', -- 'owner', 'admin', 'member', 'viewer'
+    joined_at TIMESTAMPTZ DEFAULT NOW(),
+    
+    UNIQUE(organization_id, user_id)
+);
 
--- Tabela para armazenar as definições dos formulários
+-- Convites
+CREATE TABLE IF NOT EXISTS organization_invites (
+    id SERIAL PRIMARY KEY,
+    organization_id INT NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+    email TEXT NOT NULL,
+    token TEXT UNIQUE NOT NULL,
+    role TEXT DEFAULT 'member',
+    expires_at TIMESTAMPTZ NOT NULL,
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+
+-- 4. CONFIGURAÇÕES DA ORGANIZAÇÃO
+-- ==========================================
+
+-- Status das Demandas
+CREATE TABLE IF NOT EXISTS demandas_status (
+    id SERIAL PRIMARY KEY,
+    organization_id INT NOT NULL REFERENCES organizations(id) ON DELETE CASCADE, 
+    nome TEXT NOT NULL,
+    cor TEXT NOT NULL DEFAULT '#808080',
+    
+    UNIQUE(organization_id, nome)
+);
+
+-- Tipos de Demandas
+CREATE TABLE IF NOT EXISTS demandas_tipos (
+    id SERIAL PRIMARY KEY,
+    organization_id INT NOT NULL REFERENCES organizations(id) ON DELETE CASCADE, 
+    nome TEXT NOT NULL,
+    
+    UNIQUE(organization_id, nome)
+);
+
+-- Configurações Gerais (JSON)
+CREATE TABLE IF NOT EXISTS configuracoes (
+    id SERIAL PRIMARY KEY,
+    organization_id INT NOT NULL REFERENCES organizations(id) ON DELETE CASCADE, 
+    chave VARCHAR(50) NOT NULL, 
+    valor JSONB NOT NULL,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    
+    UNIQUE(organization_id, chave)
+);
+
+-- Formulários Dinâmicos
 CREATE TABLE IF NOT EXISTS formularios (
     id SERIAL PRIMARY KEY,
+    organization_id INT NOT NULL REFERENCES organizations(id) ON DELETE CASCADE, 
     nome TEXT NOT NULL,
     descricao TEXT,
-    
-    -- Coluna principal: armazena o array de CampoDef como JSONB
     definicao_campos JSONB NOT NULL,
-    
-    created_at TIMESTAMPTZ DEFAULT NOW(), -- <-- CORRIGIDO
-    updated_at TIMESTAMPTZ DEFAULT NOW()  -- <-- CORRIGIDO
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 
--- Tabela de ligação: Associa um formulário a um tipo de demanda
+-- Ligação: Tipo <-> Formulário
+-- Nota: Aqui não precisa de organization_id direto pois as tabelas pai (tipos e formularios) já têm.
+-- Mas a aplicação deve garantir que não se vincule um formulário da Org A num tipo da Org B.
 CREATE TABLE IF NOT EXISTS demandas_tipos_formularios (
-    id_tipo_demanda INT PRIMARY KEY REFERENCES demandas_tipos(id) ON DELETE CASCADE,
-    id_formulario INT NOT NULL REFERENCES formularios(id) ON DELETE RESTRICT,
-    
-    -- Garante que um tipo de demanda só tem um formulário ativo
-    UNIQUE(id_tipo_demanda) 
+    id_tipo_demanda INT PRIMARY KEY REFERENCES demandas_tipos(id) ON DELETE CASCADE, 
+    id_formulario INT NOT NULL REFERENCES formularios(id) ON DELETE CASCADE
 );
 
--- Trigger para atualizar 'updated_at' da nova tabela 'formularios'
-CREATE TRIGGER set_formularios_timestamp
-BEFORE UPDATE ON formularios
-FOR EACH ROW
-EXECUTE FUNCTION trigger_set_timestamp();
 
--- Tabela para armazenar os resultados das vistorias (Laudos)
+-- 5. DADOS OPERACIONAIS (CORE)
+-- ==========================================
+
+-- Demandas
+CREATE TABLE IF NOT EXISTS demandas (
+    id SERIAL PRIMARY KEY,
+    organization_id INT NOT NULL REFERENCES organizations(id) ON DELETE CASCADE, 
+    
+    -- Quem criou (Auditoria)
+    created_by_user_id TEXT REFERENCES users(id) ON DELETE SET NULL,
+    
+    protocolo TEXT NOT NULL, 
+    
+    -- Dados do Solicitante
+    nome_solicitante TEXT, 
+    telefone_solicitante TEXT, 
+    email_solicitante TEXT,
+    
+    -- Endereço
+    cep TEXT, 
+    logradouro TEXT, 
+    numero TEXT, 
+    complemento TEXT, 
+    bairro TEXT, 
+    cidade TEXT, 
+    uf VARCHAR(2),
+    
+    -- Dados da Demanda
+    tipo_demanda TEXT NOT NULL, -- Recomendo mudar para FK id_tipo no futuro
+    descricao TEXT NOT NULL,
+    
+    -- Status (FK)
+    id_status INT REFERENCES demandas_status(id) ON DELETE SET NULL,
+    
+    -- Geolocalização
+    geom GEOMETRY(Point, 4326),
+    
+    prazo DATE,
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW(),
+    
+    -- Protocolo único DENTRO da organização
+    UNIQUE(organization_id, protocolo)
+);
+
+-- Rotas
+CREATE TABLE IF NOT EXISTS rotas (
+    id SERIAL PRIMARY KEY,
+    organization_id INT NOT NULL REFERENCES organizations(id) ON DELETE CASCADE, 
+    
+    nome TEXT NOT NULL, 
+    responsavel TEXT, -- Nome texto (legado) ou pode ser FK
+    status TEXT, 
+    
+    -- Personalização de início/fim específica desta rota
+    inicio_personalizado_lat DOUBLE PRECISION, 
+    inicio_personalizado_lng DOUBLE PRECISION,
+    fim_personalizado_lat DOUBLE PRECISION, 
+    fim_personalizado_lng DOUBLE PRECISION,
+    
+    data_rota TIMESTAMPTZ,
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- Itens da Rota
+CREATE TABLE IF NOT EXISTS rotas_demandas (
+    rota_id INT NOT NULL REFERENCES rotas(id) ON DELETE CASCADE,
+    demanda_id INT NOT NULL REFERENCES demandas(id) ON DELETE CASCADE,
+    ordem INT,
+    
+    PRIMARY KEY (rota_id, demanda_id),
+    UNIQUE(demanda_id) 
+);
+
+-- Vistorias
 CREATE TABLE IF NOT EXISTS vistorias_realizadas (
     id SERIAL PRIMARY KEY,
     demanda_id INT NOT NULL REFERENCES demandas(id) ON DELETE CASCADE,
-    respostas JSONB NOT NULL, -- Aqui ficam os dados do formulário dinâmico
+    realizado_por_user_id TEXT REFERENCES users(id),
+    
+    respostas JSONB NOT NULL,
     data_realizacao TIMESTAMPTZ DEFAULT NOW(),
     
-    UNIQUE(demanda_id) -- Uma demanda só pode ter uma vistoria final
+    UNIQUE(demanda_id)
 );
 
--- 1. Tabela para configurações globais (Padrão do sistema/usuário)
-CREATE TABLE IF NOT EXISTS configuracoes (
-    id SERIAL PRIMARY KEY,
-    chave VARCHAR(50) UNIQUE NOT NULL, -- ex: 'padrao_rota'
-    valor JSONB NOT NULL,
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-);
 
--- Inserir configuração inicial padrão (Coordenadas que você usava fixas)
-INSERT INTO configuracoes (chave, valor)
-VALUES ('padrao_rota', '{"inicio": {"lat": -30.1087668, "lng": -51.3422914}, "fim": {"lat": -30.1087668, "lng": -51.3422914}}')
-ON CONFLICT (chave) DO NOTHING;
-
--- 2. Adicionar colunas na tabela 'rotas' para personalização por rota (override)
-ALTER TABLE rotas
-ADD COLUMN inicio_personalizado_lat DOUBLE PRECISION,
-ADD COLUMN inicio_personalizado_lng DOUBLE PRECISION,
-ADD COLUMN fim_personalizado_lat DOUBLE PRECISION,
-ADD COLUMN fim_personalizado_lng DOUBLE PRECISION;
+-- 6. ÍNDICES DE PERFORMANCE (MUITO IMPORTANTE PARA MULTI-TENANT)
+-- ==========================================
+-- Como todas as queries vão ter "WHERE organization_id = X", esses índices são vitais.
+CREATE INDEX IF NOT EXISTS idx_users_org ON users(organization_id);
+CREATE INDEX IF NOT EXISTS idx_members_org ON organization_members(organization_id);
+CREATE INDEX IF NOT EXISTS idx_members_user ON organization_members(user_id);
+CREATE INDEX IF NOT EXISTS idx_demandas_org ON demandas(organization_id);
+CREATE INDEX IF NOT EXISTS idx_rotas_org ON rotas(organization_id);
+CREATE INDEX IF NOT EXISTS idx_status_org ON demandas_status(organization_id);
+CREATE INDEX IF NOT EXISTS idx_tipos_org ON demandas_tipos(organization_id);
+CREATE INDEX IF NOT EXISTS idx_config_org ON configuracoes(organization_id);
+CREATE INDEX IF NOT EXISTS idx_forms_org ON formularios(organization_id);
+CREATE INDEX IF NOT EXISTS idx_demandas_geom ON demandas USING GIST (geom);
 
 
-CREATE SEQUENCE IF NOT EXISTS protocolo_seq START 1;
+-- 7. TRIGGERS E AUTOMAÇÃO
+-- ==========================================
+
+-- Função Timestamp
+CREATE OR REPLACE FUNCTION trigger_set_timestamp()
+RETURNS TRIGGER AS $$
+BEGIN
+  NEW.updated_at = NOW();
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+-- Função Setup Nova Organização (Popula dados padrão para o novo cliente)
+CREATE OR REPLACE FUNCTION trigger_setup_new_organization()
+RETURNS TRIGGER AS $$
+BEGIN
+  -- 1. Inserir Status Padrão
+  INSERT INTO demandas_status (organization_id, nome, cor) VALUES
+  (NEW.id, 'Pendente', '#FFA500'),
+  (NEW.id, 'Vistoria Agendada', '#1976D2'),
+  (NEW.id, 'Em Rota', '#9c27b0'),
+  (NEW.id, 'Concluído', '#2E7D32');
+
+  -- 2. Inserir Tipos Padrão
+  INSERT INTO demandas_tipos (organization_id, nome) VALUES
+  (NEW.id, 'Avaliação'),
+  (NEW.id, 'Poda'),
+  (NEW.id, 'Supressão'),
+  (NEW.id, 'Fiscalização');
+
+  -- 3. Inserir Configuração Padrão
+  INSERT INTO configuracoes (organization_id, chave, valor) VALUES
+  (NEW.id, 'padrao_rota', '{"inicio": {"lat": -29.8533191, "lng": -51.1789191}, "fim": {"lat": -29.8533191, "lng": -51.1789191}}');
+
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+-- Aplicação dos Triggers
+DROP TRIGGER IF EXISTS set_users_timestamp ON users;
+CREATE TRIGGER set_users_timestamp BEFORE UPDATE ON users FOR EACH ROW EXECUTE FUNCTION trigger_set_timestamp();
+
+DROP TRIGGER IF EXISTS set_orgs_timestamp ON organizations;
+CREATE TRIGGER set_orgs_timestamp BEFORE UPDATE ON organizations FOR EACH ROW EXECUTE FUNCTION trigger_set_timestamp();
+
+DROP TRIGGER IF EXISTS set_demandas_timestamp ON demandas;
+CREATE TRIGGER set_demandas_timestamp BEFORE UPDATE ON demandas FOR EACH ROW EXECUTE FUNCTION trigger_set_timestamp();
+
+DROP TRIGGER IF EXISTS set_formularios_timestamp ON formularios;
+CREATE TRIGGER set_formularios_timestamp BEFORE UPDATE ON formularios FOR EACH ROW EXECUTE FUNCTION trigger_set_timestamp();
+
+-- Trigger de Setup Inicial
+DROP TRIGGER IF EXISTS setup_new_organization ON organizations;
+CREATE TRIGGER setup_new_organization 
+AFTER INSERT ON organizations 
+FOR EACH ROW 
+EXECUTE FUNCTION trigger_setup_new_organization();

@@ -2,33 +2,54 @@ import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/auth";
 import { demandasService } from "@/services/demandas-service";
 
+// [IMPORTANTE] Força a rota a ser dinâmica para evitar erros de validação estática
+export const dynamic = 'force-dynamic';
+
 // --- GET: LISTAR DEMANDAS ---
 export async function GET(request: NextRequest) {
   const session = await auth();
+
   if (!session || !session.user) {
     return NextResponse.json({ message: "Não autenticado" }, { status: 401 });
   }
 
+  // Cast seguro para evitar erro se organizationId não existir no tipo
+  const organizationId = parseInt((session.user as any).organizationId || "0", 10);
+  const userRole = session.user.role;
+
+  // Validação
+  if (isNaN(organizationId) || organizationId === 0) {
+     // Em dev, pode não ter orgId, então apenas logamos e seguimos (ou bloqueamos se for crítico)
+     // console.warn("[API] Sem organizationId na sessão.");
+  }
+
   const { searchParams } = new URL(request.url);
 
-  // Extração de Parâmetros
   const page = parseInt(searchParams.get("page") || "1", 10);
-  const limit = parseInt(searchParams.get("limit") || "20", 10);
+  const limit = parseInt(searchParams.get("limit") || "10", 10);
   const filtro = searchParams.get("filtro") || undefined;
 
-  // Filtros de Array (Status e Tipos)
-  const statusIdsRaw = searchParams.get("statusIds");
-  const statusIds = statusIdsRaw
-    ? statusIdsRaw
-        .split(",")
-        .map(Number)
-        .filter((n) => !isNaN(n))
-    : undefined;
+  // Processa array de status
+  let statusIds: number[] | undefined;
+  const statusParam = searchParams.get("statusIds") || searchParams.get("status");
+  if (statusParam) {
+      statusIds = statusParam.split(",").map(Number).filter(n => !isNaN(n));
+  } else {
+      const statusAll = searchParams.getAll("status");
+      if (statusAll.length > 0) {
+          statusIds = statusAll.map(Number).filter(n => !isNaN(n));
+      }
+  }
 
-  const tipoNomesRaw = searchParams.get("tipoNomes");
-  const tipoNomes = tipoNomesRaw
-    ? tipoNomesRaw.split(",").filter(Boolean)
-    : undefined;
+  // Processa array de tipos
+  let tipoNomes: string[] | undefined;
+  const tipoParam = searchParams.get("tipoNomes") || searchParams.get("tipo");
+  if (tipoParam) {
+      tipoNomes = tipoParam.split(",").filter(Boolean);
+  } else {
+      const tiposAll = searchParams.getAll("tipo");
+      if (tiposAll.length > 0) tipoNomes = tiposAll;
+  }
 
   try {
     const result = await demandasService.listDemandas(
@@ -38,8 +59,10 @@ export async function GET(request: NextRequest) {
         filtro,
         statusIds,
         tipoNomes,
+        organizationId, 
       },
-      session.user.role
+      userRole,
+      organizationId // Agora isso bate com o tipo 'number' do service
     );
 
     return NextResponse.json(
@@ -53,8 +76,7 @@ export async function GET(request: NextRequest) {
     );
   } catch (error) {
     console.error("[API GET Demandas]", error);
-    const message =
-      error instanceof Error ? error.message : "Erro desconhecido";
+    const message = error instanceof Error ? error.message : "Erro desconhecido";
     return NextResponse.json(
       { message: "Erro ao buscar demandas", error: message },
       { status: 500 }
@@ -65,15 +87,22 @@ export async function GET(request: NextRequest) {
 // --- POST: CRIAR DEMANDA ---
 export async function POST(request: NextRequest) {
   const session = await auth();
+
   if (!session || !session.user) {
     return NextResponse.json({ message: "Não autenticado" }, { status: 401 });
   }
 
+  const organizationId = parseInt((session.user as any).organizationId || "0", 10);
+  const planType = (session.user as any).planType || "Free";
+
   try {
     const body = await request.json();
 
-    // Delega para o serviço
-    const novaDemanda = await demandasService.createDemanda(body);
+    const novaDemanda = await demandasService.createDemanda({
+      ...body, 
+      organizationId, 
+      planType,        
+    });
 
     return NextResponse.json(
       {
@@ -91,10 +120,12 @@ export async function POST(request: NextRequest) {
 
     if (error instanceof Error) {
       message = error.message;
-      if (message.includes("obrigatórios")) status = 400;
+      if (message.includes("obrigatórios") || message.includes("Limite de")) {
+        status = 400;
+      }
       if ((error as any).code === "23505") {
         status = 409;
-        message = "Erro: Protocolo duplicado.";
+        message = "Erro: Dados duplicados.";
       }
     }
 
@@ -109,31 +140,20 @@ export async function DELETE(request: NextRequest) {
     return NextResponse.json({ message: "Não autenticado" }, { status: 401 });
   }
 
-  // Opcional: Verificar se é admin
-  if (session.user.role !== "admin") {
-    return NextResponse.json({ message: "Permissão negada." }, { status: 403 });
-  }
+  const organizationId = parseInt((session.user as any).organizationId || "0", 10);
 
   try {
     const body = await request.json();
-    const { ids } = body; // Espera um JSON: { "ids": [1, 2, 5] }
+    const { ids } = body; 
 
     if (!ids || !Array.isArray(ids) || ids.length === 0) {
-      return NextResponse.json(
-        { message: "Lista de IDs inválida." },
-        { status: 400 }
-      );
+      return NextResponse.json({ message: "Lista de IDs inválida." }, { status: 400 });
     }
 
-    // Chama o serviço para deletar (Certifique-se de ter criado este método no Service)
-    await demandasService.deleteDemandas(ids);
+    // Agora o deleteDemandas aceita organizationId como segundo argumento
+    await demandasService.deleteDemandas(ids, organizationId);
 
-    return NextResponse.json(
-      { message: "Demandas deletadas com sucesso." },
-      { status: 200 }
-    );
-
-    // Em src/app/api/demandas/route.ts -> DELETE
+    return NextResponse.json({ message: "Demandas deletadas com sucesso." }, { status: 200 });
   } catch (error) {
     console.error("[API DELETE Demandas]", error);
 
@@ -142,8 +162,10 @@ export async function DELETE(request: NextRequest) {
 
     if (error instanceof Error) {
       message = error.message;
-      // Se for o erro de rota vinculada, retorna 409 (Conflict)
-      if (message.includes("vinculadas a rotas")) status = 409;
+      if (message.includes("vinculadas a rotas") || (error as any).code === "23503") {
+        status = 409;
+        message = "Não é possível excluir demandas que estão em rotas ativas.";
+      }
     }
 
     return NextResponse.json({ message, error: message }, { status });

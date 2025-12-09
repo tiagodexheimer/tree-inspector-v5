@@ -1,6 +1,6 @@
 import pool from "@/lib/db";
 
-// Interfaces
+// Interfaces Atualizadas
 export interface RotaPersistence {
   id: number;
   nome: string;
@@ -9,7 +9,7 @@ export interface RotaPersistence {
   data_rota: Date | null;
   created_at: Date;
   total_demandas: number;
-  // [NOVO] Campos de personalização obrigatórios na leitura
+  organization_id: number; // [NOVO]
   inicio_personalizado_lat?: number;
   inicio_personalizado_lng?: number;
   fim_personalizado_lat?: number;
@@ -28,7 +28,7 @@ export interface CreateRotaDTO {
   responsavel: string;
   status: string;
   demandas: { id: number; ordem: number }[];
-  // [NOVO] Campos opcionais de criação
+  organization_id: number; // [NOVO] Obrigatório
   inicio_personalizado?: { lat: number; lng: number } | null;
   fim_personalizado?: { lat: number; lng: number } | null;
 }
@@ -41,32 +41,23 @@ export interface ExportDataResult {
 export const RotasRepository = {
   // --- LEITURA ---
 
-  async findAll(): Promise<RotaPersistence[]> {
+  // Agora filtra por organização
+  async findAll(organizationId: number): Promise<RotaPersistence[]> {
     try {
-      // Adicionamos as colunas de personalização no SELECT
       const query = `
             SELECT
-                r.id,
-                r.nome,
-                r.responsavel,
-                r.status,
-                r.data_rota,
-                r.created_at,
-                r.inicio_personalizado_lat,
-                r.inicio_personalizado_lng,
-                r.fim_personalizado_lat,
-                r.fim_personalizado_lng,
+                r.id, r.nome, r.responsavel, r.status, r.data_rota, r.created_at,
+                r.organization_id,
+                r.inicio_personalizado_lat, r.inicio_personalizado_lng,
+                r.fim_personalizado_lat, r.fim_personalizado_lng,
                 COUNT(rd.demanda_id) AS total_demandas
-            FROM
-                rotas r
-            LEFT JOIN
-                rotas_demandas rd ON r.id = rd.rota_id
-            GROUP BY
-                r.id
-            ORDER BY
-                r.created_at DESC;
+            FROM rotas r
+            LEFT JOIN rotas_demandas rd ON r.id = rd.rota_id
+            WHERE r.organization_id = $1
+            GROUP BY r.id
+            ORDER BY r.created_at DESC;
         `;
-      const result = await pool.query(query);
+      const result = await pool.query(query, [organizationId]);
       return result.rows.map(row => ({
           ...row,
           total_demandas: parseInt(row.total_demandas, 10) || 0
@@ -77,10 +68,11 @@ export const RotasRepository = {
     }
   },
 
-  async findById(id: number): Promise<RotaPersistence | null> {
+  // Valida ID e Organização
+  async findById(id: number, organizationId: number): Promise<RotaPersistence | null> {
     try {
-      const query = `SELECT * FROM rotas WHERE id = $1`;
-      const result = await pool.query(query, [id]);
+      const query = `SELECT * FROM rotas WHERE id = $1 AND organization_id = $2`;
+      const result = await pool.query(query, [id, organizationId]);
       return result.rows[0] || null;
     } catch (error) {
         console.error("Erro no RotasRepository.findById:", error);
@@ -90,13 +82,14 @@ export const RotasRepository = {
 
   async findDemandasByRotaId(id: number): Promise<any[]> {
       try {
+          // Trazemos lat/lng. Se vier NULL, a demanda existe mas sem mapa.
           const query = `
             SELECT 
                 d.id, d.logradouro, d.numero, d.bairro, d.tipo_demanda, d.id_status,
                 d.descricao, 
                 s.nome as status_nome, s.cor as status_cor,
-                ST_Y(d.geom) as lat, 
-                ST_X(d.geom) as lng, 
+                ST_Y(d.geom::geometry) as lat, 
+                ST_X(d.geom::geometry) as lng, 
                 dr.ordem
             FROM rotas_demandas dr 
             JOIN demandas d ON dr.demanda_id = d.id
@@ -112,10 +105,10 @@ export const RotasRepository = {
       }
   },
 
-  async findExportData(id: number): Promise<ExportDataResult | null> {
+  async findExportData(id: number, organizationId: number): Promise<ExportDataResult | null> {
     const client = await pool.connect();
     try {
-      const rotaRes = await client.query('SELECT nome FROM rotas WHERE id = $1', [id]);
+      const rotaRes = await client.query('SELECT nome FROM rotas WHERE id = $1 AND organization_id = $2', [id, organizationId]);
       if (rotaRes.rowCount === 0) return null;
       
       const rotaNome = rotaRes.rows[0].nome;
@@ -148,14 +141,14 @@ export const RotasRepository = {
     try {
       await client.query("BEGIN");
       
-      // [CORREÇÃO CRÍTICA] Incluídos os campos de personalização no INSERT
+      // 1. Cria a Rota
       const rotaQuery = `
         INSERT INTO rotas (
-            nome, responsavel, status, 
+            nome, responsavel, status, organization_id,
             inicio_personalizado_lat, inicio_personalizado_lng, 
             fim_personalizado_lat, fim_personalizado_lng
         )
-        VALUES ($1, $2, $3, $4, $5, $6, $7)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
         RETURNING id, nome, responsavel, status;
       `;
       
@@ -163,6 +156,7 @@ export const RotasRepository = {
           data.nome, 
           data.responsavel, 
           data.status,
+          data.organization_id, 
           data.inicio_personalizado?.lat || null,
           data.inicio_personalizado?.lng || null,
           data.fim_personalizado?.lat || null,
@@ -172,29 +166,31 @@ export const RotasRepository = {
       const rotaResult = await client.query(rotaQuery, values);
       const newRota = rotaResult.rows[0];
 
+      // 2. Insere Demandas (Lógica Simplificada e Robusta)
       if (data.demandas.length > 0) {
-          const valuesDemanda: string[] = [];
-          const paramsDemanda: any[] = [newRota.id];
-          data.demandas.forEach((d) => {
-              const offset = paramsDemanda.length + 1;
-              valuesDemanda.push(`($1, $${offset}, $${offset + 1})`);
-              paramsDemanda.push(d.id, d.ordem);
-          });
-          const insertQuery = `INSERT INTO rotas_demandas (rota_id, demanda_id, ordem) VALUES ${valuesDemanda.join(", ")}`;
-          await client.query(insertQuery, paramsDemanda);
+          // Ordenamos garantido pelo índice enviado
+          const demandasSorted = data.demandas.sort((a, b) => a.ordem - b.ordem);
+          
+          for (const d of demandasSorted) {
+              // Fazemos INSERT um a um dentro da transação para garantir que cada um entre
+              // e para pegar erro específico se um falhar.
+              // (Performance impact é desprezível para rotas pequenas de <50 itens)
+              await client.query(
+                  `INSERT INTO rotas_demandas (rota_id, demanda_id, ordem) VALUES ($1, $2, $3)`,
+                  [newRota.id, d.id, d.ordem]
+              );
+          }
       }
       
-      // Atualiza status das demandas
+      // 3. Atualiza Status das Demandas
       if (data.demandas.length > 0) {
           const ids = data.demandas.map(d => d.id);
-          const placeholders = ids.map((_, i) => `$${i + 1}`).join(', ');
-          
-          const updateStatusQuery = `
+          await client.query(`
             UPDATE demandas 
-            SET id_status = (SELECT id FROM demandas_status WHERE nome = 'Vistoria Agendada' LIMIT 1), updated_at = NOW()
-            WHERE id IN (${placeholders})
-          `;
-          await client.query(updateStatusQuery, ids); 
+            SET id_status = (SELECT id FROM demandas_status WHERE nome = 'Vistoria Agendada' LIMIT 1), 
+                updated_at = NOW()
+            WHERE id = ANY($1::int[])
+          `, [ids]); 
       }
 
       await client.query("COMMIT");
@@ -208,39 +204,56 @@ export const RotasRepository = {
     }
   },
 
-  async update(id: number, data: UpdateRotaDTO): Promise<RotaPersistence | null> {
-      try {
-          const query = `
+  async update(id: number, organizationId: number, data: UpdateRotaDTO): Promise<RotaPersistence | null> {
+    try {
+        const query = `
             UPDATE rotas
             SET nome = $1, responsavel = $2, status = $3, data_rota = $4
-            WHERE id = $5
+            -- CRÍTICO: Filtra por ID da Rota E ID da Organização para evitar atualização cruzada
+            WHERE id = $5 AND organization_id = $6
             RETURNING *;
-          `;
-          const values = [data.nome, data.responsavel, data.status, data.data_rota || null, id];
-          const result = await pool.query(query, values);
-          return result.rows[0] || null;
-      } catch (error) {
-          console.error("Erro no RotasRepository.update:", error);
-          throw new Error("Falha ao atualizar rota.");
-      }
-  },
+        `;
+        // Os valores agora incluem o organizationId
+        const values = [
+            data.nome, 
+            data.responsavel, 
+            data.status, 
+            data.data_rota || null, 
+            id, // $5
+            organizationId // $6
+        ];
+        const result = await pool.query(query, values);
+        return result.rows[0] || null;
+    } catch (error) {
+        console.error("Erro no RotasRepository.update:", error);
+        throw new Error("Falha ao atualizar rota.");
+    }
+},
 
-  async delete(id: number): Promise<boolean> {
-      const client = await pool.connect();
-      try {
-          await client.query('BEGIN');
-          await client.query('DELETE FROM rotas_demandas WHERE rota_id = $1', [id]);
-          const result = await client.query('DELETE FROM rotas WHERE id = $1 RETURNING id', [id]);
-          await client.query('COMMIT');
-          return (result.rowCount ?? 0) > 0;
-      } catch (error) {
-          await client.query('ROLLBACK');
-          console.error("Erro no RotasRepository.delete:", error);
-          throw new Error("Falha ao deletar rota.");
-      } finally {
-          client.release();
-      }
-  },
+ async delete(id: number, organizationId: number): Promise<boolean> {
+    const client = await pool.connect();
+    try {
+        await client.query('BEGIN');
+        
+        // 1. Deleta as demandas vinculadas à rota (não precisa de organizationId aqui, pois já é filtrado no passo 2)
+        await client.query('DELETE FROM rotas_demandas WHERE rota_id = $1', [id]);
+        
+        // 2. CRÍTICO: Deleta a rota, filtrando por ID da Rota E ID da Organização para evitar exclusão cruzada
+        const result = await client.query(
+            'DELETE FROM rotas WHERE id = $1 AND organization_id = $2 RETURNING id', 
+            [id, organizationId]
+        );
+        
+        await client.query('COMMIT');
+        return (result.rowCount ?? 0) > 0;
+    } catch (error) {
+        await client.query('ROLLBACK');
+        console.error("Erro no RotasRepository.delete:", error);
+        throw new Error("Falha ao deletar rota.");
+    } finally {
+        client.release();
+    }
+},
 
   async reorderDemandas(rotaId: number, demandas: { id: number; ordem: number }[]): Promise<void> {
       const client = await pool.connect();
@@ -251,20 +264,14 @@ export const RotasRepository = {
           if (demandas.length > 0) {
               const values: string[] = [];
               const params: any[] = [rotaId];
-              
               demandas.forEach((d) => {
                   const offset = params.length + 1;
                   values.push(`($1, $${offset}, $${offset + 1})`);
                   params.push(d.id, d.ordem);
               });
-
-              const insertQuery = `
-                  INSERT INTO rotas_demandas (rota_id, demanda_id, ordem)
-                  VALUES ${values.join(', ')}
-              `;
+              const insertQuery = `INSERT INTO rotas_demandas (rota_id, demanda_id, ordem) VALUES ${values.join(', ')}`;
               await client.query(insertQuery, params);
           }
-
           await client.query('COMMIT');
       } catch (error) {
           await client.query('ROLLBACK');
@@ -275,28 +282,21 @@ export const RotasRepository = {
       }
   },
   
-  addDemandasToRota: async (rotaId: number, demandas: { id: number; ordem: number }[]): Promise<void> => {
+  async addDemandasToRota(rotaId: number, demandas: { id: number; ordem: number }[]): Promise<void> {
     const client = await pool.connect();
     try {
         await client.query('BEGIN');
-
         if (demandas.length > 0) {
             const values: string[] = [];
             const params: any[] = [rotaId];
-            
             demandas.forEach((d) => {
                 const offset = params.length + 1;
                 values.push(`($1, $${offset}, $${offset + 1})`);
                 params.push(d.id, d.ordem);
             });
-
-            const insertQuery = `
-                INSERT INTO rotas_demandas (rota_id, demanda_id, ordem)
-                VALUES ${values.join(', ')}
-            `;
+            const insertQuery = `INSERT INTO rotas_demandas (rota_id, demanda_id, ordem) VALUES ${values.join(', ')}`;
             await client.query(insertQuery, params);
         }
-
         await client.query('COMMIT');
     } catch (error) {
         await client.query('ROLLBACK');
@@ -304,6 +304,40 @@ export const RotasRepository = {
         throw error;
     } finally {
         client.release();
+    }
+  },
+
+  async deleteAllByOrganization(organizationId: number): Promise<number> {
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+
+      // 1. Deleta as entradas na tabela rotas_demandas que pertencem a rotas da organização
+      const deleteRotasDemandasQuery = `
+          DELETE FROM rotas_demandas
+          WHERE rota_id IN (
+              SELECT id FROM rotas WHERE organization_id = $1
+          );
+      `;
+      await client.query(deleteRotasDemandasQuery, [organizationId]);
+
+      // 2. Deleta as rotas em si e retorna a contagem
+      const deleteRotasQuery = `
+          DELETE FROM rotas
+          WHERE organization_id = $1;
+      `;
+      const result = await client.query(deleteRotasQuery, [organizationId]);
+      const deletedCount = result.rowCount ?? 0;
+
+      await client.query('COMMIT');
+      return deletedCount;
+
+    } catch (error) {
+      await client.query('ROLLBACK');
+      console.error("Erro no RotasRepository.deleteAllByOrganization:", error);
+      throw new Error("Falha ao deletar todas as rotas da organização.");
+    } finally {
+      client.release();
     }
   },
 };

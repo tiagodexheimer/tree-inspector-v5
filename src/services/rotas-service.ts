@@ -7,24 +7,25 @@ import { ConfiguracoesRepository } from "@/repositories/configuracoes-repository
 import * as XLSX from "xlsx";
 import { format } from "date-fns";
 
+// A interface no Service usa organizationId, mas o DTO do Repository usa organization_id
 interface CreateRotaInput {
   nome: string;
   responsavel: string;
   demandas: { id: number }[];
-  // [NOVO]
+  organizationId: number; // Campo que vem da API/Sessão
+  planType: string;
   inicio_personalizado?: { lat: number; lng: number };
   fim_personalizado?: { lat: number; lng: number };
 }
 
-// Coordenadas de fallback caso não haja nada no banco (Último recurso)
 const DEFAULT_FALLBACK_COORDS = {
   latitude: -29.8533191,
   longitude: -51.1789191,
 };
 
 export class RotasService {
-  async listRotas() {
-    return await RotasRepository.findAll();
+  async listRotas(organizationId: number) {
+    return await RotasRepository.findAll(organizationId);
   }
 
   async createRota(input: CreateRotaInput) {
@@ -34,6 +35,8 @@ export class RotasService {
       throw new Error("O responsável é obrigatório.");
     if (!input.demandas || input.demandas.length === 0)
       throw new Error("A rota deve conter pelo menos uma demanda.");
+
+    // TODO: Adicionar lógica de validação de limite de rotas/demandas com base no input.planType
 
     const demandasComOrdem = input.demandas.map((d, index) => ({
       id: d.id,
@@ -45,25 +48,24 @@ export class RotasService {
       responsavel: input.responsavel.trim(),
       status: "Pendente",
       demandas: demandasComOrdem,
-      // [NOVO] Repassa os dados opcionais
+      // ⬇️ A CHAVE DEVE SER organization_id ⬇️
+      organization_id: input.organizationId, // ✅ CORREÇÃO FINALIZADA
       inicio_personalizado: input.inicio_personalizado || null,
       fim_personalizado: input.fim_personalizado || null,
     });
   }
 
-  async getRotaDetails(id: number) {
-    const rota = await RotasRepository.findById(id);
+  async getRotaDetails(id: number, organizationId: number) {
+    const rota = await RotasRepository.findById(id, organizationId);
     if (!rota) return null;
 
     const demandas = await RotasRepository.findDemandasByRotaId(id);
     
-    // 1. Busca configuração global
-    const configGlobal = await ConfiguracoesRepository.getRotaConfig();
-
-    // 2. Define prioridade: Personalizado Rota > Global > Fallback
+    // 1. Busca configuração global (filtrada por organizationId)
+    const configGlobal = await ConfiguracoesRepository.getRotaConfig(organizationId); 
+    
     const r = rota as any; 
     
-    // Verifica se existem valores numéricos (0 é válido)
     const hasPersonalStart = r.inicio_personalizado_lat !== null && r.inicio_personalizado_lat !== undefined;
     const hasPersonalEnd = r.fim_personalizado_lat !== null && r.fim_personalizado_lat !== undefined;
 
@@ -114,28 +116,27 @@ export class RotasService {
         }
     }
     
-    // [CORREÇÃO] Retorna os pontos usados para o frontend desenhar os pinos
     return { rota, demandas, encodedPolyline, startPoint, endPoint };
   }
 
-  async updateRota(id: number, input: UpdateRotaDTO) {
+  async updateRota(id: number, organizationId: number, input: UpdateRotaDTO) {
     if (!input.nome || input.nome.trim() === "")
       throw new Error("Nome é obrigatório.");
     if (!input.responsavel || input.responsavel.trim() === "")
       throw new Error("Responsável é obrigatório.");
 
-    const updated = await RotasRepository.update(id, input);
+    const updated = await RotasRepository.update(id, organizationId, input); 
     if (!updated) throw new Error("Rota não encontrada para atualização.");
     return updated;
   }
 
-  async deleteRota(id: number) {
-    const success = await RotasRepository.delete(id);
+  async deleteRota(id: number, organizationId: number) {
+    const success = await RotasRepository.delete(id, organizationId);
     if (!success) throw new Error("Rota não encontrada para exclusão.");
   }
 
-  async reorderDemandas(rotaId: number, demandasIds: { id: number }[]) {
-    const rota = await RotasRepository.findById(rotaId);
+  async reorderDemandas(rotaId: number, organizationId: number, demandasIds: { id: number }[]) {
+    const rota = await RotasRepository.findById(rotaId, organizationId);
     if (!rota) throw new Error("Rota não encontrada.");
 
     const demandasComOrdem = demandasIds.map((d, index) => ({
@@ -147,9 +148,10 @@ export class RotasService {
   }
 
   async generateExport(
-    id: number
+    id: number,
+    organizationId: number
   ): Promise<{ buffer: Buffer; filename: string }> {
-    const data = await RotasRepository.findExportData(id);
+    const data = await RotasRepository.findExportData(id, organizationId);
     if (!data) throw new Error("Rota não encontrada para exportação.");
 
     const { rotaNome, demandas } = data;
@@ -202,8 +204,8 @@ export class RotasService {
     return { buffer, filename: `Rota_${id}_${safeName}.xlsx` };
   }
 
-  async addDemandasToRota(rotaId: number, demandaIds: number[]) {
-    const rota = await RotasRepository.findById(rotaId);
+  async addDemandasToRota(rotaId: number, organizationId: number, demandaIds: number[]) {
+    const rota = await RotasRepository.findById(rotaId, organizationId);
     if (!rota) throw new Error("Rota não encontrada.");
 
     const currentDemandas = await RotasRepository.findDemandasByRotaId(rotaId);

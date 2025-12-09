@@ -171,7 +171,14 @@ export default function CriarRotaModal({ open, onClose, routeData, onRotaCriada 
                 if (coordsFim) payload.fim_personalizado = coordsFim;
             }
             const res = await fetch('/api/rotas', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
-            if (!res.ok) throw new Error('Erro ao criar rota.');
+            
+            // [FIX START] Parse backend error message
+            if (!res.ok) {
+                const data = await res.json().catch(() => ({}));
+                throw new Error(data.message || data.error || 'Erro ao criar rota.');
+            }
+            // [FIX END]
+
             onRotaCriada(nomeRota, responsavel); onClose();
         } catch (e: any) { setApiError(e.message); } finally { setIsSaving(false); }
     };

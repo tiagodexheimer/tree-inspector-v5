@@ -2,10 +2,11 @@
 
 import React, { useEffect, useState } from 'react';
 import { 
-    Box, Typography, Paper, TextField, Button, Divider, Alert, CircularProgress, Stack, IconButton, InputAdornment
+    Box, Typography, Paper, TextField, Button, Divider, Alert, CircularProgress, Stack, IconButton, InputAdornment, Chip
 } from '@mui/material';
 import SaveIcon from '@mui/icons-material/Save';
 import SearchIcon from '@mui/icons-material/Search';
+import BusinessIcon from '@mui/icons-material/Business'; // Ícone para organização
 import dynamic from 'next/dynamic';
 
 // Importação Dinâmica do Mapa
@@ -14,7 +15,6 @@ const ConfigMap = dynamic(() => import('@/components/ui/configuracoes/ConfigMap'
     loading: () => <Box sx={{ height: '100%', minHeight: 400, bgcolor: '#f0f0f0', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><CircularProgress /></Box>
 });
 
-// Interface para o estado do endereço auxiliar
 interface EnderecoState {
     cep: string;
     numero: string;
@@ -34,6 +34,10 @@ export default function ConfiguracoesPage() {
         fim: { lat: 0, lng: 0 }
     });
 
+    // [NOVO] Estados da Organização
+    const [orgName, setOrgName] = useState('');
+    const [planType, setPlanType] = useState('Free');
+
     // Estados auxiliares para os campos de endereço (Visualização)
     const [endInicio, setEndInicio] = useState<EnderecoState>({ cep: '', numero: '', logradouro: '', cidade: '', uf: '' });
     const [endFim, setEndFim] = useState<EnderecoState>({ cep: '', numero: '', logradouro: '', cidade: '', uf: '' });
@@ -43,8 +47,17 @@ export default function ConfiguracoesPage() {
         fetch('/api/gerenciar/configuracoes')
             .then(res => res.json())
             .then(data => {
-                const safeData = data || { inicio: { lat: 0, lng: 0 }, fim: { lat: 0, lng: 0 } };
-                setConfig(safeData);
+                // Separa dados da rota e da organização
+                const safeData = data || {};
+                
+                setConfig({
+                    inicio: safeData.inicio || { lat: 0, lng: 0 },
+                    fim: safeData.fim || { lat: 0, lng: 0 }
+                });
+
+                // [NOVO] Popula dados da org
+                setOrgName(safeData.orgName || '');
+                setPlanType(safeData.planType || 'Free');
             })
             .catch(() => setMessage({ type: 'error', text: 'Erro ao carregar configurações.' }))
             .finally(() => setLoading(false));
@@ -62,7 +75,6 @@ export default function ConfiguracoesPage() {
         }));
     };
 
-    // Atualiza campos de endereço (CEP, Número)
     const handleChangeAddress = (section: 'inicio' | 'fim', field: keyof EnderecoState, value: string) => {
         if (section === 'inicio') {
             setEndInicio(prev => ({ ...prev, [field]: value }));
@@ -71,7 +83,6 @@ export default function ConfiguracoesPage() {
         }
     };
 
-    // Busca endereço pelo CEP (ViaCEP)
     const buscarCep = async (section: 'inicio' | 'fim') => {
         const cep = section === 'inicio' ? endInicio.cep : endFim.cep;
         const cleanCep = cep.replace(/\D/g, '');
@@ -106,15 +117,12 @@ export default function ConfiguracoesPage() {
         }
     };
 
-    // Busca Coordenadas usando sua API (/api/geocode)
     const buscarCoordenadas = async (section: 'inicio' | 'fim') => {
         const dados = section === 'inicio' ? endInicio : endFim;
-
         if (!dados.logradouro || !dados.numero || !dados.cidade) {
             setMessage({ type: 'error', text: 'Preencha CEP e Número para buscar coordenadas.' });
             return;
         }
-
         try {
             setLoading(true);
             const res = await fetch('/api/geocode', {
@@ -127,11 +135,8 @@ export default function ConfiguracoesPage() {
                     uf: dados.uf
                 })
             });
-
             if (!res.ok) throw new Error('Falha na geocodificação');
-
             const data = await res.json();
-            
             setConfig(prev => ({
                 ...prev,
                 [section]: {
@@ -139,9 +144,7 @@ export default function ConfiguracoesPage() {
                     lng: data.coordinates[1]
                 }
             }));
-            
             setMessage({ type: 'success', text: `Localização de ${section} atualizada!` });
-
         } catch (error) {
             setMessage({ type: 'error', text: 'Endereço não encontrado no mapa.' });
         } finally {
@@ -156,7 +159,10 @@ export default function ConfiguracoesPage() {
             const res = await fetch('/api/gerenciar/configuracoes', {
                 method: 'PUT',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(config)
+                body: JSON.stringify({
+                    ...config,
+                    orgName // [NOVO] Envia o nome da organização junto
+                })
             });
 
             if (!res.ok) throw new Error('Falha ao salvar');
@@ -170,6 +176,9 @@ export default function ConfiguracoesPage() {
     };
 
     if (loading) return <Box p={4} display="flex" justifyContent="center"><CircularProgress /></Box>;
+    
+    // [NOVO] Verifica se é Free para bloquear input
+    const isFreePlan = planType === 'Free';
 
     return (
         <Box sx={{ p: 4 }}>
@@ -183,6 +192,41 @@ export default function ConfiguracoesPage() {
                 </Alert>
             )}
 
+            {/* [NOVO] SEÇÃO DA ORGANIZAÇÃO */}
+            <Paper elevation={3} sx={{ p: 4, mb: 4, borderLeft: '6px solid #1976d2' }}>
+                <Box sx={{ display: 'flex', alignItems: 'center', mb: 2, gap: 2 }}>
+                    <Typography variant="h6" color="primary" sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                        <BusinessIcon /> Dados da Organização
+                    </Typography>
+                    <Chip 
+                        label={planType} 
+                        color={isFreePlan ? 'default' : 'success'} 
+                        variant={isFreePlan ? 'outlined' : 'filled'}
+                        size="small"
+                        sx={{ fontWeight: 'bold' }}
+                    />
+                </Box>
+                
+                <Typography variant="body2" color="text.secondary" paragraph>
+                    Identificação da sua empresa nos relatórios e sistema.
+                </Typography>
+
+                <Box sx={{ maxWidth: 600 }}>
+                    <TextField
+                        label="Nome da Organização"
+                        fullWidth
+                        value={orgName}
+                        onChange={(e) => setOrgName(e.target.value)}
+                        disabled={isFreePlan}
+                        helperText={isFreePlan ? "Usuários do plano Free não podem alterar o nome da organização." : "Este nome aparecerá nos relatórios."}
+                        InputProps={{
+                            endAdornment: isFreePlan ? <Typography variant="caption" color="text.disabled">Somente Leitura</Typography> : null
+                        }}
+                    />
+                </Box>
+            </Paper>
+
+            {/* SEÇÃO DE ROTAS (MANTIDA IGUAL) */}
             <Paper elevation={3} sx={{ p: 4 }}>
                 <Typography variant="h6" gutterBottom color="primary">
                     Padrões de Rota
@@ -193,25 +237,22 @@ export default function ConfiguracoesPage() {
 
                 <Divider sx={{ my: 3 }} />
 
-                {/* --- LAYOUT RESPONSIVO COM FLEX/STACK (SUBSTITUINDO GRID) --- */}
                 <Box 
                     sx={{
                         display: 'flex',
-                        flexDirection: { xs: 'column', md: 'row' }, // Empilha no mobile
+                        flexDirection: { xs: 'column', md: 'row' },
                         gap: 4,
                     }}
                 >
-                    {/* COLUNA DA ESQUERDA: Formulários (Ocupa 5/12 em desktop) */}
+                    {/* COLUNA DA ESQUERDA: Formulários */}
                     <Box sx={{ flex: { xs: '1 1 100%', md: '0 0 40%' } }}>
                         <Stack spacing={5}>
                             
-                            {/* === BLOCO INÍCIO === */}
+                            {/* BLOCO INÍCIO */}
                             <Box sx={{ p: 2, bgcolor: '#f9f9f9', borderRadius: 2, border: '1px solid #eee' }}>
                                 <Typography variant="subtitle1" fontWeight="bold" gutterBottom sx={{ display: 'flex', alignItems: 'center', color: 'success.main', mb: 2 }}>
                                     📍 Ponto de Início (Garagem)
                                 </Typography>
-                                
-                                {/* Linha 1: CEP e Número */}
                                 <Stack direction="row" spacing={1} mb={1}>
                                     <TextField 
                                         label="CEP" size="small" sx={{ width: '130px' }}
@@ -235,8 +276,6 @@ export default function ConfiguracoesPage() {
                                         }}
                                     />
                                 </Stack>
-
-                                {/* VISUALIZAÇÃO DO ENDEREÇO ENCONTRADO */}
                                 <Box mb={2} minHeight="24px">
                                     {endInicio.logradouro ? (
                                         <Typography variant="caption" display="block" color="text.primary" fontWeight="500">
@@ -246,33 +285,17 @@ export default function ConfiguracoesPage() {
                                         <Typography variant="caption" color="text.secondary">Digite o CEP para buscar o endereço...</Typography>
                                     )}
                                 </Box>
-
-                                {/* Linha 2: Coordenadas (Resultado) */}
                                 <Stack direction="row" spacing={1}>
-                                    <TextField
-                                        label="Latitude" size="small" fullWidth
-                                        type="number"
-                                        value={config.inicio.lat || ''}
-                                        onChange={(e) => handleChangeCoord('inicio', 'lat', e.target.value)}
-                                        InputLabelProps={{ shrink: true }}
-                                    />
-                                    <TextField
-                                        label="Longitude" size="small" fullWidth
-                                        type="number"
-                                        value={config.inicio.lng || ''}
-                                        onChange={(e) => handleChangeCoord('inicio', 'lng', e.target.value)}
-                                        InputLabelProps={{ shrink: true }}
-                                    />
+                                    <TextField label="Latitude" size="small" fullWidth type="number" value={config.inicio.lat || ''} onChange={(e) => handleChangeCoord('inicio', 'lat', e.target.value)} InputLabelProps={{ shrink: true }} />
+                                    <TextField label="Longitude" size="small" fullWidth type="number" value={config.inicio.lng || ''} onChange={(e) => handleChangeCoord('inicio', 'lng', e.target.value)} InputLabelProps={{ shrink: true }} />
                                 </Stack>
                             </Box>
 
-                            {/* === BLOCO FIM === */}
+                            {/* BLOCO FIM */}
                             <Box sx={{ p: 2, bgcolor: '#f9f9f9', borderRadius: 2, border: '1px solid #eee' }}>
                                 <Typography variant="subtitle1" fontWeight="bold" gutterBottom sx={{ display: 'flex', alignItems: 'center', color: 'error.main', mb: 2 }}>
                                     🏁 Ponto de Chegada (Retorno)
                                 </Typography>
-
-                                {/* Linha 1: CEP e Número */}
                                 <Stack direction="row" spacing={1} mb={1}>
                                     <TextField 
                                         label="CEP" size="small" sx={{ width: '130px' }}
@@ -296,8 +319,6 @@ export default function ConfiguracoesPage() {
                                         }}
                                     />
                                 </Stack>
-
-                                {/* VISUALIZAÇÃO DO ENDEREÇO ENCONTRADO */}
                                 <Box mb={2} minHeight="24px">
                                     {endFim.logradouro ? (
                                         <Typography variant="caption" display="block" color="text.primary" fontWeight="500">
@@ -307,34 +328,19 @@ export default function ConfiguracoesPage() {
                                         <Typography variant="caption" color="text.secondary">Digite o CEP para buscar o endereço...</Typography>
                                     )}
                                 </Box>
-
-                                {/* Linha 2: Coordenadas */}
                                 <Stack direction="row" spacing={1}>
-                                    <TextField
-                                        label="Latitude" size="small" fullWidth
-                                        type="number"
-                                        value={config.fim.lat || ''}
-                                        onChange={(e) => handleChangeCoord('fim', 'lat', e.target.value)}
-                                        InputLabelProps={{ shrink: true }}
-                                    />
-                                    <TextField
-                                        label="Longitude" size="small" fullWidth
-                                        type="number"
-                                        value={config.fim.lng || ''}
-                                        onChange={(e) => handleChangeCoord('fim', 'lng', e.target.value)}
-                                        InputLabelProps={{ shrink: true }}
-                                    />
+                                    <TextField label="Latitude" size="small" fullWidth type="number" value={config.fim.lat || ''} onChange={(e) => handleChangeCoord('fim', 'lat', e.target.value)} InputLabelProps={{ shrink: true }} />
+                                    <TextField label="Longitude" size="small" fullWidth type="number" value={config.fim.lng || ''} onChange={(e) => handleChangeCoord('fim', 'lng', e.target.value)} InputLabelProps={{ shrink: true }} />
                                 </Stack>
                             </Box>
                         </Stack>
                     </Box>
 
-                    {/* COLUNA DA DIREITA: Mapa (Ocupa o restante) */}
+                    {/* COLUNA DA DIREITA: Mapa */}
                     <Box sx={{ flex: 1 }}>
                         <ConfigMap inicio={config.inicio} fim={config.fim} />
                     </Box>
                 </Box>
-                {/* --- FIM LAYOUT RESPONSIVO --- */}
 
                 <Box mt={4} display="flex" justifyContent="flex-start">
                     <Button 
@@ -345,7 +351,7 @@ export default function ConfiguracoesPage() {
                         disabled={saving}
                         sx={{ minWidth: 200 }}
                     >
-                        {saving ? 'Salvando...' : 'Salvar Padrões'}
+                        {saving ? 'Salvando...' : 'Salvar Alterações'}
                     </Button>
                 </Box>
             </Paper>

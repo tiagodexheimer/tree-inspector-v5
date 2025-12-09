@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server";
 import { encode } from "next-auth/jwt";
 import { cookies } from "next/headers";
-import { AuthService } from "@/services/auth-service"; 
+// [CORREÇÃO] Importe 'authService' (a instância) em vez de apenas a Classe
+import { authService } from "@/services/auth-service"; 
 
 export async function POST(req: Request) {
   try {
@@ -9,8 +10,8 @@ export async function POST(req: Request) {
 
     console.log(`[Mobile Auth] Tentativa de login: ${body.email}`);
 
-    // 1. Autenticação (Reusa lógica do site)
-    const user = await AuthService.authenticate(body);
+    // [CORREÇÃO] Chame o método na instância 'authService'
+    const user = await authService.authenticate(body);
 
     if (!user) {
       console.log("[Mobile Auth] Falha: Credenciais inválidas");
@@ -24,14 +25,9 @@ export async function POST(req: Request) {
         return NextResponse.json({ message: "Erro de configuração" }, { status: 500 });
     }
 
-    // 3. Configuração de Cookies Híbrida (V4 + V5)
-    // Isso garante que funciona tanto em localhost (HTTP) quanto em Prod (HTTPS)
+    // 3. Configuração de Cookies
     const isProduction = process.env.NODE_ENV === "production";
-    
-    // Em Dev (HTTP), NÃO podemos usar o prefixo __Secure- nem a flag secure: true
     const cookiePrefix = isProduction ? "__Secure-" : "";
-    
-    // Nomes dos cookies para Auth.js (v5) e NextAuth (v4/compatibilidade)
     const cookieNameV5 = `${cookiePrefix}authjs.session-token`;
     const cookieNameV4 = `${cookiePrefix}next-auth.session-token`;
 
@@ -39,10 +35,10 @@ export async function POST(req: Request) {
     const token = await encode({
       token: {
         ...user,
-        sub: user.id, // Obrigatório
+        sub: user.id.toString(), // Garante que seja string
       },
       secret: secret,
-      salt: cookieNameV5, // Usamos o salt da V5 como base
+      salt: cookieNameV5,
     });
 
     const cookieStore = await cookies();
@@ -51,19 +47,20 @@ export async function POST(req: Request) {
       httpOnly: true,
       sameSite: "lax" as const,
       path: "/",
-      secure: isProduction, // False em dev para evitar rejeição no Android
+      secure: isProduction,
     };
 
-    // 5. Define os cookies (Setamos os dois para garantir que o Middleware ache um deles)
     cookieStore.set(cookieNameV5, token, cookieOptions);
     cookieStore.set(cookieNameV4, token, cookieOptions);
 
-    console.log(`[Mobile Auth] Sucesso. Cookies definidos: ${cookieNameV5}, ${cookieNameV4}`);
+    console.log(`[Mobile Auth] Sucesso. Cookies definidos.`);
 
     return NextResponse.json({ success: true, user });
 
   } catch (error) {
     console.error("[Mobile Login Error]", error);
-    return NextResponse.json({ message: "Erro interno" }, { status: 500 });
+    // Captura a mensagem de erro específica se houver (ex: "Email e senha obrigatórios")
+    const errorMessage = error instanceof Error ? error.message : "Erro interno";
+    return NextResponse.json({ message: errorMessage }, { status: 500 });
   }
 }

@@ -1,28 +1,37 @@
+// src/app/api/users/list/route.ts
 import { NextResponse } from "next/server";
 import { auth } from "@/auth";
-import { userManagementService } from "@/services/user-management-service";
+import { UserRepository } from "@/repositories/user-repository";
 
 export async function GET() {
-  // 1. Segurança: Apenas usuários logados podem ver a lista
   const session = await auth();
-  if (!session || !session.user) {
+
+  // 1. Verifica autenticação e organização
+  if (!session || !session.user || !session.user.organizationId) {
     return NextResponse.json({ message: "Não autenticado" }, { status: 401 });
   }
 
+  const organizationId = parseInt(session.user.organizationId as any, 10);
+
   try {
-    // 2. Busca todos os usuários do banco
-    const users = await userManagementService.listAllUsers();
-    
-    // 3. Mapeia apenas o necessário para o Dropdown (ID e Nome)
-    const simpleUsers = users.map(u => ({
-        id: u.id,
-        name: u.name && u.name.trim() !== '' ? u.name : u.email // Usa email se não tiver nome
+    // 2. [CORREÇÃO] Busca apenas usuários desta organização
+    const users = await UserRepository.findAllByOrganization(organizationId);
+
+    // Mapeia para não expor dados sensíveis (embora o repo já selecione poucos campos)
+    const sanitizedUsers = users.map(user => ({
+      id: user.id,
+      name: user.name,
+      email: user.email,
+      role: user.role
     }));
-    
-    return NextResponse.json(simpleUsers, { status: 200 });
+
+    return NextResponse.json(sanitizedUsers, { status: 200 });
 
   } catch (error) {
-    console.error("[API Users List]", error);
-    return NextResponse.json({ message: "Erro ao listar usuários" }, { status: 500 });
+    console.error("[API GET Users List] Erro:", error);
+    return NextResponse.json(
+      { message: "Erro ao buscar lista de usuários" },
+      { status: 500 }
+    );
   }
 }
