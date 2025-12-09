@@ -204,39 +204,56 @@ export const RotasRepository = {
     }
   },
 
-  async update(id: number, data: UpdateRotaDTO): Promise<RotaPersistence | null> {
-      try {
-          const query = `
+  async update(id: number, organizationId: number, data: UpdateRotaDTO): Promise<RotaPersistence | null> {
+    try {
+        const query = `
             UPDATE rotas
             SET nome = $1, responsavel = $2, status = $3, data_rota = $4
-            WHERE id = $5
+            -- CRÍTICO: Filtra por ID da Rota E ID da Organização para evitar atualização cruzada
+            WHERE id = $5 AND organization_id = $6
             RETURNING *;
-          `;
-          const values = [data.nome, data.responsavel, data.status, data.data_rota || null, id];
-          const result = await pool.query(query, values);
-          return result.rows[0] || null;
-      } catch (error) {
-          console.error("Erro no RotasRepository.update:", error);
-          throw new Error("Falha ao atualizar rota.");
-      }
-  },
+        `;
+        // Os valores agora incluem o organizationId
+        const values = [
+            data.nome, 
+            data.responsavel, 
+            data.status, 
+            data.data_rota || null, 
+            id, // $5
+            organizationId // $6
+        ];
+        const result = await pool.query(query, values);
+        return result.rows[0] || null;
+    } catch (error) {
+        console.error("Erro no RotasRepository.update:", error);
+        throw new Error("Falha ao atualizar rota.");
+    }
+},
 
-  async delete(id: number): Promise<boolean> {
-      const client = await pool.connect();
-      try {
-          await client.query('BEGIN');
-          await client.query('DELETE FROM rotas_demandas WHERE rota_id = $1', [id]);
-          const result = await client.query('DELETE FROM rotas WHERE id = $1 RETURNING id', [id]);
-          await client.query('COMMIT');
-          return (result.rowCount ?? 0) > 0;
-      } catch (error) {
-          await client.query('ROLLBACK');
-          console.error("Erro no RotasRepository.delete:", error);
-          throw new Error("Falha ao deletar rota.");
-      } finally {
-          client.release();
-      }
-  },
+ async delete(id: number, organizationId: number): Promise<boolean> {
+    const client = await pool.connect();
+    try {
+        await client.query('BEGIN');
+        
+        // 1. Deleta as demandas vinculadas à rota (não precisa de organizationId aqui, pois já é filtrado no passo 2)
+        await client.query('DELETE FROM rotas_demandas WHERE rota_id = $1', [id]);
+        
+        // 2. CRÍTICO: Deleta a rota, filtrando por ID da Rota E ID da Organização para evitar exclusão cruzada
+        const result = await client.query(
+            'DELETE FROM rotas WHERE id = $1 AND organization_id = $2 RETURNING id', 
+            [id, organizationId]
+        );
+        
+        await client.query('COMMIT');
+        return (result.rowCount ?? 0) > 0;
+    } catch (error) {
+        await client.query('ROLLBACK');
+        console.error("Erro no RotasRepository.delete:", error);
+        throw new Error("Falha ao deletar rota.");
+    } finally {
+        client.release();
+    }
+},
 
   async reorderDemandas(rotaId: number, demandas: { id: number; ordem: number }[]): Promise<void> {
       const client = await pool.connect();
@@ -287,6 +304,40 @@ export const RotasRepository = {
         throw error;
     } finally {
         client.release();
+    }
+  },
+
+  async deleteAllByOrganization(organizationId: number): Promise<number> {
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+
+      // 1. Deleta as entradas na tabela rotas_demandas que pertencem a rotas da organização
+      const deleteRotasDemandasQuery = `
+          DELETE FROM rotas_demandas
+          WHERE rota_id IN (
+              SELECT id FROM rotas WHERE organization_id = $1
+          );
+      `;
+      await client.query(deleteRotasDemandasQuery, [organizationId]);
+
+      // 2. Deleta as rotas em si e retorna a contagem
+      const deleteRotasQuery = `
+          DELETE FROM rotas
+          WHERE organization_id = $1;
+      `;
+      const result = await client.query(deleteRotasQuery, [organizationId]);
+      const deletedCount = result.rowCount ?? 0;
+
+      await client.query('COMMIT');
+      return deletedCount;
+
+    } catch (error) {
+      await client.query('ROLLBACK');
+      console.error("Erro no RotasRepository.deleteAllByOrganization:", error);
+      throw new Error("Falha ao deletar todas as rotas da organização.");
+    } finally {
+      client.release();
     }
   },
 };

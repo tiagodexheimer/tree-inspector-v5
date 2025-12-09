@@ -25,30 +25,30 @@ export interface CreateDemandaDTO {
 }
 
 export interface DemandaPersistence {
-    id: number;
-    protocolo: string;
-    organization_id: number;
-    nome_solicitante: string;
-    telefone_solicitante: string | null;
-    email_solicitante: string | null;
-    cep: string | null;
-    logradouro: string | null;
-    numero: string | null;
-    complemento: string | null;
-    bairro: string | null;
-    cidade: string | null;
-    uf: string | null;
-    tipo_demanda: string;
-    descricao: string;
-    lat: number | null; 
-    lng: number | null;
-    id_status: number | null;
-    status_nome: string | null;
-    status_cor: string | null;
-    created_at: Date;
-    updated_at: Date;
-    prazo: Date | null;
-    geom: any;
+  id: number;
+  protocolo: string;
+  organization_id: number;
+  nome_solicitante: string;
+  telefone_solicitante: string | null;
+  email_solicitante: string | null;
+  cep: string | null;
+  logradouro: string | null;
+  numero: string | null;
+  complemento: string | null;
+  bairro: string | null;
+  cidade: string | null;
+  uf: string | null;
+  tipo_demanda: string;
+  descricao: string;
+  lat: number | null;
+  lng: number | null;
+  id_status: number | null;
+  status_nome: string | null;
+  status_cor: string | null;
+  created_at: Date;
+  updated_at: Date;
+  prazo: Date | null;
+  geom: any;
 }
 
 export interface FindDemandasParams {
@@ -81,29 +81,33 @@ export interface UpdateDemandaDTO {
 // --- REPOSITÓRIO ---
 
 export const DemandasRepository = {
-  
   // 1. Obter Próximo Protocolo
   async getNextProtocoloSequence(): Promise<number> {
-      try {
-          const result = await pool.query("SELECT nextval('protocolo_seq') as next_val");
-          return parseInt(result.rows[0].next_val, 10);
-      } catch (error) {
-          console.error("Erro ao obter sequência de protocolo:", error);
-          // Fallback seguro: pegar timestamp se a sequence falhar
-          return Date.now(); 
-      }
+    try {
+      const result = await pool.query(
+        "SELECT nextval('protocolo_seq') as next_val"
+      );
+      return parseInt(result.rows[0].next_val, 10);
+    } catch (error) {
+      console.error("Erro ao obter sequência de protocolo:", error);
+      // Fallback seguro: pegar timestamp se a sequence falhar
+      return Date.now();
+    }
   },
 
   // 2. Listar Demandas (Com Filtros e Paginação)
-  async findAll(params: FindDemandasParams): Promise<{ demandas: any[]; totalCount: number }> {
-    const { page, limit, filtro, statusIds, tipoNomes, organizationId } = params;
+  async findAll(
+    params: FindDemandasParams
+  ): Promise<{ demandas: any[]; totalCount: number }> {
+    const { page, limit, filtro, statusIds, tipoNomes, organizationId } =
+      params; // 👈organizationId
     const offset = (page - 1) * limit;
 
     const whereClauses: string[] = [];
     const values: any[] = [];
     let counter = 1;
 
-    // Filtro de Organização (Obrigatório)
+    // 🛑 FILTRO DE SEGURANÇA: Sempre o primeiro filtro
     whereClauses.push(`d.organization_id = $${counter}`);
     values.push(organizationId);
     counter++;
@@ -119,14 +123,14 @@ export const DemandasRepository = {
       values.push(`%${filtro}%`);
       counter++;
     }
-    
+
     // Filtro de Status
     if (statusIds && statusIds.length > 0) {
       whereClauses.push(`d.id_status = ANY($${counter}::int[])`);
       values.push(statusIds);
       counter++;
     }
-    
+
     // Filtro de Tipo
     if (tipoNomes && tipoNomes.length > 0) {
       whereClauses.push(`d.tipo_demanda = ANY($${counter}::text[])`);
@@ -134,8 +138,9 @@ export const DemandasRepository = {
       counter++;
     }
 
-    const whereSql = whereClauses.length > 0 ? `WHERE ${whereClauses.join(" AND ")}` : "";
-    
+    const whereSql =
+      whereClauses.length > 0 ? `WHERE ${whereClauses.join(" AND ")}` : "";
+
     // Contagem Total
     const countQuery = `SELECT COUNT(d.id) AS count FROM demandas d ${whereSql}`;
     const countResult = await pool.query(countQuery, values);
@@ -183,10 +188,10 @@ export const DemandasRepository = {
         )
         RETURNING *, ST_AsGeoJSON(geom) as geom, ST_Y(geom::geometry) as lat, ST_X(geom::geometry) as lng;
       `;
-      
+
     const values = [
       data.protocolo,
-      data.organization_id, 
+      data.organization_id,
       data.nome_solicitante,
       data.telefone_solicitante,
       data.email_solicitante,
@@ -203,15 +208,15 @@ export const DemandasRepository = {
       data.lat, // Latitude
       data.lng, // Longitude
       data.prazo,
-      data.created_by_user_id
+      data.created_by_user_id,
     ];
 
     try {
-        const result = await pool.query(query, values);
-        return result.rows[0];
+      const result = await pool.query(query, values);
+      return result.rows[0];
     } catch (error) {
-        console.error("Erro no DemandasRepository.create:", error);
-        throw error;
+      console.error("Erro no DemandasRepository.create:", error);
+      throw error;
     }
   },
 
@@ -275,9 +280,9 @@ export const DemandasRepository = {
         data.tipo_demanda,
         data.descricao,
         data.prazo,
-        id, 
-        data.lat, 
-        data.lng
+        id,
+        data.lat,
+        data.lng,
       ];
 
       const result = await pool.query(query, values);
@@ -306,23 +311,30 @@ export const DemandasRepository = {
   async updateStatusByName(ids: number[], statusName: string): Promise<void> {
     const client = await pool.connect();
     try {
-        await client.query('BEGIN');
-        
-        // Atenção: Em ambiente multi-tenant, statusName pode ser ambíguo se organizações diferentes tiverem status com mesmo nome.
-        // O ideal é filtrar por organization_id aqui também, se disponível. 
-        // Assumindo status globais ou padrão por enquanto.
-        const statusRes = await client.query("SELECT id FROM demandas_status WHERE nome = $1 LIMIT 1", [statusName]);
-        
-        if (statusRes.rows.length === 0) throw new Error(`Status "${statusName}" não encontrado.`);
-        const idStatus = statusRes.rows[0].id;
+      await client.query("BEGIN");
 
-        await client.query(`UPDATE demandas SET id_status = $1, updated_at = NOW() WHERE id = ANY($2::int[])`, [idStatus, ids]);
-        await client.query('COMMIT');
+      // Atenção: Em ambiente multi-tenant, statusName pode ser ambíguo se organizações diferentes tiverem status com mesmo nome.
+      // O ideal é filtrar por organization_id aqui também, se disponível.
+      // Assumindo status globais ou padrão por enquanto.
+      const statusRes = await client.query(
+        "SELECT id FROM demandas_status WHERE nome = $1 LIMIT 1",
+        [statusName]
+      );
+
+      if (statusRes.rows.length === 0)
+        throw new Error(`Status "${statusName}" não encontrado.`);
+      const idStatus = statusRes.rows[0].id;
+
+      await client.query(
+        `UPDATE demandas SET id_status = $1, updated_at = NOW() WHERE id = ANY($2::int[])`,
+        [idStatus, ids]
+      );
+      await client.query("COMMIT");
     } catch (error) {
-        await client.query('ROLLBACK');
-        throw error;
+      await client.query("ROLLBACK");
+      throw error;
     } finally {
-        client.release();
+      client.release();
     }
   },
 
@@ -331,7 +343,8 @@ export const DemandasRepository = {
     try {
       await pool.query(`DELETE FROM demandas WHERE id = ANY($1)`, [ids]);
     } catch (error: any) {
-      if (error.code === "23503") throw new Error("Não é possível excluir demandas vinculadas a rotas.");
+      if (error.code === "23503")
+        throw new Error("Não é possível excluir demandas vinculadas a rotas.");
       throw error;
     }
   },
@@ -339,7 +352,7 @@ export const DemandasRepository = {
   // 10. Listar Demandas Sem Rota (Para o modal de Criar Rota)
   async findUndistributed(organizationId: number): Promise<any[]> {
     try {
-        const query = `
+      const query = `
             SELECT
                 d.id, d.protocolo, d.nome_solicitante, d.tipo_demanda, d.descricao,
                 d.logradouro, d.numero, d.bairro, d.cidade, d.uf,
@@ -354,12 +367,33 @@ export const DemandasRepository = {
             AND d.organization_id = $1  -- [NOVO] Filtra pela organização
             ORDER BY d.created_at DESC;
         `;
-        // Passamos o organizationId como parâmetro para a query
-        const result = await pool.query(query, [organizationId]);
-        return result.rows;
+      // Passamos o organizationId como parâmetro para a query
+      const result = await pool.query(query, [organizationId]);
+      return result.rows;
     } catch (error) {
-        console.error("Erro no DemandasRepository.findUndistributed:", error);
-        throw new Error("Falha ao buscar demandas não distribuídas.");
+      console.error("Erro no DemandasRepository.findUndistributed:", error);
+      throw new Error("Falha ao buscar demandas não distribuídas.");
+    }
+  },
+
+  async deleteAllByOrganization(organizationId: number): Promise<number> {
+    try {
+      // Nota: As entradas na tabela rotas_demandas para rotas desta organização
+      // já foram removidas pelo RotasRepository.deleteAllByOrganization.
+      // Aqui, removemos as demandas em si.
+      const query = `
+          DELETE FROM demandas
+          WHERE organization_id = $1;
+      `;
+      // ⚠️ IMPORTANTE: Esta query assume que a tabela 'demandas' possui a coluna 'organization_id'.
+      const result = await pool.query(query, [organizationId]);
+      return result.rowCount ?? 0;
+    } catch (error) {
+      console.error(
+        "Erro no DemandasRepository.deleteAllByOrganization:",
+        error
+      );
+      throw new Error("Falha ao deletar todas as demandas da organização.");
     }
   },
 };

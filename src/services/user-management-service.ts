@@ -7,6 +7,7 @@ import {
 } from "@/repositories/user-repository";
 // [CORREÇÃO] Importa o novo serviço que cria a Organização e o Seed
 import { organizationService } from "@/services/organization-service";
+import pool from "@/lib/db";
 
 // DTO para a criação de usuário
 interface CreateUserInput {

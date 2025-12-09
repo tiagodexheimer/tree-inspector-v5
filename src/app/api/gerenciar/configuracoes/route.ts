@@ -1,76 +1,73 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/auth";
 import { ConfiguracoesService } from "@/services/configuracoes-service";
-import pool from "@/lib/db"; // Importamos o pool para acesso direto à tabela de organizações
+import pool from "@/lib/db"; // Se você usa o pool para a query de organização (linha 22)
 
-export async function GET() {
+// --- GET: Obter Configurações ---
+export async function GET(request: NextRequest) {
     const session = await auth();
-    // [SEGURANÇA] Verifica se tem organizationId na sessão
-    if (!session || !session.user || !session.user.organizationId) {
+    if (!session || !session.user) {
         return NextResponse.json({ message: "Não autorizado" }, { status: 401 });
     }
 
-    // Cast para número, garantindo tipagem
-    const orgId = parseInt(session.user.organizationId as any, 10);
+    const user = session.user as any;
+    const organizationId = Number(user.organizationId);
+
+    if (isNaN(organizationId) || organizationId <= 0) {
+        return NextResponse.json({ message: "Organização não definida para o usuário." }, { status: 403 });
+    }
 
     try {
-        // 1. Busca Configuração de Rota (Service Existente)
-        // Nota: O ideal seria o service receber o orgId também, mas focaremos na organização aqui
-        const configRota = await ConfiguracoesService.obterConfiguracaoRota();
+        // ✅ CORREÇÃO 1: Passa organizationId para obter a configuração do tenant
+        const configRota = await ConfiguracoesService.obterConfiguracaoRota(organizationId);
 
-        // 2. Busca Dados da Organização (Nome e Plano)
+        // 2. Busca Dados da Organização (Nome e Plano) - Mantido aqui para compatibilidade
+        // ⚠️ Nota: Esta lógica deve idealmente ser movida para um OrganizationRepository/Service.
         const orgQuery = `SELECT name, plan_type FROM organizations WHERE id = $1`;
-        const orgRes = await pool.query(orgQuery, [orgId]);
-        const orgData = orgRes.rows[0];
+        const orgRes = await pool.query(orgQuery, [organizationId]);
+        
+        const organizationData = orgRes.rows[0];
+        if (!organizationData) {
+            return NextResponse.json({ message: "Dados da organização não encontrados." }, { status: 404 });
+        }
 
-        // Retorna tudo mesclado
         return NextResponse.json({
-            ...configRota,
-            orgName: orgData?.name || '',
-            planType: orgData?.plan_type || 'Free'
-        });
+            configuracaoRota: configRota,
+            organization: organizationData,
+        }, { status: 200 });
 
     } catch (error) {
-        console.error("Erro API Config GET:", error);
-        return NextResponse.json({ message: "Erro ao buscar configurações" }, { status: 500 });
+        console.error("[API GET Configuracoes] Erro:", error);
+        return NextResponse.json({ message: "Erro interno ao buscar configurações." }, { status: 500 });
     }
 }
 
+
+// --- PUT: Salvar Configurações ---
 export async function PUT(request: NextRequest) {
     const session = await auth();
-    if (!session || !session.user || !session.user.organizationId) {
+    if (!session || !session.user) {
         return NextResponse.json({ message: "Não autorizado" }, { status: 401 });
     }
-
-    const orgId = parseInt(session.user.organizationId as any, 10);
+    
+    // Extrai organizationId (necessário para o serviço)
+    const organizationId = Number((session.user as any).organizationId);
+    if (isNaN(organizationId) || organizationId <= 0) {
+        return NextResponse.json({ message: "Organização não definida para o usuário." }, { status: 403 });
+    }
 
     try {
         const body = await request.json();
-        const { inicio, fim, orgName } = body; // Extrai o novo nome também
+        const { configuracaoRota } = body;
+        
+        // ✅ CORREÇÃO 2: Passa organizationId para o serviço
+        await ConfiguracoesService.salvarConfiguracaoRota(organizationId, configuracaoRota);
 
-        // 1. Salva Configuração de Rota (Service Existente)
-        await ConfiguracoesService.salvarConfiguracaoRota({ inicio, fim });
+        return NextResponse.json({ message: "Configurações salvas com sucesso." }, { status: 200 });
 
-        // 2. Atualiza Nome da Organização (Se enviado e Se permitido)
-        if (orgName) {
-            // Verifica o plano antes de permitir alteração
-            const planQuery = `SELECT plan_type FROM organizations WHERE id = $1`;
-            const planRes = await pool.query(planQuery, [orgId]);
-            const currentPlan = planRes.rows[0]?.plan_type;
-
-            // REGRA DE NEGÓCIO: Somente não-Free pode alterar
-            if (currentPlan !== 'Free') {
-                await pool.query(
-                    `UPDATE organizations SET name = $1 WHERE id = $2`,
-                    [orgName, orgId]
-                );
-            }
-            // Se for Free, ignoramos a alteração de nome silenciosamente ou poderíamos retornar erro
-        }
-
-        return NextResponse.json({ message: "Configurações salvas com sucesso!" });
-    } catch (error: any) {
-        console.error("Erro API Config PUT:", error);
-        return NextResponse.json({ message: error.message || "Erro ao salvar" }, { status: 500 });
+    } catch (error) {
+        console.error("[API PUT Configuracoes] Erro:", error);
+        const message = error instanceof Error ? error.message : "Erro desconhecido";
+        return NextResponse.json({ message, error: message }, { status: 500 });
     }
 }
