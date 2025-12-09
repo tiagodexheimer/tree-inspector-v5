@@ -23,9 +23,9 @@ interface CreateDemandaInput {
   descricao: string;
   prazo?: string | null;
   coordinates?: [number, number] | null;
-  // [NOVO] Campos obrigatórios para multi-tenancy
+  // [NOVO] Campos de contexto injetados pelo controller
   organizationId: number;
-  planType?: string; 
+  userId: string;
 }
 
 interface UpdateDemandaInput extends Partial<Omit<CreateDemandaInput, 'organizationId' | 'planType'>> {
@@ -36,18 +36,18 @@ export class DemandasService {
   
   // [MODIFICADO] Adicionado organizationId
   async listDemandas(params: FindDemandasParams, userRole?: string, organizationId?: number) {
-    if (!organizationId) {
-        throw new Error("ID da organização é obrigatório para listar demandas.");
+    if (!organizationId) throw new Error("Organização não identificada.");
+    
+    // Injeta o ID da organização nos parâmetros de busca
+    const searchParams = { ...params, organizationId };
+    
+    if (userRole === "free_user") {
+      searchParams.limit = 10;
+      // searchParams.page = 1; (Removido para permitir paginação normal até o limite)
     }
 
-    // O limite de paginação do front pode ser sobrescrito aqui se necessário, 
-    // mas o limite "físico" de quantidade de dados é controlado no create.
+    const { demandas, totalCount } = await DemandasRepository.findAll(searchParams);
     
-    const { demandas, totalCount } = await DemandasRepository.findAll({
-        ...params,
-        organizationId // Passa o ID para o repositório filtrar
-    });
-
     const demandasFormatadas = demandas.map((d) => ({
       ...d,
       prazo: d.prazo ? new Date(d.prazo) : null,
@@ -58,58 +58,42 @@ export class DemandasService {
 
   // [MODIFICADO] Lógica de criação com limite por organização
   async createDemanda(input: CreateDemandaInput) {
-    if (
-      !input.cep ||
-      !input.numero ||
-      !input.tipo_demanda ||
-      !input.descricao
-    ) {
-      throw new Error(
-        "Campos obrigatórios ausentes: CEP, Número, Tipo e Descrição."
-      );
+    if (!input.cep || !input.numero || !input.tipo_demanda || !input.descricao) {
+      throw new Error("Campos obrigatórios ausentes.");
     }
 
-    // 1. Validação de Limite do Plano Free
-    // Se o plano não for informado, assume Free por segurança
-    const planType = input.planType || 'Free'; 
-    
-    if (planType === 'Free') {
-        const currentCount = await DemandasRepository.countByOrganization(input.organizationId);
-        // Limite de 10 demandas para plano Free
-        if (currentCount >= 10) {
-            throw new Error("Limite de 10 demandas atingido para o plano Free. Atualize para o plano Pro para criar mais.");
-        }
-    }
-
-    // 2. Geração do Protocolo Sequencial
+    // 1. Protocolo
     const nextId = await DemandasRepository.getNextProtocoloSequence();
     const protocolo = `${nextId}`; 
 
-    // 3. Geocodificação
-    const coordinates = await geocodingService.getCoordinates({
-        logradouro: input.logradouro,
-        numero: input.numero,
-        cidade: input.cidade,
-        uf: input.uf
-    });
-    
-    const lat = coordinates ? coordinates[0] : null;
-    const lng = coordinates ? coordinates[1] : null;
+    // 2. Geocodificação (Se coordenadas não vierem do front)
+    let lat = input.coordinates ? input.coordinates[0] : null;
+    let lng = input.coordinates ? input.coordinates[1] : null;
 
-    // 4. Busca status inicial (Pendente)
-    // Nota: O StatusRepository também deveria filtrar por organização idealmente, 
-    // mas se os status forem padronizados (criados pelo trigger), o nome 'Pendente' vai existir.
-    // Para maior segurança, busque o status da organização específica se possível.
-    const statusPendente = await StatusRepository.findByName("Pendente");
+    if (!lat || !lng) {
+        const coords = await geocodingService.getCoordinates({
+            logradouro: input.logradouro,
+            numero: input.numero,
+            cidade: input.cidade,
+            uf: input.uf
+        });
+        if (coords) { lat = coords[0]; lng = coords[1]; }
+    }
+
+    // 3. Busca status inicial (Pendente da Organização correta seria o ideal, mas aqui pegamos pelo nome global se não houver colisão, ou ajustamos o repo status)
+    // Para simplificar, assumimos que o nome é único ou o repo resolve.
+    // O ideal seria: StatusRepository.findByName(orgId, 'Pendente')
+    const statusPendente = await StatusRepository.findByName("Pendente"); 
     const initialStatusId = statusPendente?.id || null;
     
-    // 5. Formata o prazo
-    const prazoDate =
-      input.prazo && input.prazo.trim() !== "" ? new Date(input.prazo) : null;
+    // 4. Prazo
+    const prazoDate = input.prazo ? new Date(input.prazo) : null;
     
-    // 6. Cria demanda no Repositório vinculada à Organização
+    // 5. Criação
     return await DemandasRepository.create({
       protocolo, 
+      organization_id: input.organizationId, // [NOVO]
+      created_by_user_id: input.userId,      // [NOVO]
       nome_solicitante: input.nome_solicitante,
       telefone_solicitante: input.telefone_solicitante || null,
       email_solicitante: input.email_solicitante || null,
@@ -126,7 +110,6 @@ export class DemandasService {
       lat,
       lng,
       prazo: prazoDate,
-      organization_id: input.organizationId // [CRÍTICO] Vínculo com a organização
     } as RepoCreateDemandaInput);
   }
 

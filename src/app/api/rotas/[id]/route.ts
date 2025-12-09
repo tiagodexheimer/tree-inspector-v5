@@ -1,51 +1,33 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/auth";
 import { rotasService } from "@/services/rotas-service";
-import { getToken } from "next-auth/jwt"; // <--- OBRIGATÓRIO
+import { getToken } from "next-auth/jwt";
 
 type ExpectedContext = { params: Promise<{ id: string }> };
 
-// Helper de Auth Robusto (Com Logs de Diagnóstico)
 async function checkAuth(req: NextRequest) {
-  // LOG 1: Verificamos o que está chegando
-  console.log(`[API Auth] Verificando acesso a: ${req.nextUrl.pathname}`);
-  const cookieNames = req.cookies.getAll().map(c => c.name).join(', ');
-  console.log(`[API Auth] Cookies recebidos: [${cookieNames}]`);
-
-  // 1. Tentativa Padrão (Sessão do NextAuth)
   const session = await auth();
   if (session?.user) {
-    console.log("[API Auth] Sucesso via auth() padrão.");
     return { authorized: true, session, response: null };
   }
 
-  // 2. Fallback: Leitura manual do Token (Para Android/Emuladores)
-  console.log("[API Auth] auth() falhou. Tentando leitura direta do token (getToken)...");
-  
   const secret = process.env.AUTH_SECRET || process.env.NEXTAUTH_SECRET;
-  
-  // Tenta encontrar o token com nomes variados (V4, V5, Seguro ou Inseguro)
   const token = await getToken({ req, secret, salt: "authjs.session-token" }) ||
                 await getToken({ req, secret, salt: "next-auth.session-token" }) || 
-                await getToken({ req, secret, salt: "__Secure-authjs.session-token" }) ||
-                await getToken({ req, secret, salt: "__Secure-next-auth.session-token" });
+                await getToken({ req, secret, salt: "__Secure-authjs.session-token" });
 
   if (token) {
-    console.log("[API Auth] Sucesso via getToken! Usuário: " + token.email);
-    // Cria uma sessão "fake" baseada no token para o resto do código usar
     return { authorized: true, session: { user: token }, response: null };
   }
 
-  console.log("[API Auth] Falha: Nenhum token válido encontrado.");
   return { 
       authorized: false, 
-      response: NextResponse.json({ message: "Não autenticado (Token não encontrado ou inválido)" }, { status: 401 }) 
+      response: NextResponse.json({ message: "Não autenticado" }, { status: 401 }) 
   };
 }
 
 // --- GET: Detalhes da Rota ---
 export async function GET(request: NextRequest, context: ExpectedContext) {
-  // Passamos 'request' para o checkAuth poder ler os cookies
   const authCheck = await checkAuth(request); 
   if (!authCheck.authorized) return authCheck.response!;
 
@@ -54,7 +36,15 @@ export async function GET(request: NextRequest, context: ExpectedContext) {
     const id = parseInt(params.id, 10);
     if (isNaN(id)) return NextResponse.json({ message: "ID inválido" }, { status: 400 });
 
-    const result = await rotasService.getRotaDetails(id);
+    // [NOVO] Extrai organizationId da sessão
+    const user = authCheck.session.user as any;
+    const organizationId = parseInt(user.organizationId, 10);
+
+    if (!organizationId) {
+        return NextResponse.json({ message: "Sessão inválida" }, { status: 403 });
+    }
+
+    const result = await rotasService.getRotaDetails(id, organizationId);
 
     if (!result) {
         return NextResponse.json({ message: "Rota não encontrada" }, { status: 404 });
@@ -81,6 +71,7 @@ export async function PUT(request: NextRequest, context: ExpectedContext) {
     const body = await request.json();
     const { nome, responsavel, status, data_rota } = body;
 
+    // TODO: Adicionar verificação de organização no update também
     const updatedRota = await rotasService.updateRota(id, {
         nome,
         responsavel,

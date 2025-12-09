@@ -1,13 +1,11 @@
-// src/components/ui/layout/Header.tsx
 'use client';
 
 import React from 'react';
-import { AppBar, Toolbar, Typography, Box, IconButton, useTheme, useMediaQuery } from '@mui/material';
+import { AppBar, Toolbar, Typography, Box, IconButton, useTheme, useMediaQuery, Chip } from '@mui/material';
 import MenuIcon from '@mui/icons-material/Menu';
-import { signOut } from "next-auth/react";
+import { signOut, useSession } from "next-auth/react"; // [NOVO] Import useSession
 import LogoutIcon from '@mui/icons-material/Logout';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation'; // Opcional, mas vamos usar window.location para limpar estado
 
 interface HeaderProps {
     onMenuClick: () => void;
@@ -16,15 +14,13 @@ interface HeaderProps {
 export default function Header({ onMenuClick }: HeaderProps) {
     const theme = useTheme();
     const isMobile = useMediaQuery(theme.breakpoints.down('md'));
+    
+    // [NOVO] Pega os dados da sessão
+    const { data: session } = useSession(); 
+    const orgName = session?.user?.organizationName;
 
-    // Função de Logout Limpo
     const handleLogout = async () => {
-        // 1. Avisa o NextAuth para destruir a sessão e NÃO redirecionar ainda
         await signOut({ redirect: false });
-        
-        // 2. Força o navegador a ir para o login. 
-        // Usar window.location.href é melhor que router.push aqui pois 
-        // garante um refresh total da página, limpando qualquer estado de memória (Redux, Context, etc).
         window.location.href = '/login';
     };
 
@@ -51,14 +47,30 @@ export default function Header({ onMenuClick }: HeaderProps) {
                     </IconButton>
                 )}
 
-                <Typography variant="h6" noWrap component="div" sx={{ flexGrow: 1 }}>
-                    <Link href="/dashboard" style={{ color: 'inherit', textDecoration: 'none' }}>
-                        Tree Inspector V5
-                    </Link>
-                </Typography>
+                <Box sx={{ flexGrow: 1, display: 'flex', alignItems: 'center', gap: 2 }}>
+                    <Typography variant="h6" noWrap component="div">
+                        <Link href="/dashboard" style={{ color: 'inherit', textDecoration: 'none', fontWeight: 'bold' }}>
+                            {/* [CORREÇÃO] Removido o "V5" */}
+                            Tree Inspector
+                        </Link>
+                    </Typography>
+
+                    {/* [NOVO] Mostra o nome da organização se existir */}
+                    {orgName && (
+                        <Chip 
+                            label={orgName} 
+                            size="small" 
+                            variant="outlined" 
+                            sx={{ 
+                                color: 'white', 
+                                borderColor: 'rgba(255,255,255,0.5)',
+                                display: { xs: 'none', sm: 'flex' } // Esconde em telas muito pequenas
+                            }} 
+                        />
+                    )}
+                </Box>
 
                 <Box sx={{ flexGrow: 0 }}>
-                    {/* AQUI ESTÁ A CORREÇÃO NO ONCLICK */}
                     <IconButton color="inherit" onClick={handleLogout} title="Sair">
                         <LogoutIcon />
                     </IconButton>

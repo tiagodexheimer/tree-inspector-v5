@@ -1,32 +1,37 @@
+// src/app/api/dashboard/route.ts
 import { NextResponse } from 'next/server';
 import { auth } from "@/auth";
 import pool from "@/lib/db";
 
 export async function GET() {
     const session = await auth();
-    if (!session) {
-        return NextResponse.json({ message: "Não autenticado" }, { status: 401 });
+    // Verifica organizationId
+    if (!session || !session.user?.organizationId) {
+        return NextResponse.json({ message: "Não autenticado ou sem organização" }, { status: 401 });
     }
+
+    const orgId = session.user.organizationId;
 
     try {
         const client = await pool.connect();
-
         try {
-            // 1. Busca KPIs Gerais
-            // Contamos total, e usamos FILTER para contar status específicos numa única query
+            // [ALTERADO] Filtrando por organization_id
             const kpiQuery = `
                 SELECT 
                     COUNT(*) as total,
-                    COUNT(*) FILTER (WHERE id_status = (SELECT id FROM demandas_status WHERE nome = 'Pendente' LIMIT 1)) as pendentes,
-                    COUNT(*) FILTER (WHERE id_status = (SELECT id FROM demandas_status WHERE nome = 'Concluído' LIMIT 1)) as concluidas
-                FROM demandas;
+                    COUNT(*) FILTER (WHERE id_status = (SELECT id FROM demandas_status WHERE nome = 'Pendente' AND organization_id = $1 LIMIT 1)) as pendentes,
+                    COUNT(*) FILTER (WHERE id_status = (SELECT id FROM demandas_status WHERE nome = 'Concluído' AND organization_id = $1 LIMIT 1)) as concluidas
+                FROM demandas
+                WHERE organization_id = $1;
             `;
-            const kpiRes = await client.query(kpiQuery);
+            const kpiRes = await client.query(kpiQuery, [orgId]);
             
-            // Contagem de rotas
-            const rotasRes = await client.query('SELECT COUNT(*) as total FROM rotas');
+            const rotasRes = await client.query(
+                'SELECT COUNT(*) as total FROM rotas WHERE organization_id = $1', 
+                [orgId]
+            );
 
-            // 2. Busca Distribuição por Status para o Gráfico
+            // [ALTERADO] Query do gráfico filtrada
             const chartQuery = `
                 SELECT 
                     s.nome as name, 
@@ -34,10 +39,11 @@ export async function GET() {
                     COUNT(d.id) as value
                 FROM demandas d
                 JOIN demandas_status s ON d.id_status = s.id
+                WHERE d.organization_id = $1 
                 GROUP BY s.nome, s.cor
                 ORDER BY value DESC
             `;
-            const chartRes = await client.query(chartQuery);
+            const chartRes = await client.query(chartQuery, [orgId]);
 
             const data = {
                 kpis: {

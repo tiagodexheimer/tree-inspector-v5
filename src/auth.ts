@@ -62,26 +62,25 @@ export const authConfig: NextAuthConfig = {
 
   // Callbacks: Essenciais para a propagação correta do ROLE e dados Multi-tenant
   callbacks: {
-    async jwt({ token, user }) {
-      if (user) {
-        token.id = user.id;
-        token.role = user.role;
-        // [NOVO] Adiciona dados da organização ao token
-        token.organizationId = (user as any).organization_id;
-        token.planType = (user as any).plan_type;
-      }
-      return token;
-    },
-    async session({ session, token }) {
-      if (token && session.user) {
-        session.user.id = token.id as string;
-        session.user.role = token.role as any;
-        // [NOVO] Disponibiliza na sessão
-        (session.user as any).organizationId = token.organizationId;
-        (session.user as any).planType = token.planType;
-      }
-      return session;
-    },
+  async jwt({ token, user }) {
+    if (user) {
+      token.id = user.id;
+      token.role = user.role as any;
+      token.organizationId = user.organizationId;
+      token.organizationName = user.organizationName; // [NOVO]
+    }
+    return token;
+  },
+  async session({ session, token }) {
+    if (token && session.user) {
+      session.user.id = token.id as string;
+      session.user.role = token.role as any;
+      session.user.organizationId = token.organizationId as string;
+      session.user.organizationName = token.organizationName as string; // [NOVO]
+    }
+    return session;
+  },
+
 
     /**
      * 3. Authorized Callback (Middleware de Proteção de Rotas)

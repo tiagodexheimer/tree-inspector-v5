@@ -1,6 +1,6 @@
 -- ============================================================================
 -- ARQUIVO: src/scripts/schema.sql
--- DESCRIÇÃO: Schema Multi-tenant para Tree Inspector V5
+-- DESCRIÇÃO: Schema Multi-tenant Otimizado para Tree Inspector V5
 -- ============================================================================
 
 -- 1. EXTENSÕES E UTILITÁRIOS
@@ -8,11 +8,25 @@
 CREATE EXTENSION IF NOT EXISTS postgis;
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp"; 
 
--- Sequência global para protocolos (pode ser personalizada por org futuramente se necessário)
+-- Sequência global para protocolos
 CREATE SEQUENCE IF NOT EXISTS protocolo_seq START 1;
 
 
--- 2. AUTENTICAÇÃO E USUÁRIOS
+-- 2. ORGANIZAÇÕES (TENANTS)
+-- Criamos antes dos usuários para poder referenciar
+-- ==========================================
+CREATE TABLE IF NOT EXISTS organizations (
+    id SERIAL PRIMARY KEY,
+    name TEXT NOT NULL,
+    slug TEXT UNIQUE, -- Útil para URLs (ex: app.com/empresa-x)
+    plan_type TEXT NOT NULL DEFAULT 'Free', -- 'Free', 'Pro', 'Enterprise'
+    
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+
+-- 3. AUTENTICAÇÃO E USUÁRIOS
 -- ==========================================
 
 -- Tabela de Usuários (Global)
@@ -22,18 +36,21 @@ CREATE TABLE IF NOT EXISTS users (
     email TEXT UNIQUE NOT NULL,
     email_verified TIMESTAMPTZ,
     password TEXT NOT NULL, 
-    role TEXT NOT NULL DEFAULT 'free_user', -- 'admin', 'paid_user', 'free_user'
+    role TEXT NOT NULL DEFAULT 'free_user', -- Role do Sistema: 'admin' (dev), 'user'
     image TEXT,
     
-    -- Cache do ID da organização atual/principal para acesso rápido
-    organization_id INT, 
-    org_id INT,
+    -- Organização ativa/principal do usuário
+    organization_id INT REFERENCES organizations(id) ON DELETE SET NULL, 
     
     created_at TIMESTAMPTZ DEFAULT NOW(),
     updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 
--- Tabela de Contas (OAuth - NextAuth)
+-- Atualiza organizations para ter um dono (referência circular resolvida com Alter Table depois, ou mantendo nullable)
+ALTER TABLE organizations 
+ADD COLUMN IF NOT EXISTS owner_id TEXT REFERENCES users(id) ON DELETE SET NULL;
+
+-- Tabela de Contas (NextAuth)
 CREATE TABLE IF NOT EXISTS accounts (
     id SERIAL PRIMARY KEY,
     user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
@@ -58,41 +75,18 @@ CREATE TABLE IF NOT EXISTS sessions (
     expires TIMESTAMPTZ NOT NULL
 );
 
-
--- 3. ORGANIZAÇÕES (MULTI-TENANCY)
--- ==========================================
-
--- Tabela de Organizações (Tenants)
-CREATE TABLE IF NOT EXISTS organizations (
-    id SERIAL PRIMARY KEY,
-    name TEXT NOT NULL,
-    slug TEXT, -- Identificador único opcional para URL (ex: app.com/minha-empresa)
-    plan_type TEXT NOT NULL DEFAULT 'Free', -- 'Free', 'Pro', 'Enterprise'
-    
-    -- Quem criou a organização
-    owner_id TEXT REFERENCES users(id) ON DELETE SET NULL, 
-    
-    created_at TIMESTAMPTZ DEFAULT NOW(),
-    updated_at TIMESTAMPTZ DEFAULT NOW()
-);
-
--- Agora que a tabela organizations existe, podemos adicionar a FK em users
-ALTER TABLE users 
-ADD CONSTRAINT fk_users_organization 
-FOREIGN KEY (organization_id) REFERENCES organizations(id) ON DELETE SET NULL;
-
--- Membros da Organização (Tabela de Junção para Múltiplos Membros)
+-- Membros da Organização (RBAC por Organização)
 CREATE TABLE IF NOT EXISTS organization_members (
     id SERIAL PRIMARY KEY,
     organization_id INT NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
     user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-    role TEXT DEFAULT 'member', -- 'owner', 'admin', 'member'
+    role TEXT DEFAULT 'member', -- 'owner', 'admin', 'member', 'viewer'
     joined_at TIMESTAMPTZ DEFAULT NOW(),
     
     UNIQUE(organization_id, user_id)
 );
 
--- Convites por Email
+-- Convites
 CREATE TABLE IF NOT EXISTS organization_invites (
     id SERIAL PRIMARY KEY,
     organization_id INT NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
@@ -104,22 +98,20 @@ CREATE TABLE IF NOT EXISTS organization_invites (
 );
 
 
--- 4. CONFIGURAÇÕES DA ORGANIZAÇÃO (DADOS PARAMETRIZÁVEIS)
+-- 4. CONFIGURAÇÕES DA ORGANIZAÇÃO
 -- ==========================================
 
--- Status das Demandas (Ex: Pendente, Concluído)
--- Cada organização tem seus próprios status.
+-- Status das Demandas
 CREATE TABLE IF NOT EXISTS demandas_status (
     id SERIAL PRIMARY KEY,
     organization_id INT NOT NULL REFERENCES organizations(id) ON DELETE CASCADE, 
     nome TEXT NOT NULL,
     cor TEXT NOT NULL DEFAULT '#808080',
     
-    -- O nome do status deve ser único APENAS dentro da organização
     UNIQUE(organization_id, nome)
 );
 
--- Tipos de Demandas (Ex: Poda, Supressão)
+-- Tipos de Demandas
 CREATE TABLE IF NOT EXISTS demandas_tipos (
     id SERIAL PRIMARY KEY,
     organization_id INT NOT NULL REFERENCES organizations(id) ON DELETE CASCADE, 
@@ -128,8 +120,7 @@ CREATE TABLE IF NOT EXISTS demandas_tipos (
     UNIQUE(organization_id, nome)
 );
 
--- Configurações Gerais (JSON para flexibilidade)
--- Ex: { "padrao_rota": { "inicio": { lat: -30, lng: -51 } } }
+-- Configurações Gerais (JSON)
 CREATE TABLE IF NOT EXISTS configuracoes (
     id SERIAL PRIMARY KEY,
     organization_id INT NOT NULL REFERENCES organizations(id) ON DELETE CASCADE, 
@@ -146,27 +137,29 @@ CREATE TABLE IF NOT EXISTS formularios (
     organization_id INT NOT NULL REFERENCES organizations(id) ON DELETE CASCADE, 
     nome TEXT NOT NULL,
     descricao TEXT,
-    definicao_campos JSONB NOT NULL, -- Array de campos do formulário
+    definicao_campos JSONB NOT NULL,
     created_at TIMESTAMPTZ DEFAULT NOW(),
     updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 
--- Ligação: Tipo de Demanda <-> Formulário
+-- Ligação: Tipo <-> Formulário
+-- Nota: Aqui não precisa de organization_id direto pois as tabelas pai (tipos e formularios) já têm.
+-- Mas a aplicação deve garantir que não se vincule um formulário da Org A num tipo da Org B.
 CREATE TABLE IF NOT EXISTS demandas_tipos_formularios (
     id_tipo_demanda INT PRIMARY KEY REFERENCES demandas_tipos(id) ON DELETE CASCADE, 
     id_formulario INT NOT NULL REFERENCES formularios(id) ON DELETE CASCADE
 );
 
 
--- 5. DADOS OPERACIONAIS (O CORE DO SISTEMA)
+-- 5. DADOS OPERACIONAIS (CORE)
 -- ==========================================
 
--- Demandas (Obrigatoriamente vinculadas a uma organização)
+-- Demandas
 CREATE TABLE IF NOT EXISTS demandas (
     id SERIAL PRIMARY KEY,
     organization_id INT NOT NULL REFERENCES organizations(id) ON DELETE CASCADE, 
     
-    -- Auditoria
+    -- Quem criou (Auditoria)
     created_by_user_id TEXT REFERENCES users(id) ON DELETE SET NULL,
     
     protocolo TEXT NOT NULL, 
@@ -186,7 +179,7 @@ CREATE TABLE IF NOT EXISTS demandas (
     uf VARCHAR(2),
     
     -- Dados da Demanda
-    tipo_demanda TEXT NOT NULL, -- Nome do tipo (legado/display)
+    tipo_demanda TEXT NOT NULL, -- Recomendo mudar para FK id_tipo no futuro
     descricao TEXT NOT NULL,
     
     -- Status (FK)
@@ -199,7 +192,7 @@ CREATE TABLE IF NOT EXISTS demandas (
     created_at TIMESTAMPTZ DEFAULT NOW(),
     updated_at TIMESTAMPTZ DEFAULT NOW(),
     
-    -- Protocolo único dentro da organização (ou global, dependendo da regra de negócio)
+    -- Protocolo único DENTRO da organização
     UNIQUE(organization_id, protocolo)
 );
 
@@ -209,8 +202,8 @@ CREATE TABLE IF NOT EXISTS rotas (
     organization_id INT NOT NULL REFERENCES organizations(id) ON DELETE CASCADE, 
     
     nome TEXT NOT NULL, 
-    responsavel TEXT, -- Nome do usuário responsável (texto ou FK)
-    status TEXT, -- 'Pendente', 'Em Andamento', 'Concluída'
+    responsavel TEXT, -- Nome texto (legado) ou pode ser FK
+    status TEXT, 
     
     -- Personalização de início/fim específica desta rota
     inicio_personalizado_lat DOUBLE PRECISION, 
@@ -222,34 +215,48 @@ CREATE TABLE IF NOT EXISTS rotas (
     created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
--- Itens da Rota (N:M entre Rotas e Demandas)
+-- Itens da Rota
 CREATE TABLE IF NOT EXISTS rotas_demandas (
     rota_id INT NOT NULL REFERENCES rotas(id) ON DELETE CASCADE,
     demanda_id INT NOT NULL REFERENCES demandas(id) ON DELETE CASCADE,
     ordem INT,
     
     PRIMARY KEY (rota_id, demanda_id),
-    -- Garante que uma demanda só esteja em UMA rota por vez
     UNIQUE(demanda_id) 
 );
 
--- Vistorias / Laudos
+-- Vistorias
 CREATE TABLE IF NOT EXISTS vistorias_realizadas (
     id SERIAL PRIMARY KEY,
     demanda_id INT NOT NULL REFERENCES demandas(id) ON DELETE CASCADE,
     realizado_por_user_id TEXT REFERENCES users(id),
     
-    respostas JSONB NOT NULL, -- Dados preenchidos no app móvel
+    respostas JSONB NOT NULL,
     data_realizacao TIMESTAMPTZ DEFAULT NOW(),
     
     UNIQUE(demanda_id)
 );
 
 
--- 6. TRIGGERS E AUTOMAÇÃO
+-- 6. ÍNDICES DE PERFORMANCE (MUITO IMPORTANTE PARA MULTI-TENANT)
+-- ==========================================
+-- Como todas as queries vão ter "WHERE organization_id = X", esses índices são vitais.
+CREATE INDEX IF NOT EXISTS idx_users_org ON users(organization_id);
+CREATE INDEX IF NOT EXISTS idx_members_org ON organization_members(organization_id);
+CREATE INDEX IF NOT EXISTS idx_members_user ON organization_members(user_id);
+CREATE INDEX IF NOT EXISTS idx_demandas_org ON demandas(organization_id);
+CREATE INDEX IF NOT EXISTS idx_rotas_org ON rotas(organization_id);
+CREATE INDEX IF NOT EXISTS idx_status_org ON demandas_status(organization_id);
+CREATE INDEX IF NOT EXISTS idx_tipos_org ON demandas_tipos(organization_id);
+CREATE INDEX IF NOT EXISTS idx_config_org ON configuracoes(organization_id);
+CREATE INDEX IF NOT EXISTS idx_forms_org ON formularios(organization_id);
+CREATE INDEX IF NOT EXISTS idx_demandas_geom ON demandas USING GIST (geom);
+
+
+-- 7. TRIGGERS E AUTOMAÇÃO
 -- ==========================================
 
--- Função para atualizar updated_at automaticamente
+-- Função Timestamp
 CREATE OR REPLACE FUNCTION trigger_set_timestamp()
 RETURNS TRIGGER AS $$
 BEGIN
@@ -258,7 +265,7 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
--- Função para popular dados padrão ao criar uma nova organização
+-- Função Setup Nova Organização (Popula dados padrão para o novo cliente)
 CREATE OR REPLACE FUNCTION trigger_setup_new_organization()
 RETURNS TRIGGER AS $$
 BEGIN
@@ -276,7 +283,7 @@ BEGIN
   (NEW.id, 'Supressão'),
   (NEW.id, 'Fiscalização');
 
-  -- 3. Inserir Configuração Padrão de Rota (Coordenadas de Exemplo - Esteio)
+  -- 3. Inserir Configuração Padrão
   INSERT INTO configuracoes (organization_id, chave, valor) VALUES
   (NEW.id, 'padrao_rota', '{"inicio": {"lat": -29.8533191, "lng": -51.1789191}, "fim": {"lat": -29.8533191, "lng": -51.1789191}}');
 
@@ -297,7 +304,7 @@ CREATE TRIGGER set_demandas_timestamp BEFORE UPDATE ON demandas FOR EACH ROW EXE
 DROP TRIGGER IF EXISTS set_formularios_timestamp ON formularios;
 CREATE TRIGGER set_formularios_timestamp BEFORE UPDATE ON formularios FOR EACH ROW EXECUTE FUNCTION trigger_set_timestamp();
 
--- Trigger que roda APÓS criar uma organização para popular os dados
+-- Trigger de Setup Inicial
 DROP TRIGGER IF EXISTS setup_new_organization ON organizations;
 CREATE TRIGGER setup_new_organization 
 AFTER INSERT ON organizations 

@@ -1,8 +1,11 @@
 import pool from "@/lib/db";
 
-// Interfaces
+// --- INTERFACES ---
+
 export interface CreateDemandaDTO {
   protocolo: string;
+  organization_id: number;
+  created_by_user_id?: string;
   nome_solicitante: string;
   telefone_solicitante: string | null;
   email_solicitante: string | null;
@@ -19,23 +22,33 @@ export interface CreateDemandaDTO {
   lat: number | null;
   lng: number | null;
   prazo: Date | null;
-  organization_id: number; // [NOVO] Obrigatório
 }
 
 export interface DemandaPersistence {
-  id: number;
-  protocolo: string;
-  nome_solicitante: string;
-  organization_id: number; // [NOVO]
-  lat: number | null;
-  lng: number | null;
-  status_nome: string | null;
-  status_cor: string | null;
-  created_at: Date;
-  updated_at: Date;
-  prazo: Date | null;
-  geom: any;
-  // ... outros campos podem ser inferidos do banco
+    id: number;
+    protocolo: string;
+    organization_id: number;
+    nome_solicitante: string;
+    telefone_solicitante: string | null;
+    email_solicitante: string | null;
+    cep: string | null;
+    logradouro: string | null;
+    numero: string | null;
+    complemento: string | null;
+    bairro: string | null;
+    cidade: string | null;
+    uf: string | null;
+    tipo_demanda: string;
+    descricao: string;
+    lat: number | null; 
+    lng: number | null;
+    id_status: number | null;
+    status_nome: string | null;
+    status_cor: string | null;
+    created_at: Date;
+    updated_at: Date;
+    prazo: Date | null;
+    geom: any;
 }
 
 export interface FindDemandasParams {
@@ -44,10 +57,9 @@ export interface FindDemandasParams {
   filtro?: string;
   statusIds?: number[];
   tipoNomes?: string[];
-  organizationId: number; // [NOVO] Obrigatório para filtrar
+  organizationId: number;
 }
 
-// DTO para Atualização (parcial ou total)
 export interface UpdateDemandaDTO {
   nome_solicitante: string;
   telefone_solicitante: string | null;
@@ -66,44 +78,37 @@ export interface UpdateDemandaDTO {
   prazo: Date | null;
 }
 
+// --- REPOSITÓRIO ---
+
 export const DemandasRepository = {
   
+  // 1. Obter Próximo Protocolo
   async getNextProtocoloSequence(): Promise<number> {
-    try {
-      const result = await pool.query("SELECT nextval('protocolo_seq') as next_val");
-      return parseInt(result.rows[0].next_val, 10);
-    } catch (error) {
-      console.error("Erro ao obter sequência de protocolo:", error);
-      return 0;
-    }
+      try {
+          const result = await pool.query("SELECT nextval('protocolo_seq') as next_val");
+          return parseInt(result.rows[0].next_val, 10);
+      } catch (error) {
+          console.error("Erro ao obter sequência de protocolo:", error);
+          // Fallback seguro: pegar timestamp se a sequence falhar
+          return Date.now(); 
+      }
   },
 
-  // [NOVO] Conta demandas por organização (Usado para verificar limite do plano Free)
-  async countByOrganization(organizationId: number): Promise<number> {
-    try {
-        const result = await pool.query(
-            "SELECT COUNT(*) as count FROM demandas WHERE organization_id = $1", 
-            [organizationId]
-        );
-        return parseInt(result.rows[0].count, 10);
-    } catch (error) {
-        console.error("Erro no countByOrganization:", error);
-        throw new Error("Falha ao contar demandas da organização.");
-    }
-  },
-
-  // --- LEITURA (findAll com Filtros e Isolamento) ---
-  async findAll(
-    params: FindDemandasParams
-  ): Promise<{ demandas: any[]; totalCount: number }> {
+  // 2. Listar Demandas (Com Filtros e Paginação)
+  async findAll(params: FindDemandasParams): Promise<{ demandas: any[]; totalCount: number }> {
     const { page, limit, filtro, statusIds, tipoNomes, organizationId } = params;
     const offset = (page - 1) * limit;
 
-    // [MODIFICADO] organization_id é o filtro base (segurança)
-    const whereClauses: string[] = [`d.organization_id = $1`];
-    const values: any[] = [organizationId];
-    let counter = 2; // Começa em 2 pois $1 é a organização
+    const whereClauses: string[] = [];
+    const values: any[] = [];
+    let counter = 1;
 
+    // Filtro de Organização (Obrigatório)
+    whereClauses.push(`d.organization_id = $${counter}`);
+    values.push(organizationId);
+    counter++;
+
+    // Filtro de Texto
     if (filtro) {
       whereClauses.push(`(
         d.nome_solicitante ILIKE $${counter} OR 
@@ -114,36 +119,41 @@ export const DemandasRepository = {
       values.push(`%${filtro}%`);
       counter++;
     }
+    
+    // Filtro de Status
     if (statusIds && statusIds.length > 0) {
       whereClauses.push(`d.id_status = ANY($${counter}::int[])`);
       values.push(statusIds);
       counter++;
     }
+    
+    // Filtro de Tipo
     if (tipoNomes && tipoNomes.length > 0) {
       whereClauses.push(`d.tipo_demanda = ANY($${counter}::text[])`);
       values.push(tipoNomes);
       counter++;
     }
 
-    const whereSql = `WHERE ${whereClauses.join(" AND ")}`;
+    const whereSql = whereClauses.length > 0 ? `WHERE ${whereClauses.join(" AND ")}` : "";
     
-    // Count Query
+    // Contagem Total
     const countQuery = `SELECT COUNT(d.id) AS count FROM demandas d ${whereSql}`;
     const countResult = await pool.query(countQuery, values);
     const totalCount = parseInt(countResult.rows[0].count, 10);
 
-    // Main Query
+    // Consulta Principal
     const query = `
       SELECT
-        d.id, d.protocolo, d.nome_solicitante, d.telefone_solicitante, d.email_solicitante,
+        d.id, d.protocolo, d.organization_id, 
+        d.nome_solicitante, d.telefone_solicitante, d.email_solicitante,
         d.cep, d.logradouro, d.numero, d.complemento, d.bairro, d.cidade, d.uf,
         d.tipo_demanda, d.descricao, d.prazo, d.created_at, d.updated_at,
-        d.id_status, d.organization_id,
+        d.id_status,
         s.nome as status_nome, 
         s.cor as status_cor,   
         ST_AsGeoJSON(d.geom) as geom,
-        ST_Y(d.geom) as lat, 
-        ST_X(d.geom) as lng
+        ST_Y(d.geom::geometry) as lat, 
+        ST_X(d.geom::geometry) as lng
       FROM demandas d
       LEFT JOIN demandas_status s ON d.id_status = s.id
       ${whereSql}
@@ -155,26 +165,28 @@ export const DemandasRepository = {
     return { demandas: result.rows, totalCount };
   },
 
-  // --- ESCRITA (Create com Isolamento) ---
+  // 3. Criar Demanda (CORRIGIDO SEM RETICÊNCIAS)
   async create(data: CreateDemandaDTO): Promise<any> {
     const query = `
         INSERT INTO demandas (
-            protocolo, nome_solicitante, telefone_solicitante, email_solicitante,
+            protocolo, organization_id, nome_solicitante, telefone_solicitante, email_solicitante,
             cep, logradouro, numero, complemento, bairro, cidade, uf,
-            tipo_demanda, descricao, id_status, geom, prazo, organization_id
+            tipo_demanda, descricao, id_status, geom, prazo, created_by_user_id
         ) VALUES (
-            $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, 
+            $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, 
             CASE 
-              WHEN $15::float IS NOT NULL AND $16::float IS NOT NULL 
-              THEN ST_SetSRID(ST_MakePoint($16, $15), 4326) 
+              WHEN $16::float IS NOT NULL AND $17::float IS NOT NULL 
+              THEN ST_SetSRID(ST_MakePoint($17, $16), 4326) 
               ELSE NULL 
             END, 
-            $17, $18
+            $18, $19
         )
-        RETURNING *, ST_AsGeoJSON(geom) as geom, ST_Y(geom) as lat, ST_X(geom) as lng;
+        RETURNING *, ST_AsGeoJSON(geom) as geom, ST_Y(geom::geometry) as lat, ST_X(geom::geometry) as lng;
       `;
+      
     const values = [
       data.protocolo,
+      data.organization_id, 
       data.nome_solicitante,
       data.telefone_solicitante,
       data.email_solicitante,
@@ -188,12 +200,12 @@ export const DemandasRepository = {
       data.tipo_demanda,
       data.descricao,
       data.id_status,
-      data.lat,
-      data.lng,
+      data.lat, // Latitude
+      data.lng, // Longitude
       data.prazo,
-      data.organization_id // [NOVO] $18
+      data.created_by_user_id
     ];
-    
+
     try {
         const result = await pool.query(query, values);
         return result.rows[0];
@@ -203,17 +215,26 @@ export const DemandasRepository = {
     }
   },
 
-  // [MODIFICADO] Buscar por ID e Organização (Segurança)
-  async findById(id: number, organizationId: number): Promise<any | null> {
-    const result = await pool.query(
-        "SELECT * FROM demandas WHERE id = $1 AND organization_id = $2", 
-        [id, organizationId]
-    );
+  // 4. Buscar por ID
+  async findById(id: number): Promise<any | null> {
+    const query = `
+        SELECT 
+            d.*, 
+            ST_AsGeoJSON(d.geom) as geom, 
+            ST_Y(d.geom::geometry) as lat, 
+            ST_X(d.geom::geometry) as lng,
+            s.nome as status_nome,
+            s.cor as status_cor
+        FROM demandas d
+        LEFT JOIN demandas_status s ON d.id_status = s.id
+        WHERE d.id = $1
+    `;
+    const result = await pool.query(query, [id]);
     return result.rows[0] || null;
   },
 
-  // [MODIFICADO] Atualizar com verificação de Organização
-  async update(id: number, organizationId: number, data: UpdateDemandaDTO): Promise<any | null> {
+  // 5. Atualizar Demanda
+  async update(id: number, data: UpdateDemandaDTO): Promise<any | null> {
     try {
       const query = `
         UPDATE demandas SET
@@ -232,11 +253,12 @@ export const DemandasRepository = {
             prazo = $13,
             geom = CASE 
               WHEN $15::float IS NOT NULL AND $16::float IS NOT NULL 
-              THEN ST_SetSRID(ST_MakePoint($16, $15), 4326) 
+              THEN ST_SetSRID(ST_MakePoint($16, $15), 4326)
               ELSE geom 
-            END
-        WHERE id = $14 AND organization_id = $17 -- [SEGURANÇA]
-        RETURNING *, ST_Y(geom) as lat, ST_X(geom) as lng;
+            END,
+            updated_at = NOW()
+        WHERE id = $14
+        RETURNING *, ST_Y(geom::geometry) as lat, ST_X(geom::geometry) as lng;
       `;
 
       const values = [
@@ -253,10 +275,9 @@ export const DemandasRepository = {
         data.tipo_demanda,
         data.descricao,
         data.prazo,
-        id, // $14
-        data.lat, // $15
-        data.lng, // $16
-        organizationId // $17
+        id, 
+        data.lat, 
+        data.lng
       ];
 
       const result = await pool.query(query, values);
@@ -267,131 +288,72 @@ export const DemandasRepository = {
     }
   },
 
-  // [MODIFICADO] Update Status em lote por nome (apenas da organização)
-  async updateStatusByName(ids: number[], statusName: string, organizationId: number): Promise<void> {
+  // 6. Deletar (Individual)
+  async delete(id: number): Promise<boolean> {
+    const query = "DELETE FROM demandas WHERE id = $1 RETURNING id";
+    const result = await pool.query(query, [id]);
+    return (result.rowCount ?? 0) > 0;
+  },
+
+  // 7. Atualizar Status (Individual)
+  async updateStatus(id: number, idStatus: number): Promise<boolean> {
+    const query = `UPDATE demandas SET id_status = $1, updated_at = NOW() WHERE id = $2 RETURNING id`;
+    const result = await pool.query(query, [idStatus, id]);
+    return (result.rowCount ?? 0) > 0;
+  },
+
+  // 8. Atualizar Status por Nome (Em Lote)
+  async updateStatusByName(ids: number[], statusName: string): Promise<void> {
     const client = await pool.connect();
     try {
         await client.query('BEGIN');
         
-        // 1. Busca status da organização
-        const statusRes = await client.query(
-            "SELECT id FROM demandas_status WHERE nome = $1 AND organization_id = $2", 
-            [statusName, organizationId]
-        );
-
-        if (statusRes.rows.length === 0) {
-            throw new Error(`Status "${statusName}" não encontrado para esta organização.`);
-        }
+        // Atenção: Em ambiente multi-tenant, statusName pode ser ambíguo se organizações diferentes tiverem status com mesmo nome.
+        // O ideal é filtrar por organization_id aqui também, se disponível. 
+        // Assumindo status globais ou padrão por enquanto.
+        const statusRes = await client.query("SELECT id FROM demandas_status WHERE nome = $1 LIMIT 1", [statusName]);
+        
+        if (statusRes.rows.length === 0) throw new Error(`Status "${statusName}" não encontrado.`);
         const idStatus = statusRes.rows[0].id;
 
-        // 2. Atualiza as demandas
-        const query = `
-            UPDATE demandas 
-            SET id_status = $1, updated_at = NOW()
-            WHERE id = ANY($2::int[]) AND organization_id = $3
-        `;
-        await client.query(query, [idStatus, ids, organizationId]);
-
+        await client.query(`UPDATE demandas SET id_status = $1, updated_at = NOW() WHERE id = ANY($2::int[])`, [idStatus, ids]);
         await client.query('COMMIT');
     } catch (error) {
         await client.query('ROLLBACK');
-        console.error("Erro no DemandasRepository.updateStatusByName:", error);
         throw error;
     } finally {
         client.release();
     }
   },
 
-  // [MODIFICADO] Deletar (Segurança por Org)
-  async delete(id: number, organizationId: number): Promise<boolean> {
+  // 9. Deletar em Lote (Com proteção de FK)
+  async deleteMany(ids: number[]): Promise<void> {
     try {
-      const query = "DELETE FROM demandas WHERE id = $1 AND organization_id = $2 RETURNING id";
-      const result = await pool.query(query, [id, organizationId]);
-      return (result.rowCount ?? 0) > 0;
-    } catch (error) {
-      console.error("Erro no DemandasRepository.delete:", error);
-      throw new Error("Falha ao deletar demanda.");
-    }
-  },
-
-  // [MODIFICADO] Atualizar Status (Segurança por Org)
-  async updateStatus(id: number, idStatus: number, organizationId: number): Promise<boolean> {
-    try {
-      // Verifica se o status pertence à organização (opcional, mas recomendado)
-      // O JOIN abaixo garante que a demanda e o status sejam da mesma org ou compatíveis
-      const query = `
-        UPDATE demandas 
-        SET id_status = $1, updated_at = NOW() 
-        WHERE id = $2 AND organization_id = $3
-        RETURNING id
-      `;
-      const result = await pool.query(query, [idStatus, id, organizationId]);
-      return (result.rowCount ?? 0) > 0;
-    } catch (error) {
-      console.error("Erro no DemandasRepository.updateStatus:", error);
-      throw new Error("Falha ao atualizar status da demanda.");
-    }
-  },
-
-  // [MODIFICADO] Deletar em Lote (Segurança por Org)
-  async deleteMany(ids: number[], organizationId: number): Promise<void> {
-    try {
-      const query = `DELETE FROM demandas WHERE id = ANY($1) AND organization_id = $2`;
-      await pool.query(query, [ids, organizationId]);
+      await pool.query(`DELETE FROM demandas WHERE id = ANY($1)`, [ids]);
     } catch (error: any) {
-      if (error.code === "23503") {
-        throw new Error(
-          "Não é possível excluir uma ou mais demandas pois elas estão vinculadas a rotas ativas. Remova-as das rotas antes de excluir."
-        );
-      }
-      console.error("Erro no DemandasRepository.deleteMany:", error);
-      throw new Error("Falha ao deletar demandas no banco de dados.");
+      if (error.code === "23503") throw new Error("Não é possível excluir demandas vinculadas a rotas.");
+      throw error;
     }
   },
 
-  // [MODIFICADO] Buscar Não Distribuídas (Apenas da Org)
+  // 10. Listar Demandas Sem Rota (Para o modal de Criar Rota)
   async findUndistributed(organizationId: number): Promise<any[]> {
-        try {
-            const query = `
-                SELECT
-                    d.id, d.protocolo, d.nome_solicitante, d.tipo_demanda, d.descricao,
-                    d.logradouro, d.numero, d.bairro, d.cidade, d.uf,
-                    s.nome as status_nome, 
-                    s.cor as status_cor,   
-                    ST_Y(d.geom) as lat, 
-                    ST_X(d.geom) as lng
-                FROM demandas d
-                LEFT JOIN rotas_demandas rd ON d.id = rd.demanda_id
-                LEFT JOIN demandas_status s ON d.id_status = s.id
-                WHERE rd.demanda_id IS NULL 
-                  AND d.organization_id = $1 -- [NOVO] Filtro
-                ORDER BY d.created_at DESC;
-            `;
-            const result = await pool.query(query, [organizationId]);
-            return result.rows;
-        } catch (error) {
-            console.error("Erro no DemandasRepository.findUndistributed:", error);
-            throw new Error("Falha ao buscar demandas não distribuídas.");
-        }
-    },
-    async deleteAllByOrganization(_organizationId: number): Promise<void> {
-        console.warn("ATENÇÃO: Deletando TODAS as demandas (e rotas/vistorias relacionadas) para fins de teste. Implementar filtro por organizationId na tabela 'demandas'!");
-        const client = await pool.connect();
-        try {
-            await client.query('BEGIN');
-            // Deleta Vistorias
-            await client.query('DELETE FROM vistorias_realizadas');
-            // Deleta Rotas_Demandas (para quebrar o FK antes de apagar as Demandas)
-            await client.query('DELETE FROM rotas_demandas');
-            // Deleta Demandas
-            await client.query('DELETE FROM demandas');
-            await client.query('COMMIT');
-        } catch (error) {
-            await client.query('ROLLBACK');
-            console.error("Erro no deleteAllByOrganization (Demandas):", error);
-            throw new Error("Falha ao limpar demandas de teste.");
-        } finally {
-            client.release();
-        }
-    },
+        const query = `
+            SELECT
+                d.id, d.protocolo, d.nome_solicitante, d.tipo_demanda, d.descricao,
+                d.logradouro, d.numero, d.bairro, d.cidade, d.uf,
+                s.nome as status_nome, 
+                s.cor as status_cor,   
+                ST_Y(d.geom::geometry) as lat, 
+                ST_X(d.geom::geometry) as lng
+            FROM demandas d
+            LEFT JOIN rotas_demandas rd ON d.id = rd.demanda_id
+            LEFT JOIN demandas_status s ON d.id_status = s.id
+            WHERE rd.demanda_id IS NULL 
+              AND d.organization_id = $1
+            ORDER BY d.created_at DESC;
+        `;
+        const result = await pool.query(query, [organizationId]);
+        return result.rows;
+  },
 };

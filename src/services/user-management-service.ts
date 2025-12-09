@@ -51,12 +51,48 @@ export class UserManagementService {
     });
   }
 
-  async registerUser(input: {
-    name?: string;
-    email: string;
-    password: string;
-  }) {
-    return this.createUser({ ...input, role: "free_user" });
+  async registerUser(input: { name?: string; email: string; password: string }) {
+    const client = await pool.connect();
+    
+    try {
+      await client.query('BEGIN');
+
+      // 1. Verifica duplicidade
+      const existingRes = await client.query('SELECT id FROM users WHERE email = $1', [input.email]);
+      if (existingRes.rows.length > 0) {
+        throw new Error("Email já cadastrado.");
+      }
+
+      // 2. Cria a Organização
+      const orgName = input.name ? `${input.name} Org` : 'Minha Organização';
+      const orgRes = await client.query(
+        'INSERT INTO organizations (name) VALUES ($1) RETURNING id',
+        [orgName]
+      );
+      const newOrgId = orgRes.rows[0].id;
+
+      // 3. Cria o Usuário vinculado
+      const passwordHash = await hash(input.password, 10);
+      const userRes = await client.query(`
+        INSERT INTO users (id, name, email, password, role, organization_id) 
+        VALUES (gen_random_uuid(), $1, $2, $3, 'free_user', $4) 
+        RETURNING id, name, email, role, organization_id as "organizationId"
+      `, [input.name, input.email, passwordHash, newOrgId]);
+
+      // 4. (Opcional) Define o usuário como dono da organização
+      // await client.query('UPDATE organizations SET owner_id = $1 WHERE id = $2', [userRes.rows[0].id, newOrgId]);
+
+      await client.query('COMMIT');
+      
+      return userRes.rows[0];
+
+    } catch (error) {
+      await client.query('ROLLBACK');
+      console.error("Erro no registro:", error);
+      throw error; 
+    } finally {
+      client.release();
+    }
   }
 }
 
