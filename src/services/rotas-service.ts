@@ -3,7 +3,7 @@ import {
   RotaPersistence,
   UpdateRotaDTO,
 } from "@/repositories/rotas-repository";
-import { ConfiguracoesRepository } from "@/repositories/configuracoes-repository"; // [NOVO] Import
+import { ConfiguracoesRepository } from "@/repositories/configuracoes-repository";
 import * as XLSX from "xlsx";
 import { format } from "date-fns";
 
@@ -11,9 +11,10 @@ interface CreateRotaInput {
   nome: string;
   responsavel: string;
   demandas: { id: number }[];
-  // [NOVO]
   inicio_personalizado?: { lat: number; lng: number };
   fim_personalizado?: { lat: number; lng: number };
+  organizationId: number;
+  planType?: string; // [NOVO] Adicionado para controle de limites
 }
 
 // Coordenadas de fallback caso não haja nada no banco (Último recurso)
@@ -22,116 +23,161 @@ const DEFAULT_FALLBACK_COORDS = {
   longitude: -51.1789191,
 };
 
-const ROTAS_LIMIT_FREE = 1;
-
 export class RotasService {
-  async listRotas() {
-    return await RotasRepository.findAll();
+  // Aceita organizationId para filtrar a lista
+  async listRotas(organizationId: number) {
+    return await RotasRepository.findAll(organizationId);
   }
 
-  async createRota(data: CreateRotaDTO, organizationId: number, planType: 'free' | 'pro'): Promise<any> {
-        
-        // 1. [CRÍTICO] Implementação do Limite para Plano Free
-        if (planType === 'free') {
-            // Conta quantas rotas existem
-            const countResult = await RotasRepository.countAllByOrganization(organizationId); // [NOVO REPOSITÓRIO]
-            
-            if (countResult >= ROTAS_LIMIT_FREE) {
-                throw new Error(`Limite de ${ROTAS_LIMIT_FREE} rota atingido para o plano Free.`);
-            }
-        }
-        
-        // 2. Continua com a lógica normal
-        const newRota = await RotasRepository.create(data, organizationId); // [ATUALIZADO] Passa organizationId
+  async createRota(input: CreateRotaInput) {
+    if (!input.nome || input.nome.trim() === "")
+      throw new Error("O nome da rota é obrigatório.");
+    if (!input.responsavel || input.responsavel.trim() === "")
+      throw new Error("O responsável é obrigatório.");
+    if (!input.demandas || input.demandas.length === 0)
+      throw new Error("A rota deve conter pelo menos uma demanda.");
 
-        return newRota;
+    // [CORREÇÃO] Define o planType (padrão 'Free' se não vier)
+    const planType = input.planType || "Free";
+
+    // [NOVO] Verificação de limite de rotas para plano Free
+    if (planType === "Free") {
+      // Conta quantas rotas a organização já tem
+      const currentCount = await RotasRepository.countAllByOrganization(
+        input.organizationId
+      );
+      // Se já tiver 1 ou mais, bloqueia. (Limite = 1 rota)
+      if (currentCount >= 1) {
+        throw new Error("Limite de 1 rota atingido para o plano Free.");
+      }
     }
 
-  async getRotaDetails(id: number) {
-    const rota = await RotasRepository.findById(id);
+    const demandasComOrdem = input.demandas.map((d, index) => ({
+      id: d.id,
+      ordem: index,
+    }));
+
+    return await RotasRepository.create({
+      nome: input.nome.trim(),
+      responsavel: input.responsavel.trim(),
+      status: "Pendente",
+      demandas: demandasComOrdem,
+      inicio_personalizado: input.inicio_personalizado || null,
+      fim_personalizado: input.fim_personalizado || null,
+      organization_id: input.organizationId,
+    });
+  }
+
+  async getRotaDetails(id: number, organizationId: number) {
+    const rota = await RotasRepository.findById(id, organizationId);
     if (!rota) return null;
 
-    const demandas = await RotasRepository.findDemandasByRotaId(id);
-    
+    const demandas = await RotasRepository.findDemandasByRotaId(
+      id,
+      organizationId
+    );
+
     // 1. Busca configuração global
     const configGlobal = await ConfiguracoesRepository.getRotaConfig();
 
     // 2. Define prioridade: Personalizado Rota > Global > Fallback
-    const r = rota as any; 
-    
+    const r = rota as any;
+
     // Verifica se existem valores numéricos (0 é válido)
-    const hasPersonalStart = r.inicio_personalizado_lat !== null && r.inicio_personalizado_lat !== undefined;
-    const hasPersonalEnd = r.fim_personalizado_lat !== null && r.fim_personalizado_lat !== undefined;
+    const hasPersonalStart =
+      r.inicio_personalizado_lat !== null &&
+      r.inicio_personalizado_lat !== undefined;
+    const hasPersonalEnd =
+      r.fim_personalizado_lat !== null && r.fim_personalizado_lat !== undefined;
 
     const startPoint = {
-        latitude: hasPersonalStart ? r.inicio_personalizado_lat : (configGlobal?.inicio.lat || DEFAULT_FALLBACK_COORDS.latitude),
-        longitude: hasPersonalStart ? r.inicio_personalizado_lng : (configGlobal?.inicio.lng || DEFAULT_FALLBACK_COORDS.longitude)
+      latitude: hasPersonalStart
+        ? r.inicio_personalizado_lat
+        : configGlobal?.inicio.lat || DEFAULT_FALLBACK_COORDS.latitude,
+      longitude: hasPersonalStart
+        ? r.inicio_personalizado_lng
+        : configGlobal?.inicio.lng || DEFAULT_FALLBACK_COORDS.longitude,
     };
 
     const endPoint = {
-        latitude: hasPersonalEnd ? r.fim_personalizado_lat : (configGlobal?.fim.lat || DEFAULT_FALLBACK_COORDS.latitude),
-        longitude: hasPersonalEnd ? r.fim_personalizado_lng : (configGlobal?.fim.lng || DEFAULT_FALLBACK_COORDS.longitude)
+      latitude: hasPersonalEnd
+        ? r.fim_personalizado_lat
+        : configGlobal?.fim.lat || DEFAULT_FALLBACK_COORDS.latitude,
+      longitude: hasPersonalEnd
+        ? r.fim_personalizado_lng
+        : configGlobal?.fim.lng || DEFAULT_FALLBACK_COORDS.longitude,
     };
 
     let encodedPolyline: string | null = null;
     const apiKey = process.env.GOOGLE_MAPS_API_KEY;
-    
+
     const demandasComGeom = demandas.filter((d: any) => d.lat && d.lng);
 
     if (demandasComGeom.length > 0 && apiKey) {
-        try {
-            const requestBody = {
-                origin: { location: { latLng: startPoint } },
-                destination: { location: { latLng: endPoint } },
-                intermediates: demandasComGeom.map((d: any) => ({
-                    location: { latLng: { latitude: d.lat, longitude: d.lng } }
-                })),
-                travelMode: 'DRIVE',
-                routingPreference: 'TRAFFIC_AWARE',
-                optimizeWaypointOrder: false 
-            };
+      try {
+        const requestBody = {
+          origin: { location: { latLng: startPoint } },
+          destination: { location: { latLng: endPoint } },
+          intermediates: demandasComGeom.map((d: any) => ({
+            location: { latLng: { latitude: d.lat, longitude: d.lng } },
+          })),
+          travelMode: "DRIVE",
+          routingPreference: "TRAFFIC_AWARE",
+          optimizeWaypointOrder: false,
+        };
 
-            const response = await fetch('https://routes.googleapis.com/directions/v2:computeRoutes', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'X-Goog-Api-Key': apiKey,
-                    'X-Goog-FieldMask': 'routes.polyline'
-                },
-                body: JSON.stringify(requestBody)
-            });
+        const response = await fetch(
+          "https://routes.googleapis.com/directions/v2:computeRoutes",
+          {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              "X-Goog-Api-Key": apiKey,
+              "X-Goog-FieldMask": "routes.polyline",
+            },
+            body: JSON.stringify(requestBody),
+          }
+        );
 
-            const data = await response.json();
-            if (response.ok && data.routes && data.routes.length > 0 && data.routes[0].polyline) {
-                encodedPolyline = data.routes[0].polyline.encodedPolyline;
-            }
-        } catch (error) {
-            console.error(`[RotasService] Erro Google API rota ${id}:`, error);
+        const data = await response.json();
+        if (
+          response.ok &&
+          data.routes &&
+          data.routes.length > 0 &&
+          data.routes[0].polyline
+        ) {
+          encodedPolyline = data.routes[0].polyline.encodedPolyline;
         }
+      } catch (error) {
+        console.error(`[RotasService] Erro Google API rota ${id}:`, error);
+      }
     }
-    
-    // [CORREÇÃO] Retorna os pontos usados para o frontend desenhar os pinos
+
     return { rota, demandas, encodedPolyline, startPoint, endPoint };
   }
 
-  async updateRota(id: number, input: UpdateRotaDTO) {
+  async updateRota(id: number, input: UpdateRotaDTO, organizationId: number) {
     if (!input.nome || input.nome.trim() === "")
       throw new Error("Nome é obrigatório.");
     if (!input.responsavel || input.responsavel.trim() === "")
       throw new Error("Responsável é obrigatório.");
 
-    const updated = await RotasRepository.update(id, input);
+    const updated = await RotasRepository.update(id, input, organizationId);
     if (!updated) throw new Error("Rota não encontrada para atualização.");
     return updated;
   }
 
-  async deleteRota(id: number) {
-    const success = await RotasRepository.delete(id);
+  async deleteRota(id: number, organizationId: number) {
+    const success = await RotasRepository.delete(id, organizationId);
     if (!success) throw new Error("Rota não encontrada para exclusão.");
   }
 
-  async reorderDemandas(rotaId: number, demandasIds: { id: number }[]) {
-    const rota = await RotasRepository.findById(rotaId);
+  async reorderDemandas(
+    rotaId: number,
+    demandasIds: { id: number }[],
+    organizationId: number
+  ) {
+    const rota = await RotasRepository.findById(rotaId, organizationId);
     if (!rota) throw new Error("Rota não encontrada.");
 
     const demandasComOrdem = demandasIds.map((d, index) => ({
@@ -139,13 +185,18 @@ export class RotasService {
       ordem: index,
     }));
 
-    await RotasRepository.reorderDemandas(rotaId, demandasComOrdem);
+    await RotasRepository.reorderDemandas(
+      rotaId,
+      demandasComOrdem,
+      organizationId
+    );
   }
 
   async generateExport(
-    id: number
+    id: number,
+    organizationId: number
   ): Promise<{ buffer: Buffer; filename: string }> {
-    const data = await RotasRepository.findExportData(id);
+    const data = await RotasRepository.findExportData(id, organizationId);
     if (!data) throw new Error("Rota não encontrada para exportação.");
 
     const { rotaNome, demandas } = data;
@@ -198,11 +249,18 @@ export class RotasService {
     return { buffer, filename: `Rota_${id}_${safeName}.xlsx` };
   }
 
-  async addDemandasToRota(rotaId: number, demandaIds: number[]) {
-    const rota = await RotasRepository.findById(rotaId);
+  async addDemandasToRota(
+    rotaId: number,
+    demandaIds: number[],
+    organizationId: number
+  ) {
+    const rota = await RotasRepository.findById(rotaId, organizationId);
     if (!rota) throw new Error("Rota não encontrada.");
 
-    const currentDemandas = await RotasRepository.findDemandasByRotaId(rotaId);
+    const currentDemandas = await RotasRepository.findDemandasByRotaId(
+      rotaId,
+      organizationId
+    );
     let maxOrder = currentDemandas.reduce(
       (max: number, d: any) => Math.max(max, d.ordem),
       -1
@@ -213,9 +271,13 @@ export class RotasService {
       ordem: ++maxOrder,
     }));
 
-    await RotasRepository.addDemandasToRota(rotaId, newDemandasWithOrder);
+    await RotasRepository.addDemandasToRota(
+      rotaId,
+      newDemandasWithOrder,
+      organizationId
+    );
 
-    return await RotasRepository.findDemandasByRotaId(rotaId);
+    return await RotasRepository.findDemandasByRotaId(rotaId, organizationId);
   }
 }
 

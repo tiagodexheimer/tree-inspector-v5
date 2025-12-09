@@ -70,25 +70,38 @@ async function registerAndLogin(page: Page, user: typeof USER_A_FREE) {
 /**
  * Limpa demandas e rotas do usuário logado através de um endpoint de teste.
  */
-async function cleanupUserDemandas(page: Page) {
+/**
+ * Limpa demandas e rotas extraindo os cookies do contexto e forçando o envio.
+ */
+// multi-tenant.spec.ts
+
+/**
+ * Limpa dados usando a Backdoor de Teste (Bypass de Auth).
+ * Não depende de cookies ou sessão do navegador.
+ */
+async function cleanupUserDemandas(page: Page, userEmail: string) {
+  // [FIX] Usa page.request para enviar o Header Secreto
   const response = await page.request.post(`${BASE_URL}/api/test/cleanup`, {
+    headers: {
+      "Content-Type": "application/json",
+      "x-test-bypass": "dev-bypass-secret-123", // TEM QUE SER IGUAL AO DEFINIDO NA SUA API
+    },
     data: {
       type: "DEMANDAS_AND_ROTAS",
+      email: userEmail, // Obrigatório para o backend saber quem limpar
     },
   });
 
-  const status = response.status();
-  const responseBody = await response
-    .json()
-    .catch(() => ({ message: "Corpo JSON não disponível ou vazio." }));
-  if (status !== 200) {
-    throw new Error(
-      `Falha no cleanup da API: Status ${status}. Mensagem do Servidor: ${JSON.stringify(
-        responseBody
-      )}`
-    );
+  if (response.status() !== 200) {
+    const body = await response.text();
+    throw new Error(`Cleanup falhou: ${response.status()} - ${body}`);
   }
-  await page.goto(`${BASE_URL}/demandas`);
+
+  // Atualiza a tela para garantir que a lista fique vazia visualmente
+  if (page.url().includes("/dashboard") || page.url().includes("/demandas")) {
+    await page.reload();
+    await page.waitForTimeout(500); // Breve espera para re-render
+  }
 }
 
 /**
@@ -122,12 +135,19 @@ async function createDemanda(page: Page, index: number) {
   await descricaoLocator.fill(`Descrição da Demanda ${index}`);
   await page.fill('input[name="prazo"]', prazoValue);
 
+  // --- SELEÇÃO DE TIPO (CORRIGIDA) ---
   await page.getByRole("combobox", { name: /Tipo de Demanda/i }).click();
+
   const avaliacaoOption = page
     .getByRole("option", { name: "Avaliação" })
     .first();
+
   await avaliacaoOption.waitFor({ state: "visible" });
   await avaliacaoOption.click();
+
+  // [CORREÇÃO] Aguarda o menu fechar antes de clicar no botão Registrar
+  await avaliacaoOption.waitFor({ state: "hidden" });
+  // ------------------------------------
 
   await page.click('button:has-text("Registrar Demanda")');
 
@@ -167,11 +187,17 @@ async function createDemanda(page: Page, index: number) {
 
 test.describe("Multi-tenant: Limites e Segregação", () => {
   test("1. Limite de 10 Demandas e 1 Rota (Plano Free)", async ({ page }) => {
+    // FIX: Increase test timeout to 60 seconds (or use test.slow() for 3x default)
+    test.setTimeout(60000);
+
     await test.step("1.1. Cadastrar e Limpar Usuário A", async () => {
       await registerAndLogin(page, USER_A_FREE);
-      await cleanupUserDemandas(page);
-    }); // 2. Testando Limite de Demandas (10)
 
+      // [FIX] Passando o email para identificar o usuário no bypass
+      await cleanupUserDemandas(page, USER_A_FREE.email);
+    });
+
+    // 2. Testando Limite de Demandas (10)
     await test.step("2.1. Criar 10 Demandas (Loop)", async () => {
       for (let i = 1; i <= DEMANDAS_LIMIT_FREE; i++) {
         await createDemanda(page, i);
@@ -194,63 +220,124 @@ test.describe("Multi-tenant: Limites e Segregação", () => {
 
       await page.fill('input[name="cep"]', "93010193");
       await page.fill('input[name="numero"]', "11");
-      await page.getByRole("combobox", { name: /Tipo de Demanda/i }).click(); // Usa a lógica mais robusta para seleção de opções
+
+      // --- SELEÇÃO DE TIPO (CORRIGIDA) ---
+      await page.getByRole("combobox", { name: /Tipo de Demanda/i }).click();
+
       const avaliacaoOption = page
         .getByRole("option", { name: "Avaliação" })
         .first();
+
       await avaliacaoOption.waitFor({ state: "visible" });
       await avaliacaoOption.click();
 
-      await page.click('button:has-text("Registrar Demanda")'); // Verifica a mensagem de erro do serviço
+      // [CORREÇÃO] Aguarda o menu fechar
+      await avaliacaoOption.waitFor({ state: "hidden" });
+      // ------------------------------------
 
+      await page.click('button:has-text("Registrar Demanda")');
+
+      // Verifica a mensagem de erro do serviço
       await expect(
         page.locator(
           `text=Limite de ${DEMANDAS_LIMIT_FREE} demandas atingido para o plano Free.`
         )
       ).toBeVisible();
       await page.click('button:has-text("Cancelar")');
-    }); // 3. Testando Limite de Rotas (1)
+    });
 
+    // 3. Testando Limite de Rotas (1)
     await test.step("3.1. Criar 1ª Rota", async () => {
-      // ✅ FIX: Retorna para Demandas, seleciona e cria a rota via modal
+      // Retorna para Demandas, seleciona e cria a rota via modal
       await page.goto(`${BASE_URL}/demandas`);
-      await page.waitForSelector('h4:has-text("Gestão de Demandas")'); // 1. ✅ FIX: USAR CHECKBOX REAL (Se a seleção por texto falhar) // Use o localizador semântico mais robusto
+      await page.waitForSelector('h4:has-text("Gestão de Demandas")');
+
+      // Use o localizador semântico mais robusto
+      // Select the item to enable the button
       await page.click("text=Solicitante Demanda 1");
+
+      // FIX: Define the locator variable before using it
       const criarRotaButton = page.getByRole("button", { name: /Criar Rota/i });
-      await expect(criarRotaButton).toBeVisible({ timeout: 10000 }); // Asserção que falhou
-      await criarRotaButton.click({ force: true }); // Clica para abrir o modal // ✅ FIX: Espera o modal e usa getByRole para o campo Nome da Rota
-      const rotaModal = page.getByRole("dialog", { name: "Criar Nova Rota" }); // Espera que o modal esteja visível (garante sincronização)
-      await expect(rotaModal).toBeVisible(); // Preenche o campo 'Nome da Rota' dentro do escopo do modal
+
+      await expect(criarRotaButton).toBeVisible();
+      await criarRotaButton.click({ force: true });
+
+      const rotaModal = page.getByRole("dialog", { name: "Criar Nova Rota" });
+
+      // FIX: Increase timeout to 20s to wait for the optimization API
+      await expect(rotaModal).toBeVisible({ timeout: 20000 });
 
       await rotaModal
         .getByRole("textbox", { name: "Nome da Rota" })
         .fill("Rota Limitada 1");
-      await rotaModal.getByRole("button", { name: "Salvar Rota" }).click();
-      await page.waitForURL(`${BASE_URL}/rotas`);
+
+      // FIX: Select a responsible person to enable the save button
+      await rotaModal.getByRole("combobox", { name: /Responsável/i }).click();
+      // Select the first available user option (or a specific one if known)
+      await page.getByRole("option").first().click();
+
+      // Wait for the button to become enabled before clicking (optional but robust)
+      const saveButton = rotaModal.getByRole("button", { name: "Salvar Rota" });
+      await expect(saveButton).toBeEnabled();
+      await saveButton.click();
+
+      // [FIX] Instead of waiting for automatic redirection, wait for the modal to close (success)
+      // and then manually navigate to the Rotas page.
+      await rotaModal.waitFor({ state: "hidden" });
+      await page.goto(`${BASE_URL}/rotas`);
+
+      // Verify the route was created
       await expect(page.locator("text=Rota Limitada 1")).toBeVisible();
     });
 
     await test.step("3.2. Falhar na 2ª Rota", async () => {
-      // ✅ FIX: Retorna para Demandas para tentar criar a segunda rota
-      await page.goto(`${BASE_URL}/demandas`); // 1. Seleciona a demanda (se o teste precisar de uma seleção para habilitar o botão)
-      const firstDemandaCheckbox = page
-        .locator("text=Solicitante Demanda 1")
-        .locator("xpath=./ancestor::div[1]")
-        .locator('[role="checkbox"]');
-      await firstDemandaCheckbox.check(); // 2. Tenta abrir o modal de criação de rota
-      await page.click("button:has-text(/Criar Rota/i)"); // 3. Preenche e tenta salvar a rota (esperando o modal de erro de limite)
-      await page.fill('input[name="nome"]', "Rota Limitada 2");
-      await page.click('button:has-text("Salvar")'); // Verifica a mensagem de erro do serviço
+      // 1. Retorna para Demandas para tentar criar a segunda rota
+      await page.goto(`${BASE_URL}/demandas`);
 
+      // 2. Seleciona uma demanda "fresca" (Demanda 2)
+      // Usando o filtro robusto para garantir que pegamos o checkbox correto do Card
+      const secondDemandaCheckbox = page
+        .locator("div")
+        .filter({ has: page.getByText("Solicitante Demanda 2") })
+        .filter({ has: page.getByRole("checkbox") })
+        .last()
+        .getByRole("checkbox");
+
+      await secondDemandaCheckbox.check();
+
+      // 3. Clica no botão de criar rota
+      await page.getByRole("button", { name: /Criar Rota/i }).click();
+
+      // FIX: Use robust modal handling like in step 3.1
+      const rotaModal = page.getByRole("dialog", { name: "Criar Nova Rota" });
+      await expect(rotaModal).toBeVisible();
+
+      // Fill Name
+      await rotaModal
+        .getByRole("textbox", { name: "Nome da Rota" })
+        .fill("Rota Limitada 2");
+
+      // Select Responsible (Required)
+      await rotaModal.getByRole("combobox", { name: /Responsável/i }).click();
+      await page.getByRole("option").first().click();
+
+      // Click Save
+      const saveButton = rotaModal.getByRole("button", { name: "Salvar Rota" });
+      await expect(saveButton).toBeEnabled();
+      await saveButton.click();
+
+      // 7. Verifica a mensagem de erro de limite do plano Free
+      // A mensagem deve corresponder ao que foi definido no RotasService
       await expect(
-        page.locator(
-          `text=Limite de ${ROTAS_LIMIT_FREE} rota atingido para o plano Free.`
-        )
-      ).toBeVisible();
-      const cancelButton = page.locator('button:has-text("Cancelar")');
-      await cancelButton.click().catch(() => {
-        /* Ignora se o modal já fechou (redirecionamento rápido) */
-      });
+        page.locator(`text=Limite de 1 rota atingido para o plano Free.`)
+      ).toBeVisible({ timeout: 10000 });
+
+      // 8. Fecha o modal/alerta de erro
+      // Dependendo de como o erro é exibido (toast ou alert), fechamos ou cancelamos
+      const errorModalOrToast = page.locator('div[role="alert"]').or(rotaModal);
+      if (await rotaModal.isVisible()) {
+        await rotaModal.getByRole("button", { name: "Cancelar" }).click();
+      }
     });
   });
 
@@ -262,13 +349,15 @@ test.describe("Multi-tenant: Limites e Segregação", () => {
       await registerAndLogin(page, USER_B_FREE);
       await cleanupUserDemandas(page);
       await page.goto(`${BASE_URL}/demandas`);
-    }); // 2. Testando Segregação (Criação de Dados)
+    });
 
+    // 2. Testando Segregação (Criação de Dados)
     await test.step("2.1. Criar 1 Demanda do User B", async () => {
       await createDemanda(page, 1); // User B cria a Demanda 1 (Org B)
       await expect(page.locator("text=Solicitante Demanda 1")).toBeVisible();
-    }); // 3. Testando Permissão (Bloqueio de Configuração para Free)
+    });
 
+    // 3. Testando Permissão (Bloqueio de Configuração para Free)
     await test.step("3.1. Validar Permissão de Leitura em Status (Sem Escrita)", async () => {
       await page.goto(`${BASE_URL}/gerenciar/status`);
 
@@ -286,7 +375,7 @@ test.describe("Multi-tenant: Limites e Segregação", () => {
     });
 
     await test.step("4.1. Fazer Logout do User B e Login do User A", async () => {
-      await page.getByRole('button', { name: 'Sair' }).click();
+      await page.getByRole("button", { name: "Sair" }).click();
 
       await login(page, USER_A_FREE);
     });

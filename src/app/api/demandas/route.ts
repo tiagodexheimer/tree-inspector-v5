@@ -2,182 +2,215 @@ import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/auth";
 import { demandasService } from "@/services/demandas-service";
 
-// O objeto de sessão, após a correção no @/auth.ts, deve incluir:
-// session.user.orgId: number (ID da organização)
-// session.user.role: string (papel do usuário, ex: 'free_user')
-
 // --- GET: LISTAR DEMANDAS ---
 export async function GET(request: NextRequest) {
-  const session = await auth();
+  const session = await auth();
 
-  // 1. Validação da Sessão e Extração do orgId
-  if (!session || !session.user) {
-    return NextResponse.json({ message: "Não autenticado" }, { status: 401 });
-  }
-
-  // ✅ CORREÇÃO: Extrai o ID da organização para usar no filtro SQL
-  const { orgId, role: userRole } = session.user;
-
-  // Validação Crítica de Tipagem e Existência
-  if (typeof orgId !== 'number' || orgId === 0) {
-      console.error("[API GET Demandas] Erro de Sessão: orgId inválido ou ausente.", { orgId, userRole });
-      return NextResponse.json({ message: "ID da Organização ausente ou inválido. Tente fazer login novamente." }, { status: 400 });
+  if (!session || !session.user) {
+    return NextResponse.json({ message: "Não autenticado" }, { status: 401 });
   }
 
-  const { searchParams } = new URL(request.url);
+  // [CORREÇÃO] Extrai o ID da organização da sessão (adicionado no auth.ts)
+  // Usamos um cast para garantir, ou fallback para evitar crash imediato
+  const organizationId = parseInt((session.user as any).organizationId, 10);
+  const userRole = session.user.role;
 
-  // Extração de Parâmetros
-  const page = parseInt(searchParams.get("page") || "1", 10);
-  const limit = parseInt(searchParams.get("limit") || "20", 10);
-  const filtro = searchParams.get("filtro") || undefined;
+  // Validação de Segurança
+  if (!organizationId || isNaN(organizationId)) {
+    console.error("[API GET Demandas] Erro: organizationId inválido na sessão.");
+    return NextResponse.json(
+      { message: "Sessão inválida. Faça login novamente." },
+      { status: 403 }
+    );
+  }
 
-  // Filtros de Array (Status e Tipos)
-  const statusIdsRaw = searchParams.get("statusIds");
-  const statusIds = statusIdsRaw
-    ? statusIdsRaw
-        .split(",")
-        .map(Number)
-        .filter((n) => !isNaN(n))
-    : undefined;
+  const { searchParams } = new URL(request.url);
 
-  const tipoNomesRaw = searchParams.get("tipoNomes");
-  const tipoNomes = tipoNomesRaw
-    ? tipoNomesRaw.split(",").filter(Boolean)
-    : undefined;
+  const page = parseInt(searchParams.get("page") || "1", 10);
+  const limit = parseInt(searchParams.get("limit") || "10", 10);
+  const filtro = searchParams.get("filtro") || undefined;
 
-  try {
-    // 2. Chamada ao Serviço com o orgId NUMÉRICO
-    const result = await demandasService.listDemandas(
-      {
-        page,
-        limit,
-        filtro,
-        statusIds,
-        tipoNomes,
-      },
-      orgId // Agora passa o NÚMERO, conforme o service espera
-    );
+  // Processa array de status (ex: ?status=1,2,3 ou ?status=1&status=2)
+  // O nextjs/searchParams pode vir como string separada por virgula ou multiplas chaves
+  // Aqui tratamos se vier separado por vírgula manualmente ou usamos getAll se for multiplas chaves
+  let statusIds: number[] | undefined;
+  const statusParam = searchParams.get("statusIds") || searchParams.get("status");
+  if (statusParam) {
+      statusIds = statusParam.split(",").map(Number).filter(n => !isNaN(n));
+  } else {
+      // Tenta pegar multiplos parametros ?status=1&status=2
+      const statusAll = searchParams.getAll("status");
+      if (statusAll.length > 0) {
+          statusIds = statusAll.map(Number).filter(n => !isNaN(n));
+      }
+  }
 
-    return NextResponse.json(
-      {
-        demandas: result.demandas,
-        totalCount: result.totalCount,
-        page,
-        limit,
-      },
-      { status: 200 }
-    );
-  } catch (error) {
-    console.error("[API GET Demandas]", error);
-    const message =
-      error instanceof Error ? error.message : "Erro desconhecido";
-    return NextResponse.json(
-      { message: "Erro ao buscar demandas", error: message },
-      { status: 500 }
-    );
-  }
+  // Processa array de tipos
+  let tipoNomes: string[] | undefined;
+  const tipoParam = searchParams.get("tipoNomes") || searchParams.get("tipo");
+  if (tipoParam) {
+      tipoNomes = tipoParam.split(",").filter(Boolean);
+  } else {
+      const tiposAll = searchParams.getAll("tipo");
+      if (tiposAll.length > 0) tipoNomes = tiposAll;
+  }
+
+  try {
+    const result = await demandasService.listDemandas(
+      {
+        page,
+        limit,
+        filtro,
+        statusIds,
+        tipoNomes,
+        organizationId, // [CRÍTICO] Passa para o service para filtrar no repositório
+      },
+      userRole,
+      organizationId
+    );
+
+    return NextResponse.json(
+      {
+        demandas: result.demandas,
+        totalCount: result.totalCount,
+        page,
+        limit,
+      },
+      { status: 200 }
+    );
+  } catch (error) {
+    console.error("[API GET Demandas]", error);
+    const message = error instanceof Error ? error.message : "Erro desconhecido";
+    return NextResponse.json(
+      { message: "Erro ao buscar demandas", error: message },
+      { status: 500 }
+    );
+  }
 }
 
 // --- POST: CRIAR DEMANDA ---
 export async function POST(request: NextRequest) {
-  const session = await auth();
-  
-  // 1. [CRÍTICO] Verifica se o usuário e o orgId/planType estão na sessão
-  if (!session || !session.user || typeof session.user.orgId !== 'number' || !session.user.planType) {
-    return NextResponse.json({ message: "Sessão inválida ou organização não configurada. Tente fazer login novamente." }, { status: 401 });
-  }
-  
-  const { orgId, planType } = session.user;
+  const session = await auth();
 
-  try {
-    const body = await request.json();
+  if (!session || !session.user) {
+    return NextResponse.json({ message: "Não autenticado" }, { status: 401 });
+  }
 
-    // 2. [CRÍTICO] Delega para o serviço, passando organizationId e planType
-    const novaDemanda = await demandasService.createDemanda(
-        body, 
-        orgId, // Usando o orgId extraído
-        planType // Usando o planType extraído
-    );
+  // [CORREÇÃO] Recupera dados vitais para o controle de limites
+  const organizationId = parseInt((session.user as any).organizationId, 10);
+  const planType = (session.user as any).planType || "Free";
 
-    return NextResponse.json(
-      {
-        message: "Demanda registrada com sucesso!",
-        protocolo: novaDemanda.protocolo,
-        demanda: novaDemanda,
-      },
-      { status: 201 }
-    );
-  } catch (error) {
-    console.error("[API POST Demanda]", error);
+  if (!organizationId || isNaN(organizationId)) {
+    return NextResponse.json(
+      { message: "Sessão inválida. Organização não encontrada." },
+      { status: 403 }
+    );
+  }
 
-    let status = 500;
-    let message = "Erro interno ao criar demanda.";
+  try {
+    const body = await request.json();
 
-    if (error instanceof Error) {
-      message = error.message;
-      if (message.includes("obrigatórios") || message.includes("Limite")) status = 400; // Limites de Plano
-      if ((error as any).code === "23505") {
-        status = 409;
-        message = "Erro: Protocolo duplicado.";
-      }
-    }
+    // Chama o serviço passando o objeto único conforme definido no `CreateDemandaInput`
+    const novaDemanda = await demandasService.createDemanda({
+      ...body, // Espalha nome, cep, etc.
+      organizationId, // [CRÍTICO] Vincula à organização
+      planType,       // [CRÍTICO] Passa para validação de limites (Free vs Pro)
+    });
 
-    return NextResponse.json({ message, error: message }, { status });
-  }
+    return NextResponse.json(
+      {
+        message: "Demanda registrada com sucesso!",
+        protocolo: novaDemanda.protocolo,
+        demanda: novaDemanda,
+      },
+      { status: 201 }
+    );
+  } catch (error) {
+    console.error("[API POST Demanda]", error);
+
+    let status = 500;
+    let message = "Erro interno ao criar demanda.";
+
+    if (error instanceof Error) {
+      message = error.message;
+
+      // Erros de validação e regras de negócio
+      if (
+        message.includes("obrigatórios") ||
+        message.includes("Limite de") // Tratamento específico para o erro de limite
+      ) {
+        status = 400;
+      }
+
+      // Erro de constraint do banco (ex: protocolo duplicado, embora usemos sequence)
+      if ((error as any).code === "23505") {
+        status = 409;
+        message = "Erro: Dados duplicados (possível protocolo repetido).";
+      }
+    }
+
+    return NextResponse.json({ message, error: message }, { status });
+  }
 }
 
 // --- DELETE: DELETAR DEMANDAS EM LOTE ---
 export async function DELETE(request: NextRequest) {
-  const session = await auth();
-  
-  if (!session || !session.user) {
-    return NextResponse.json({ message: "Não autenticado" }, { status: 401 });
-  }
-
-  // ✅ Extração do orgId e role
-  const { orgId, role: userRole } = session.user;
-  
-  // Opcional: Verificar se é admin
-  if (userRole !== "admin") {
-    return NextResponse.json({ message: "Permissão negada." }, { status: 403 });
-  }
-  
-  // Validação de Tipagem
-  if (typeof orgId !== 'number') {
-     return NextResponse.json({ message: "ID da Organização ausente ou inválido" }, { status: 400 });
+  const session = await auth();
+  if (!session || !session.user) {
+    return NextResponse.json({ message: "Não autenticado" }, { status: 401 });
   }
 
-  try {
-    const body = await request.json();
-    const { ids } = body; // Espera um JSON: { "ids": [1, 2, 5] }
+  const organizationId = parseInt((session.user as any).organizationId, 10);
+  const userRole = session.user.role;
 
-    if (!ids || !Array.isArray(ids) || ids.length === 0) {
-      return NextResponse.json(
-        { message: "Lista de IDs inválida." },
-        { status: 400 }
-      );
-    }
+  // Opcional: Apenas admins podem deletar em lote?
+  // Ajuste conforme sua regra de negócio. Se usuários free podem deletar, remova este if.
+  /*
+  if (userRole !== "admin") {
+    return NextResponse.json({ message: "Permissão negada." }, { status: 403 });
+  }
+  */
 
-    // Chama o serviço para deletar (Passa o orgId para garantir exclusão segura)
-    await demandasService.deleteDemandas(ids, orgId);
+  if (!organizationId || isNaN(organizationId)) {
+    return NextResponse.json(
+      { message: "ID da Organização ausente ou inválido" },
+      { status: 400 }
+    );
+  }
 
-    return NextResponse.json(
-      { message: "Demandas deletadas com sucesso." },
-      { status: 200 }
-    );
+  try {
+    const body = await request.json();
+    const { ids } = body; // Espera: { "ids": [1, 2, 5] }
 
-  } catch (error) {
-    console.error("[API DELETE Demandas]", error);
+    if (!ids || !Array.isArray(ids) || ids.length === 0) {
+      return NextResponse.json(
+        { message: "Lista de IDs inválida." },
+        { status: 400 }
+      );
+    }
 
-    let status = 500;
-    let message = "Erro ao deletar demandas.";
+    // Passa o organizationId para garantir que o usuário só delete o que é dele
+    await demandasService.deleteDemandas(ids, organizationId);
 
-    if (error instanceof Error) {
-      message = error.message;
-      // Se for o erro de rota vinculada, retorna 409 (Conflict)
-      if (message.includes("vinculadas a rotas")) status = 409;
-    }
+    return NextResponse.json(
+      { message: "Demandas deletadas com sucesso." },
+      { status: 200 }
+    );
+  } catch (error) {
+    console.error("[API DELETE Demandas]", error);
 
-    return NextResponse.json({ message, error: message }, { status });
-  }
+    let status = 500;
+    let message = "Erro ao deletar demandas.";
+
+    if (error instanceof Error) {
+      message = error.message;
+      // Erro de constraint (FK) se tentar deletar demanda em rota
+      if (message.includes("vinculadas a rotas") || (error as any).code === "23503") {
+        status = 409;
+        message = "Não é possível excluir demandas que estão em rotas ativas.";
+      }
+    }
+
+    return NextResponse.json({ message, error: message }, { status });
+  }
 }

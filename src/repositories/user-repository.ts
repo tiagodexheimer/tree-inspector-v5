@@ -1,19 +1,16 @@
+// src/repositories/user-repository.ts
 import pool from "@/lib/db";
 
-// Interface atualizada para incluir os campos da Organização
 export interface UserPersistence {
   id: string;
   name: string;
   email: string;
   password?: string;
-  role: "admin" | "paid_user" | "free_user";
-  // [NOVO] Campos para Autenticação
-  orgId: number; // ID da Organização principal
-  planType: "free" | "pro"; // Tipo de plano da Organização
-  orgRole: "owner" | "admin" | "member"; // Papel do usuário na Organização
+  role: 'admin' | 'paid_user' | 'free_user';
+  organization_id?: number; // [NOVO]
+  plan_type?: string;       // [NOVO]
 }
 
-// DTO para os dados necessários na criação
 export interface CreateUserRepoDTO {
   name: string;
   email: string;
@@ -21,85 +18,83 @@ export interface CreateUserRepoDTO {
   role: string;
 }
 
-
 export const UserRepository = {
+  // Busca usuário E dados da organização
   async findByEmail(email: string): Promise<UserPersistence | null> {
-    try {
-      // [CRÍTICO] Query deve juntar users, members e organizations
-      const query = `
-        SELECT 
-          u.id, u.name, u.email, u.password, u.role,
-          om.organization_id as "orgId",
-          om.role as "orgRole",
-          o.plan_type as "planType"
-        FROM users u
-        JOIN organization_members om ON u.id = om.user_id
-        JOIN organizations o ON om.organization_id = o.id
-        WHERE u.email = $1
-        LIMIT 1
-      `;
-      
-      const result = await pool.query(query, [email]);
-      
-      if (result.rows.length === 0) {
-        return null;
-      }
-      // O objeto retornado agora tem orgId e planType
-      return result.rows[0] as UserPersistence;
-    } catch (error) {
-      console.error("Erro no UserRepository.findByEmail:", error);
-      return null;
-    }
+    const query = `
+      SELECT 
+        u.id, u.name, u.email, u.password, u.role, 
+        u.organization_id, 
+        o.plan_type
+      FROM users u
+      LEFT JOIN organizations o ON u.organization_id = o.id
+      WHERE u.email = $1
+    `;
+    const result = await pool.query(query, [email]);
+    return result.rows[0] || null;
   },
 
-  // Novo: Listar todos os usuários (apenas dados públicos)
   async findAll(): Promise<UserPersistence[]> {
-    try {
-      // Selecionamos apenas campos seguros (sem password)
-      const query = "SELECT id, name, email, role FROM users ORDER BY name ASC";
-      const result = await pool.query(query);
-      return result.rows as UserPersistence[];
-    } catch (error) {
-      console.error("Erro no UserRepository.findAll:", error);
-      throw new Error("Falha ao buscar usuários no banco de dados.");
-    }
+    const query = "SELECT id, name, email, role, organization_id FROM users ORDER BY name ASC";
+    const result = await pool.query(query);
+    return result.rows;
   },
 
-  // Novo: Criar usuário
-  async create(data: CreateUserRepoDTO): Promise<UserPersistence> {
+  // [MODIFICADO] Cria Usuário E Organização em uma transação
+  async createWithOrganization(data: CreateUserRepoDTO): Promise<UserPersistence> {
+    const client = await pool.connect();
     try {
-      const query = `
-        INSERT INTO users (id, name, email, password, role) 
-        VALUES (gen_random_uuid(), $1, $2, $3, $4) 
+      await client.query('BEGIN');
+
+      // 1. Cria a Organização (Nome do usuário = Nome da Org para Free)
+      const orgQuery = `
+        INSERT INTO organizations (name, plan_type) 
+        VALUES ($1, 'Free') 
+        RETURNING id, plan_type
+      `;
+      const orgRes = await client.query(orgQuery, [data.name]);
+      const orgId = orgRes.rows[0].id;
+      const planType = orgRes.rows[0].plan_type;
+
+      // 2. Cria o Usuário vinculado à Organização
+      const userQuery = `
+        INSERT INTO users (id, name, email, password, role, organization_id) 
+        VALUES (gen_random_uuid(), $1, $2, $3, $4, $5) 
         RETURNING id, name, email, role
       `;
-
-      const result = await pool.query(query, [
-        data.name,
-        data.email,
-        data.passwordHash,
+      const userRes = await client.query(userQuery, [
+        data.name, 
+        data.email, 
+        data.passwordHash, 
         data.role,
+        orgId
       ]);
 
-      return result.rows[0] as UserPersistence;
+      await client.query('COMMIT');
+      
+      return { 
+        ...userRes.rows[0], 
+        organization_id: orgId,
+        plan_type: planType
+      };
+
     } catch (error) {
-      console.error("Erro no UserRepository.create:", error);
-      throw error; // Lança o erro para ser tratado no Service (ex: duplicidade)
+      await client.query('ROLLBACK');
+      console.error("Erro no UserRepository.createWithOrganization:", error);
+      throw error;
+    } finally {
+      client.release();
     }
   },
 
-  // Novo método: Deletar usuário pelo ID
+  // Mantendo compatibilidade (apenas redireciona se necessário ou remove)
+  async create(data: CreateUserRepoDTO) {
+      return this.createWithOrganization(data);
+  },
+  
   async delete(id: string): Promise<boolean> {
-    try {
-      // Retorna o ID deletado para confirmar se algo foi removido
-      const query = "DELETE FROM users WHERE id = $1 RETURNING id";
-      const result = await pool.query(query, [id]);
-
-      // Retorna true se uma linha foi afetada (deletada), false se não encontrou
-      return (result.rowCount ?? 0) > 0;
-    } catch (error) {
-      console.error("Erro no UserRepository.delete:", error);
-      throw new Error("Falha de infraestrutura ao deletar usuário.");
-    }
-  },
+     // ... (manter código existente de delete)
+     const res = await pool.query("DELETE FROM users WHERE id=$1", [id]);
+     return (res.rowCount ?? 0) > 0;
+  }
 };
