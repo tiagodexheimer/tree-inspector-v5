@@ -396,4 +396,15 @@ export const DemandasRepository = {
       throw new Error("Falha ao deletar todas as demandas da organização.");
     }
   },
+
+  async countByOrganization(organizationId: number): Promise<number> {
+        const query = `
+            SELECT COUNT(*) 
+            FROM demandas 
+            WHERE organization_id = $1
+        `;
+        const result = await pool.query(query, [organizationId]);
+        // Garante que o count é retornado como número
+        return parseInt(result.rows[0].count, 10);
+    },
 };

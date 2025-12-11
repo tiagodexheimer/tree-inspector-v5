@@ -93,16 +93,23 @@ export async function POST(request: NextRequest) {
   }
 
   const organizationId = parseInt((session.user as any).organizationId || "0", 10);
-  const planType = (session.user as any).planType || "Free";
+  // [CORREÇÃO] A role do usuário é o novo tipo de plano (free, basic, pro, etc.)
+  const userRole = (session.user as any).role as UserRole; 
+
+  // Validação explícita de organização (necessário para NOT NULL)
+  if (isNaN(organizationId) || organizationId === 0) {
+      return NextResponse.json({ message: "Sessão inválida: ID da organização ausente." }, { status: 401 });
+  }
 
   try {
     const body = await request.json();
 
-    const novaDemanda = await demandasService.createDemanda({
-      ...body, 
-      organizationId, 
-      planType,        
-    });
+    // [CORREÇÃO] Chamada ao service com organizationId e userRole como argumentos separados
+    const novaDemanda = await demandasService.createDemanda(
+      body, // DTO sem organizationId/planType
+      organizationId,
+      userRole 
+    );
 
     return NextResponse.json(
       {
@@ -120,6 +127,7 @@ export async function POST(request: NextRequest) {
 
     if (error instanceof Error) {
       message = error.message;
+      // Garante que a nova mensagem de limite do service seja capturada
       if (message.includes("obrigatórios") || message.includes("Limite de")) {
         status = 400;
       }

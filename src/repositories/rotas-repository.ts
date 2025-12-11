@@ -340,4 +340,14 @@ export const RotasRepository = {
       client.release();
     }
   },
+
+  async countByOrganization(organizationId: number): Promise<number> {
+        const query = `
+            SELECT COUNT(*) 
+            FROM rotas 
+            WHERE organization_id = $1
+        `;
+        const result = await pool.query(query, [organizationId]);
+        return parseInt(result.rows[0].count, 10);
+    },
 };

@@ -1,26 +1,38 @@
 // src/types/next-auth.d.ts
-import 'next-auth';
+import NextAuth, { DefaultSession, DefaultUser } from "next-auth";
+import { DefaultJWT } from "next-auth/jwt";
+// [CORREÇÃO] Importa o tipo centralizado
+import { UserRole } from "./auth-types"; 
 
-declare module 'next-auth' {
-  interface User {
+declare module "next-auth/jwt" {
+  interface JWT extends DefaultJWT {
     id: string;
-    role: 'admin' | 'paid_user' | 'free_user';
-    organizationId: string;
-    organizationName?: string; 
-    planType: string; 
-  }
-
-  interface Session {
-    user: User;
+    organizationId: number;
+    // [ATUALIZADO] Usa o tipo centralizado
+    role: UserRole; 
+    organizationName: string;
+    plan_type: string;
   }
 }
 
-declare module 'next-auth/jwt' {
-  interface JWT {
+declare module "next-auth" {
+  interface Session extends DefaultSession {
+    user: {
+      id: string;
+      organizationId: number;
+      // [ATUALIZADO] Usa o tipo centralizado
+      role: UserRole;
+      organizationName: string;
+      plan_type: string;
+    } & DefaultSession["user"];
+  }
+
+  interface User extends DefaultUser {
     id: string;
-    role: 'admin' | 'paid_user' | 'free_user';
-    organizationId: string;
-    organizationName?: string; 
-    planType: string; 
+    organizationId: number;
+    // [ATUALIZADO] Usa o tipo centralizado
+    role: UserRole; 
+    organizationName: string;
+    plan_type: string;
   }
 }

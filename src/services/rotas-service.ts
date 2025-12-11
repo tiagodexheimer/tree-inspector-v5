@@ -1,19 +1,19 @@
+// src/services/rotas-service.ts
 import {
   RotasRepository,
   RotaPersistence,
   UpdateRotaDTO,
 } from "@/repositories/rotas-repository";
-import { ConfiguracoesRepository } from "@/repositories/configuracoes-repository"; // [NOVO] Import
+import { ConfiguracoesRepository } from "@/repositories/configuracoes-repository"; 
 import * as XLSX from "xlsx";
 import { format } from "date-fns";
+import { UserRole } from "@/types/auth-types"; 
 
-// A interface no Service usa organizationId, mas o DTO do Repository usa organization_id
+// [ATUALIZADO] Interface Pura (sem contexto de autenticação/sessão)
 interface CreateRotaInput {
   nome: string;
   responsavel: string;
   demandas: { id: number }[];
-  organizationId: number; // Campo que vem da API/Sessão
-  planType: string;
   inicio_personalizado?: { lat: number; lng: number };
   fim_personalizado?: { lat: number; lng: number };
 }
@@ -23,12 +23,20 @@ const DEFAULT_FALLBACK_COORDS = {
   longitude: -51.1789191,
 };
 
+const MAX_ROTAS_FREE = 1; // Limite de rotas ativas para o Plano Free
+
 export class RotasService {
   async listRotas(organizationId: number) {
     return await RotasRepository.findAll(organizationId);
   }
 
-  async createRota(input: CreateRotaInput) {
+  // [CORREÇÃO APLICADA] createRota recebe organizationId e userRole explicitamente
+  async createRota(
+    input: CreateRotaInput,
+    organizationId: number, // Argumento explícito e garantido
+    userRole: UserRole // Argumento explícito para aplicar regras
+  ) {
+    // Validação básica da rota
     if (!input.nome || input.nome.trim() === "")
       throw new Error("O nome da rota é obrigatório.");
     if (!input.responsavel || input.responsavel.trim() === "")
@@ -36,7 +44,14 @@ export class RotasService {
     if (!input.demandas || input.demandas.length === 0)
       throw new Error("A rota deve conter pelo menos uma demanda.");
 
-    // TODO: Adicionar lógica de validação de limite de rotas/demandas com base no input.planType
+    // [REGRA DE NEGÓCIO: Limite de Rotas]
+    if (userRole === 'free') {
+        // Assume-se que RotasRepository.countByOrganization está implementado
+        const currentCount = await RotasRepository.countByOrganization(organizationId);
+        if (currentCount >= MAX_ROTAS_FREE) {
+            throw new Error(`Limite de ${MAX_ROTAS_FREE} rota ativa atingido para o Plano Free. Considere atualizar seu plano.`);
+        }
+    }
 
     const demandasComOrdem = input.demandas.map((d, index) => ({
       id: d.id,
@@ -48,8 +63,7 @@ export class RotasService {
       responsavel: input.responsavel.trim(),
       status: "Pendente",
       demandas: demandasComOrdem,
-      // ⬇️ A CHAVE DEVE SER organization_id ⬇️
-      organization_id: input.organizationId, // ✅ CORREÇÃO FINALIZADA
+      organization_id: organizationId, // ID da organização passado pelo argumento
       inicio_personalizado: input.inicio_personalizado || null,
       fim_personalizado: input.fim_personalizado || null,
     });
