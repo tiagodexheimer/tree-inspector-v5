@@ -1,4 +1,5 @@
 // src/services/demandas-service.ts
+
 import {
   DemandasRepository,
   FindDemandasParams,
@@ -8,7 +9,7 @@ import {
 } from "@/repositories/demandas-repository";
 import { StatusRepository } from "@/repositories/status-repository";
 import { geocodingService } from "@/services/geocoding-service";
-import { UserRole } from "@/types/auth-types"; 
+import { UserRole, getLimitsByRole } from "@/types/auth-types"; 
 
 // [ATUALIZADO] Interface de criação de demanda (dados puros, sem contexto de autenticação/sessão)
 interface CreateDemandaInput {
@@ -30,22 +31,21 @@ interface CreateDemandaInput {
 
 interface UpdateDemandaInput extends Partial<CreateDemandaInput> {}
 
-const MAX_DEMANDS_FREE = 10; // Limite de demandas ativas para o plano Free
-
 export class DemandasService {
   
-  // [CORRIGIDO] listDemandas para usar a nova role 'free'
+  // [CORRIGIDO] listDemandas usa getLimitsByRole para aplicar limite de listagem (visão)
   async listDemandas(
     params: FindDemandasParams & { organizationId?: number }, 
     userRole?: UserRole, 
     organizationId?: number
   ) {
-    // [CORREÇÃO] Checa a nova role 'free'
     if (userRole === "free") { 
-      params.limit = MAX_DEMANDS_FREE; 
-      params.page = 1;
+      const limits = getLimitsByRole(userRole);
+      params.limit = limits.MAX_DEMANDS; // Usa o limite centralizado
+      params.page = 1; // Força para a primeira página ao limitar
     }
     
+    // Filtro de segurança multi-tenant
     if (organizationId) {
         params.organizationId = organizationId;
     }
@@ -60,25 +60,27 @@ export class DemandasService {
     return { demandas: demandasFormatadas, totalCount };
   }
 
-  // [CORRIGIDO] createDemanda agora recebe organizationId e userRole como argumentos obrigatórios
+  // [CORRIGIDO] createDemanda aplica o limite de criação e garante o organizationId
   async createDemanda(
     input: CreateDemandaInput,
-    organizationId: number, // Argumento obrigatório
-    userRole: UserRole // Argumento obrigatório para aplicar regras
+    organizationId: number, // Argumento obrigatório (segurança)
+    userRole: UserRole // Argumento obrigatório (regras de negócio)
   ): Promise<DemandaPersistence> {
     if (!input.cep || !input.numero || !input.tipo_demanda || !input.descricao) {
       throw new Error("Campos obrigatórios ausentes: CEP, Número, Tipo e Descrição.");
     }
     
-    // 1. REGRA DE NEGÓCIO: Limite Free (10 demandas)
-    // O limite é aplicado SOMENTE se a role for 'free'. (Basic/Pro/Premium são ilimitados)
+    // 1. REGRA DE NEGÓCIO: Limite de Demandas (Aplica-se APENAS ao Plano Free)
+    const limits = getLimitsByRole(userRole); 
+    
     if (userRole === 'free') { 
-        // Assume que DemandasRepository.countByOrganization está implementado
         const currentCount = await DemandasRepository.countByOrganization(organizationId);
-        if (currentCount >= MAX_DEMANDS_FREE) {
-            throw new Error(`Limite de ${MAX_DEMANDS_FREE} demandas ativas atingido para o Plano Free. Considere atualizar seu plano.`);
+        
+        if (currentCount >= limits.MAX_DEMANDS) {
+            throw new Error(`Limite de ${limits.MAX_DEMANDS} demandas ativas atingido para o Plano Free. Considere atualizar seu plano.`);
         }
     }
+    // Planos pagos ('basic', 'pro', 'premium') prosseguem sem restrição.
 
     const nextId = await DemandasRepository.getNextProtocoloSequence();
     const protocolo = `${nextId}`; 
@@ -182,7 +184,6 @@ export class DemandasService {
     }
   }
 
-  // [CORREÇÃO] Adicionado 2º argumento opcional para bater com a chamada da rota
   async deleteDemandas(ids: number[], organizationId?: number): Promise<void> {
     // Note: O repositório deve usar o organizationId se fornecido para segurança multi-tenant
     await DemandasRepository.deleteMany(ids);

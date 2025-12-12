@@ -42,14 +42,16 @@ export default function StatusDemanda({ demandaId, currentStatusId, availableSta
         handleClose();
         if (!newStatus || newStatus.id === currentStatusId) return;
 
-        setIsUpdating(true); // <--- Atualização 1
+        setIsUpdating(true);
         setUpdateError(null);
         try {
-            await onStatusChange(demandaId, newStatus.id); // <--- Espera
-        } catch (error) {
-            // ...
+            await onStatusChange(demandaId, newStatus.id);
+        } catch (error: any) {
+            // [FIX] Adiciona tratamento de erro robusto
+            const errorMessage = error.message || "Erro ao atualizar status.";
+            setUpdateError(errorMessage);
         } finally {
-            setIsUpdating(false); // <--- Atualização 2 (Causa do aviso se o teste acabar antes)
+            setIsUpdating(false);
         }
     };
 
