@@ -13,13 +13,12 @@ CREATE SEQUENCE IF NOT EXISTS protocolo_seq START 1;
 
 
 -- 2. ORGANIZAÇÕES (TENANTS)
--- Criamos antes dos usuários para poder referenciar
 -- ==========================================
 CREATE TABLE IF NOT EXISTS organizations (
     id SERIAL PRIMARY KEY,
     name TEXT NOT NULL,
     slug TEXT UNIQUE, -- Útil para URLs (ex: app.com/empresa-x)
-    plan_type TEXT NOT NULL DEFAULT 'Free', -- 'Free', 'Pro', 'Enterprise'
+    plan_type TEXT NOT NULL DEFAULT 'Free', -- 'Free', 'Basic', 'Pro', 'Enterprise'
     
     created_at TIMESTAMPTZ DEFAULT NOW(),
     updated_at TIMESTAMPTZ DEFAULT NOW()
@@ -36,7 +35,7 @@ CREATE TABLE IF NOT EXISTS users (
     email TEXT UNIQUE NOT NULL,
     email_verified TIMESTAMPTZ,
     password TEXT NOT NULL, 
-    role TEXT NOT NULL DEFAULT 'free_user', -- Role do Sistema: 'admin' (dev), 'user'
+    role TEXT NOT NULL DEFAULT 'free', -- Role do Sistema: 'admin' (dev), 'free', 'basic', 'pro'
     image TEXT,
     
     -- Organização ativa/principal do usuário
@@ -46,7 +45,7 @@ CREATE TABLE IF NOT EXISTS users (
     updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 
--- Atualiza organizations para ter um dono (referência circular resolvida com Alter Table depois, ou mantendo nullable)
+-- Atualiza organizations para ter um dono
 ALTER TABLE organizations 
 ADD COLUMN IF NOT EXISTS owner_id TEXT REFERENCES users(id) ON DELETE SET NULL;
 
@@ -101,21 +100,33 @@ CREATE TABLE IF NOT EXISTS organization_invites (
 -- 4. CONFIGURAÇÕES DA ORGANIZAÇÃO
 -- ==========================================
 
--- Status das Demandas
+-- Status das Demandas (AGORA MULTI-TENANT OTIMIZADO)
 CREATE TABLE IF NOT EXISTS demandas_status (
     id SERIAL PRIMARY KEY,
-    organization_id INT NOT NULL REFERENCES organizations(id) ON DELETE CASCADE, 
+    -- NULL para status global (padrão de fábrica)
+    organization_id INT REFERENCES organizations(id) ON DELETE CASCADE, 
     nome TEXT NOT NULL,
     cor TEXT NOT NULL DEFAULT '#808080',
+    -- Indica se foi criado por um usuário Pro/Premium (permite deleção/edição)
+    is_custom BOOLEAN NOT NULL DEFAULT FALSE, 
+    -- Indica se é um status padrão de fábrica (NULL organization_id)
+    is_default_global BOOLEAN NOT NULL DEFAULT FALSE, 
     
+    -- O nome deve ser único dentro do escopo da organização (NULL para global)
     UNIQUE(organization_id, nome)
 );
 
--- Tipos de Demandas
+
+-- Tipos de Demandas (AGORA MULTI-TENANT OTIMIZADO)
 CREATE TABLE IF NOT EXISTS demandas_tipos (
     id SERIAL PRIMARY KEY,
-    organization_id INT NOT NULL REFERENCES organizations(id) ON DELETE CASCADE, 
+    -- NULL para tipos globais (padrão de fábrica)
+    organization_id INT REFERENCES organizations(id) ON DELETE CASCADE, 
     nome TEXT NOT NULL,
+    -- Indica se foi criado por um usuário Pro/Premium
+    is_custom BOOLEAN NOT NULL DEFAULT FALSE, 
+    -- Indica se é um tipo padrão de fábrica (NULL organization_id)
+    is_default_global BOOLEAN NOT NULL DEFAULT FALSE,
     
     UNIQUE(organization_id, nome)
 );
@@ -143,8 +154,6 @@ CREATE TABLE IF NOT EXISTS formularios (
 );
 
 -- Ligação: Tipo <-> Formulário
--- Nota: Aqui não precisa de organization_id direto pois as tabelas pai (tipos e formularios) já têm.
--- Mas a aplicação deve garantir que não se vincule um formulário da Org A num tipo da Org B.
 CREATE TABLE IF NOT EXISTS demandas_tipos_formularios (
     id_tipo_demanda INT PRIMARY KEY REFERENCES demandas_tipos(id) ON DELETE CASCADE, 
     id_formulario INT NOT NULL REFERENCES formularios(id) ON DELETE CASCADE
@@ -179,7 +188,8 @@ CREATE TABLE IF NOT EXISTS demandas (
     uf VARCHAR(2),
     
     -- Dados da Demanda
-    tipo_demanda TEXT NOT NULL, -- Recomendo mudar para FK id_tipo no futuro
+    -- Recomenda-se mudar para FK id_tipo no futuro, mas mantemos o nome original por enquanto.
+    tipo_demanda TEXT NOT NULL, 
     descricao TEXT NOT NULL,
     
     -- Status (FK)
@@ -238,9 +248,8 @@ CREATE TABLE IF NOT EXISTS vistorias_realizadas (
 );
 
 
--- 6. ÍNDICES DE PERFORMANCE (MUITO IMPORTANTE PARA MULTI-TENANT)
+-- 6. ÍNDICES DE PERFORMANCE
 -- ==========================================
--- Como todas as queries vão ter "WHERE organization_id = X", esses índices são vitais.
 CREATE INDEX IF NOT EXISTS idx_users_org ON users(organization_id);
 CREATE INDEX IF NOT EXISTS idx_members_org ON organization_members(organization_id);
 CREATE INDEX IF NOT EXISTS idx_members_user ON organization_members(user_id);
@@ -253,45 +262,33 @@ CREATE INDEX IF NOT EXISTS idx_forms_org ON formularios(organization_id);
 CREATE INDEX IF NOT EXISTS idx_demandas_geom ON demandas USING GIST (geom);
 
 
--- 7. TRIGGERS E AUTOMAÇÃO
+-- 7. TRIGGERS E SEEDING DE DADOS PADRÃO
 -- ==========================================
 
 -- Função Timestamp
 CREATE OR REPLACE FUNCTION trigger_set_timestamp()
 RETURNS TRIGGER AS $$
 BEGIN
-  NEW.updated_at = NOW();
-  RETURN NEW;
+    NEW.updated_at = NOW();
+    RETURN NEW;
 END;
 $$ LANGUAGE plpgsql;
 
--- Função Setup Nova Organização (Popula dados padrão para o novo cliente)
+-- Função Setup Nova Organização (APENAS CONFIGURAÇÕES ESPECÍFICAS)
 CREATE OR REPLACE FUNCTION trigger_setup_new_organization()
 RETURNS TRIGGER AS $$
 BEGIN
-  -- 1. Inserir Status Padrão
-  INSERT INTO demandas_status (organization_id, nome, cor) VALUES
-  (NEW.id, 'Pendente', '#FFA500'),
-  (NEW.id, 'Vistoria Agendada', '#1976D2'),
-  (NEW.id, 'Em Rota', '#9c27b0'),
-  (NEW.id, 'Concluído', '#2E7D32');
+    -- NOTA: Status e Tipos Padrão NÃO são inseridos aqui. Eles são globais (organization_id IS NULL).
 
-  -- 2. Inserir Tipos Padrão
-  INSERT INTO demandas_tipos (organization_id, nome) VALUES
-  (NEW.id, 'Avaliação'),
-  (NEW.id, 'Poda'),
-  (NEW.id, 'Supressão'),
-  (NEW.id, 'Fiscalização');
+    -- 1. Inserir Configuração Padrão (SEMPRE específica da organização)
+    INSERT INTO configuracoes (organization_id, chave, valor) VALUES
+    (NEW.id, 'padrao_rota', '{"inicio": {"lat": -29.8533191, "lng": -51.1789191}, "fim": {"lat": -29.8533191, "lng": -51.1789191}}');
 
-  -- 3. Inserir Configuração Padrão
-  INSERT INTO configuracoes (organization_id, chave, valor) VALUES
-  (NEW.id, 'padrao_rota', '{"inicio": {"lat": -29.8533191, "lng": -51.1789191}, "fim": {"lat": -29.8533191, "lng": -51.1789191}}');
-
-  RETURN NEW;
+    RETURN NEW;
 END;
 $$ LANGUAGE plpgsql;
 
--- Aplicação dos Triggers
+-- Aplicação dos Triggers (mantidos)
 DROP TRIGGER IF EXISTS set_users_timestamp ON users;
 CREATE TRIGGER set_users_timestamp BEFORE UPDATE ON users FOR EACH ROW EXECUTE FUNCTION trigger_set_timestamp();
 
@@ -310,3 +307,28 @@ CREATE TRIGGER setup_new_organization
 AFTER INSERT ON organizations 
 FOR EACH ROW 
 EXECUTE FUNCTION trigger_setup_new_organization();
+
+
+-- 8. SEEDING INICIAL DE STATUS E TIPOS GLOBAIS (EXECUTA APENAS UMA VEZ)
+-- ==========================================
+
+DO $$
+BEGIN
+    -- Insere Status Padrão GLOBAL (organization_id = NULL)
+    IF NOT EXISTS (SELECT 1 FROM demandas_status WHERE organization_id IS NULL LIMIT 1) THEN
+        INSERT INTO demandas_status (organization_id, nome, cor, is_custom, is_default_global) VALUES
+        (NULL, 'Pendente', '#FFA500', FALSE, TRUE),
+        (NULL, 'Vistoria Agendada', '#1976D2', FALSE, TRUE),
+        (NULL, 'Em Rota', '#9c27b0', FALSE, TRUE),
+        (NULL, 'Concluído', '#2E7D32', FALSE, TRUE);
+    END IF;
+
+    -- Insere Tipos Padrão GLOBAL (organization_id = NULL)
+    IF NOT EXISTS (SELECT 1 FROM demandas_tipos WHERE organization_id IS NULL LIMIT 1) THEN
+        INSERT INTO demandas_tipos (organization_id, nome, is_custom, is_default_global) VALUES
+        (NULL, 'Avaliação', FALSE, TRUE),
+        (NULL, 'Poda', FALSE, TRUE),
+        (NULL, 'Supressão', FALSE, TRUE),
+        (NULL, 'Fiscalização', FALSE, TRUE);
+    END IF;
+END $$;

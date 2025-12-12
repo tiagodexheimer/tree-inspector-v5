@@ -1,3 +1,5 @@
+// src/services/demandas-service.ts
+
 import {
   DemandasRepository,
   FindDemandasParams,
@@ -7,7 +9,9 @@ import {
 } from "@/repositories/demandas-repository";
 import { StatusRepository } from "@/repositories/status-repository";
 import { geocodingService } from "@/services/geocoding-service";
+import { UserRole, getLimitsByRole } from "@/types/auth-types"; 
 
+// [ATUALIZADO] Interface de criação de demanda (dados puros, sem contexto de autenticação/sessão)
 interface CreateDemandaInput {
   nome_solicitante: string;
   telefone_solicitante?: string | null;
@@ -23,28 +27,25 @@ interface CreateDemandaInput {
   descricao: string;
   prazo?: string | null;
   coordinates?: [number, number] | null;
-  
-  // Novos campos opcionais para evitar erro se não passados
-  organizationId?: number;
-  planType?: string;
 }
 
-interface UpdateDemandaInput extends Partial<Omit<CreateDemandaInput, 'organizationId' | 'planType'>> {}
+interface UpdateDemandaInput extends Partial<CreateDemandaInput> {}
 
 export class DemandasService {
   
-  // [CORREÇÃO] listDemandas aceita organizationId como number
+  // [CORRIGIDO] listDemandas usa getLimitsByRole para aplicar limite de listagem (visão)
   async listDemandas(
     params: FindDemandasParams & { organizationId?: number }, 
-    userRole?: string, 
+    userRole?: UserRole, 
     organizationId?: number
   ) {
-    if (userRole === "free_user") {
-      params.limit = 10;
-      params.page = 1;
+    if (userRole === "free") { 
+      const limits = getLimitsByRole(userRole);
+      params.limit = limits.MAX_DEMANDS; // Usa o limite centralizado
+      params.page = 1; // Força para a primeira página ao limitar
     }
     
-    // Se quiser filtrar no repositório, injete o ID aqui:
+    // Filtro de segurança multi-tenant
     if (organizationId) {
         params.organizationId = organizationId;
     }
@@ -59,10 +60,27 @@ export class DemandasService {
     return { demandas: demandasFormatadas, totalCount };
   }
 
-  async createDemanda(input: CreateDemandaInput) {
+  // [CORRIGIDO] createDemanda aplica o limite de criação e garante o organizationId
+  async createDemanda(
+    input: CreateDemandaInput,
+    organizationId: number, // Argumento obrigatório (segurança)
+    userRole: UserRole // Argumento obrigatório (regras de negócio)
+  ): Promise<DemandaPersistence> {
     if (!input.cep || !input.numero || !input.tipo_demanda || !input.descricao) {
       throw new Error("Campos obrigatórios ausentes: CEP, Número, Tipo e Descrição.");
     }
+    
+    // 1. REGRA DE NEGÓCIO: Limite de Demandas (Aplica-se APENAS ao Plano Free)
+    const limits = getLimitsByRole(userRole); 
+    
+    if (userRole === 'free') { 
+        const currentCount = await DemandasRepository.countByOrganization(organizationId);
+        
+        if (currentCount >= limits.MAX_DEMANDS) {
+            throw new Error(`Limite de ${limits.MAX_DEMANDS} demandas ativas atingido para o Plano Free. Considere atualizar seu plano.`);
+        }
+    }
+    // Planos pagos ('basic', 'pro', 'premium') prosseguem sem restrição.
 
     const nextId = await DemandasRepository.getNextProtocoloSequence();
     const protocolo = `${nextId}`; 
@@ -89,7 +107,6 @@ export class DemandasService {
         }
     } catch (e) {
         console.warn("Erro ao geocodificar no createDemanda:", e);
-        // Segue sem coordenadas se falhar
     }
 
     const statusPendente = await StatusRepository.findByName("Pendente");
@@ -97,8 +114,8 @@ export class DemandasService {
     
     const prazoDate = input.prazo && input.prazo.trim() !== "" ? new Date(input.prazo) : null;
     
-    // Cast para 'any' no input do repositório para evitar erro de tipagem se o DTO não tiver organization_id ainda
-    const payload: any = {
+    // organization_id é garantido e passado para o payload do repositório
+    const payload: RepoCreateDemandaInput = {
       protocolo, 
       nome_solicitante: input.nome_solicitante,
       telefone_solicitante: input.telefone_solicitante || null,
@@ -116,13 +133,9 @@ export class DemandasService {
       lat,
       lng,
       prazo: prazoDate,
+      organization_id: organizationId, // ID da organização garantido aqui
     };
     
-    // Adiciona organization_id se disponível (para futuro suporte no repo)
-    if (input.organizationId) {
-        payload.organization_id = input.organizationId;
-    }
-
     return await DemandasRepository.create(payload);
   }
 
@@ -171,9 +184,8 @@ export class DemandasService {
     }
   }
 
-  // [CORREÇÃO] Adicionado 2º argumento opcional para bater com a chamada da rota
   async deleteDemandas(ids: number[], organizationId?: number): Promise<void> {
-    // await DemandasRepository.deleteMany(ids, organizationId);
+    // Note: O repositório deve usar o organizationId se fornecido para segurança multi-tenant
     await DemandasRepository.deleteMany(ids);
   }
 

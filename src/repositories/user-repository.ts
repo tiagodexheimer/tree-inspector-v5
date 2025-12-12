@@ -1,35 +1,41 @@
 // src/repositories/user-repository.ts
 import pool from "@/lib/db";
+// [CORREÇÃO] Importa a definição canônica de UserRole
+import { UserRole } from "@/types/auth-types"; 
+
+// [REMOVIDO] A definição de UserRole foi movida para '@/types/auth-types'
 
 export interface UserPersistence {
   id: string;
   name: string;
   email: string;
   password?: string;
-  role: "admin" | "paid_user" | "free_user";
-  // [IMPORTANTE] Renomeado para camelCase para bater com o NextAuth
+  // [ATUALIZADO] Utiliza o tipo importado
+  role: UserRole;
   organizationId: number;
   plan_type: string;
+  organizationName: string;
 }
 
 export interface CreateUserRepoDTO {
   name: string;
   email: string;
   passwordHash: string;
-  role: string;
+  // [ATUALIZADO] Utiliza o tipo importado
+  role: UserRole;
+  planType: string;
 }
 
 export const UserRepository = {
-  // 1. Busca usuário E dados da organização (JOIN)
+  // 1. Busca usuário E dados da organização (JOIN) - Mantido
   async findByEmail(email: string): Promise<UserPersistence | null> {
     try {
-      // Usamos 'as "organizationId"' para o JS receber em camelCase
       const query = `
         SELECT 
           u.id, u.name, u.email, u.password, u.role, 
           u.organization_id as "organizationId",
           o.plan_type,
-          o.name as "organizationName" -- [NOVO] Busca o nome
+          o.name as "organizationName"
         FROM users u
         LEFT JOIN organizations o ON u.organization_id = o.id
         WHERE u.email = $1
@@ -38,6 +44,7 @@ export const UserRepository = {
       const result = await pool.query(query, [email]);
 
       if (result.rows.length === 0) return null;
+      // O resultado do banco de dados deve ser mapeado para o novo tipo UserPersistence
       return result.rows[0] as UserPersistence;
     } catch (error) {
       console.error("Erro no UserRepository.findByEmail:", error);
@@ -52,11 +59,12 @@ export const UserRepository = {
       ORDER BY name ASC
     `;
     const result = await pool.query(query);
+    // Mapeamento necessário
     return result.rows;
   },
 
   // 2. CRIAÇÃO COM ORGANIZAÇÃO (Fluxo de Cadastro / Signup)
-  // Cria uma organização "Free" automaticamente para o novo usuário
+  // Atualizado para usar o planType fornecido
   async createWithOrganization(
     data: CreateUserRepoDTO
   ): Promise<UserPersistence> {
@@ -66,19 +74,19 @@ export const UserRepository = {
       await client.query("BEGIN");
 
       // A) Cria a Organização
-      // Usa o nome do usuário como nome da empresa inicial (ex: "Empresa de João")
       const orgName = data.name && data.name.trim() !== '' ? data.name : 'Minha Organização';
 
       const orgQuery = `
         INSERT INTO organizations (name, plan_type) 
-        VALUES ($1, 'Free') 
+        VALUES ($1, $2) 
         RETURNING id, plan_type
       `;
-      const orgRes = await client.query(orgQuery, [orgName]);
+      // [CORREÇÃO] Usa o planType passado no DTO
+      const orgRes = await client.query(orgQuery, [orgName, data.planType]); 
       const orgId = orgRes.rows[0].id;
       const planType = orgRes.rows[0].plan_type;
 
-      // B) Cria o Usuário vinculado à Organização recém-criada
+      // B) Cria o Usuário vinculado à Organização
       const userQuery = `
         INSERT INTO users (id, name, email, password, role, organization_id) 
         VALUES (gen_random_uuid(), $1, $2, $3, $4, $5) 
@@ -89,13 +97,12 @@ export const UserRepository = {
         data.name,
         data.email,
         data.passwordHash,
-        data.role, // Geralmente 'free_user'
+        data.role, // Agora é a nova UserRole (free, basic, pro, premium)
         orgId,
       ]);
 
       await client.query("COMMIT");
 
-      // Retorna o objeto combinado
       return {
         ...userRes.rows[0],
         plan_type: planType,
@@ -111,7 +118,6 @@ export const UserRepository = {
   },
 
   // Método padrão de criação (redireciona para o fluxo com organização)
-  // Isso mantém compatibilidade com o Service existente
   async create(data: CreateUserRepoDTO): Promise<UserPersistence> {
     return this.createWithOrganization(data);
   },
@@ -121,7 +127,7 @@ export const UserRepository = {
     const res = await pool.query(query, [id]);
     return (res.rowCount ?? 0) > 0;
   },
-  // Busca apenas usuários da organização específica para preencher dropdowns
+  
   async findAllByOrganization(
     organizationId: number
   ): Promise<UserPersistence[]> {
@@ -132,6 +138,7 @@ export const UserRepository = {
       ORDER BY name ASC
     `;
     const result = await pool.query(query, [organizationId]);
+    // Mapeamento necessário
     return result.rows;
   },
 };

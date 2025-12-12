@@ -1,22 +1,25 @@
+// src/services/rotas-service.ts
+
 import {
   RotasRepository,
   RotaPersistence,
   UpdateRotaDTO,
 } from "@/repositories/rotas-repository";
-import { ConfiguracoesRepository } from "@/repositories/configuracoes-repository"; // [NOVO] Import
+import { ConfiguracoesRepository } from "@/repositories/configuracoes-repository"; 
 import * as XLSX from "xlsx";
 import { format } from "date-fns";
+import { UserRole, getLimitsByRole } from "@/types/auth-types"; 
 
-// A interface no Service usa organizationId, mas o DTO do Repository usa organization_id
+// [ATUALIZADO] Interface Pura (sem contexto de autenticação/sessão)
 interface CreateRotaInput {
   nome: string;
   responsavel: string;
   demandas: { id: number }[];
-  organizationId: number; // Campo que vem da API/Sessão
-  planType: string;
   inicio_personalizado?: { lat: number; lng: number };
   fim_personalizado?: { lat: number; lng: number };
 }
+
+interface UpdateRotaInput extends Partial<CreateRotaInput> {}
 
 const DEFAULT_FALLBACK_COORDS = {
   latitude: -29.8533191,
@@ -24,11 +27,18 @@ const DEFAULT_FALLBACK_COORDS = {
 };
 
 export class RotasService {
+  
   async listRotas(organizationId: number) {
     return await RotasRepository.findAll(organizationId);
   }
 
-  async createRota(input: CreateRotaInput) {
+  // [CORRIGIDO] createRota aplica o limite de criação e garante o organizationId
+  async createRota(
+    input: CreateRotaInput,
+    organizationId: number, // Argumento explícito e garantido (segurança)
+    userRole: UserRole // Argumento explícito (regras de negócio)
+  ) {
+    // Validação básica da rota
     if (!input.nome || input.nome.trim() === "")
       throw new Error("O nome da rota é obrigatório.");
     if (!input.responsavel || input.responsavel.trim() === "")
@@ -36,8 +46,18 @@ export class RotasService {
     if (!input.demandas || input.demandas.length === 0)
       throw new Error("A rota deve conter pelo menos uma demanda.");
 
-    // TODO: Adicionar lógica de validação de limite de rotas/demandas com base no input.planType
-
+    // 1. REGRA DE NEGÓCIO: Limite de Rotas (Aplica-se APENAS ao Plano Free)
+    const limits = getLimitsByRole(userRole);
+    
+    if (userRole === 'free') {
+        // Assume-se que RotasRepository.countByOrganization está implementado
+        const currentCount = await RotasRepository.countByOrganization(organizationId);
+        
+        if (currentCount >= limits.MAX_ROTAS) {
+            throw new Error(`Limite de ${limits.MAX_ROTAS} rota ativa atingido para o Plano Free. Considere atualizar seu plano.`);
+        }
+    }
+    
     const demandasComOrdem = input.demandas.map((d, index) => ({
       id: d.id,
       ordem: index,
@@ -48,8 +68,8 @@ export class RotasService {
       responsavel: input.responsavel.trim(),
       status: "Pendente",
       demandas: demandasComOrdem,
-      // ⬇️ A CHAVE DEVE SER organization_id ⬇️
-      organization_id: input.organizationId, // ✅ CORREÇÃO FINALIZADA
+      // organization_id é garantido pelo argumento do método
+      organization_id: organizationId, 
       inicio_personalizado: input.inicio_personalizado || null,
       fim_personalizado: input.fim_personalizado || null,
     });
@@ -125,11 +145,13 @@ export class RotasService {
     if (!input.responsavel || input.responsavel.trim() === "")
       throw new Error("Responsável é obrigatório.");
 
+    // O repositório deve usar o organizationId para garantir que apenas rotas da organização sejam atualizadas
     const updated = await RotasRepository.update(id, organizationId, input); 
     if (!updated) throw new Error("Rota não encontrada para atualização.");
     return updated;
   }
 
+  // [CORRIGIDO] deleteRota exige o organizationId para segurança multi-tenant
   async deleteRota(id: number, organizationId: number) {
     const success = await RotasRepository.delete(id, organizationId);
     if (!success) throw new Error("Rota não encontrada para exclusão.");

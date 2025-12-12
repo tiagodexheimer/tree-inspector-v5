@@ -7,33 +7,40 @@ export async function POST(request: NextRequest) {
   try {
     let body;
 
-    // 1. [CORREÇÃO CRÍTICA] Ler o corpo da requisição de forma robusta
     try {
-        // Tenta ler o corpo como texto
         const text = await request.text();
-        // Se houver texto, tenta fazer o parsing, senão usa um objeto vazio
         body = text ? JSON.parse(text) : {};
     } catch (e) {
-        // Se o parsing falhar (ex: Unexpected token), o body é tratado como vazio
         console.error("[API SIGNUP] Erro ao ler JSON do corpo da requisição:", e);
         body = {}; 
     }
     
-    const { name, email, password } = body;
+    // [CORREÇÃO] Recebe planType e isMonthly (isMonthly não é usado no service, mas é bom receber)
+    const { name, email, password, planType, isMonthly } = body; 
 
-    // 2. Validação de Entrada (Controller Level)
-    if (!email || !password) {
+    // 2. Validação de Entrada
+    if (!email || !password || !planType) {
       return NextResponse.json(
-        { message: "Email e senha são obrigatórios." }, 
+        { message: "Email, senha e plano são obrigatórios." }, 
         { status: 400 }
       );
     }
+    
+    // Garante que o plano é um dos tipos esperados
+    const validPlans = ['free', 'basic', 'pro', 'premium'];
+    if (!validPlans.includes(planType)) {
+        return NextResponse.json(
+            { message: "Plano selecionado inválido." }, 
+            { status: 400 }
+        );
+    }
 
-    // 3. Chamada ao Serviço (Business Logic)
+    // 3. Chamada ao Serviço (Passando planType)
     const newUser = await userManagementService.registerUser({
         name,
         email,
-        password
+        password,
+        planType // Passa o plano selecionado
     });
 
     // 4. Resposta
@@ -48,10 +55,8 @@ export async function POST(request: NextRequest) {
     if (error instanceof Error) {
         errorMessage = error.message;
         
-        // Mapeamento de erros de domínio para HTTP
-        if (errorMessage === "Email já cadastrado.") status = 409; // Conflict
-        if (errorMessage.includes("obrigatórios")) status = 400;   // Bad Request
-        // Tratamento para erro de criação da organização
+        if (errorMessage === "Email já cadastrado.") status = 409; 
+        if (errorMessage.includes("obrigatórios") || errorMessage.includes("inválido")) status = 400;   
         if (errorMessage.includes("Falha ao configurar o ambiente")) status = 503; 
     }
     
