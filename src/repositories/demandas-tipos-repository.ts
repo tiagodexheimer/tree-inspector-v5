@@ -41,7 +41,9 @@ export const DemandasTiposRepository = {
   /**
    * [NOVO] Lista Tipos Globais e Customizados da Organização. Usado por planos Pro/Premium.
    */
-  async findGlobalAndCustom(organizationId: number): Promise<TipoDemandaPersistence[]> {
+  async findGlobalAndCustom(
+    organizationId: number
+  ): Promise<TipoDemandaPersistence[]> {
     try {
       const query = `
         SELECT ${BASE_FIELDS}
@@ -53,7 +55,10 @@ export const DemandasTiposRepository = {
       const result = await pool.query(query, [organizationId]);
       return result.rows as TipoDemandaPersistence[];
     } catch (error) {
-      console.error("Erro no DemandasTiposRepository.findGlobalAndCustom:", error);
+      console.error(
+        "Erro no DemandasTiposRepository.findGlobalAndCustom:",
+        error
+      );
       throw new Error("Falha ao buscar tipos de demanda Pro/Premium.");
     }
   },
@@ -61,7 +66,9 @@ export const DemandasTiposRepository = {
   /**
    * [NOVO] Lista Tipos Globais (Padrão) e não-customizados da Organização. Usado por planos Free/Basic.
    */
-  async findGlobalAndDefault(organizationId: number): Promise<TipoDemandaPersistence[]> {
+  async findGlobalAndDefault(
+    organizationId: number
+  ): Promise<TipoDemandaPersistence[]> {
     try {
       const query = `
         SELECT ${BASE_FIELDS}
@@ -73,7 +80,10 @@ export const DemandasTiposRepository = {
       const result = await pool.query(query, [organizationId]);
       return result.rows as TipoDemandaPersistence[];
     } catch (error) {
-      console.error("Erro no DemandasTiposRepository.findGlobalAndDefault:", error);
+      console.error(
+        "Erro no DemandasTiposRepository.findGlobalAndDefault:",
+        error
+      );
       throw new Error("Falha ao buscar tipos de demanda Padrão.");
     }
   },
@@ -81,19 +91,26 @@ export const DemandasTiposRepository = {
   /**
    * [MODIFICADO] Busca por nome dentro do escopo da organização (NULL ou ID) para checagem de unicidade.
    */
-  async findByNameAndOrg(nome: string, organizationId: number): Promise<TipoDemandaPersistence | null> {
+  async findByNameAndOrg(
+    name: string,
+    organizationId: number
+  ): Promise<TipoDemandaPersistence | null> {
     try {
       const query = `
-        SELECT ${BASE_FIELDS}
-        FROM demandas_tipos dt
-        ${JOIN_FORMULARIO}
-        WHERE dt.nome = $1 AND (dt.organization_id IS NULL OR dt.organization_id = $2)
+        SELECT id, nome, organization_id, is_custom, id_formulario
+        FROM demandas_tipos
+        WHERE nome = $1
+        AND (organization_id = $2 OR organization_id IS NULL)
+        ORDER BY organization_id DESC
+        LIMIT 1
       `;
-      const result = await pool.query(query, [nome, organizationId]);
+      // A cláusula ORDER BY DESC garante que, se houver um customizado E um global com o mesmo nome,
+      // o customizado da organização ($2) seja preferido (regra de negócio comum).
+      const result = await pool.query(query, [name, organizationId]);
       return (result.rows[0] as TipoDemandaPersistence) || null;
     } catch (error) {
       console.error("Erro no DemandasTiposRepository.findByNameAndOrg:", error);
-      throw new Error("Falha ao verificar existência do tipo.");
+      throw new Error("Falha ao buscar tipo de demanda por nome.");
     }
   },
 
@@ -125,7 +142,7 @@ export const DemandasTiposRepository = {
       // Buscar o nome é necessário porque a tabela `demandas` ainda usa `tipo_demanda TEXT`.
       const tipo = await this.findById(id);
       if (!tipo) return 0;
-      
+
       const result = await pool.query(
         "SELECT COUNT(*) FROM demandas WHERE tipo_demanda = $1",
         [tipo.nome]
@@ -145,19 +162,19 @@ export const DemandasTiposRepository = {
   async create(data: CreateTipoDemandaDTO): Promise<TipoDemandaPersistence> {
     const client = await pool.connect();
     try {
-      await client.query('BEGIN');
+      await client.query("BEGIN");
 
       // 1. Cria o Tipo
       const queryTipo = `
         INSERT INTO demandas_tipos (nome, organization_id, is_custom, is_default_global) 
         VALUES ($1, $2, $3, $4) 
         RETURNING id, nome, organization_id, is_custom, is_default_global`;
-        
+
       const resTipo = await client.query(queryTipo, [
-        data.nome, 
+        data.nome,
         data.organization_id,
         data.is_custom,
-        data.is_default_global
+        data.is_default_global,
       ]);
       const newTipo = resTipo.rows[0];
 
@@ -169,10 +186,10 @@ export const DemandasTiposRepository = {
         );
       }
 
-      await client.query('COMMIT');
+      await client.query("COMMIT");
       return { ...newTipo, id_formulario: data.id_formulario || null };
     } catch (error) {
-      await client.query('ROLLBACK');
+      await client.query("ROLLBACK");
       console.error("Erro no DemandasTiposRepository.create:", error);
       throw new Error("Falha ao criar tipo de demanda.");
     } finally {
@@ -183,10 +200,14 @@ export const DemandasTiposRepository = {
   /**
    * [MODIFICADO] Update agora exige organizationId para segurança multi-tenant.
    */
-  async update(id: number, organizationId: number, data: UpdateTipoDemandaDTO): Promise<TipoDemandaPersistence | null> {
+  async update(
+    id: number,
+    organizationId: number,
+    data: UpdateTipoDemandaDTO
+  ): Promise<TipoDemandaPersistence | null> {
     const client = await pool.connect();
     try {
-      await client.query('BEGIN');
+      await client.query("BEGIN");
 
       // 1. Atualiza o Nome (RESTRIÇÃO MULTI-TENANT: SÓ ATUALIZA O QUE PERTENCE À ORG)
       const queryTipo = `
@@ -194,11 +215,15 @@ export const DemandasTiposRepository = {
         SET nome = $1 
         WHERE id = $2 AND organization_id = $3 
         RETURNING id, nome, organization_id, is_custom, is_default_global`;
-        
-      const resTipo = await client.query(queryTipo, [data.nome, id, organizationId]);
+
+      const resTipo = await client.query(queryTipo, [
+        data.nome,
+        id,
+        organizationId,
+      ]);
 
       if (resTipo.rowCount === 0) {
-        await client.query('ROLLBACK');
+        await client.query("ROLLBACK");
         return null; // Não encontrado ou não pertence à ORG
       }
 
@@ -215,18 +240,18 @@ export const DemandasTiposRepository = {
       } else {
         // Se não tem ID (veio null/0), remove o vínculo existente
         await client.query(
-            `DELETE FROM demandas_tipos_formularios WHERE id_tipo_demanda = $1`, 
-            [id]
+          `DELETE FROM demandas_tipos_formularios WHERE id_tipo_demanda = $1`,
+          [id]
         );
       }
 
-      await client.query('COMMIT');
-      return { 
-          ...resTipo.rows[0], 
-          id_formulario: data.id_formulario || null 
+      await client.query("COMMIT");
+      return {
+        ...resTipo.rows[0],
+        id_formulario: data.id_formulario || null,
       } as TipoDemandaPersistence;
     } catch (error) {
-      await client.query('ROLLBACK');
+      await client.query("ROLLBACK");
       console.error("Erro no DemandasTiposRepository.update:", error);
       throw new Error("Falha ao atualizar tipo.");
     } finally {
@@ -249,5 +274,5 @@ export const DemandasTiposRepository = {
       console.error("Erro no DemandasTiposRepository.delete:", error);
       throw new Error("Falha ao deletar tipo.");
     }
-  }
+  },
 };

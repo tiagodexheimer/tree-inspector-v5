@@ -21,14 +21,26 @@ const INITIAL_STATE: FormularioDraft = {
 export function useFormularioBuilder() {
     const [formulario, setFormulario] = useState<FormularioDraft>(INITIAL_STATE);
     const [dialogs, setDialogs] = useState({ isSaveOpen: false, isSuccessOpen: false });
-    const [isLoading, setIsLoading] = useState(false); // [NOVO] Estado de carregamento
+    const [isLoading, setIsLoading] = useState(false); 
+    const [isSaving, setIsSaving] = useState(false); // [FIX 1] Adiciona o estado isSaving
 
-    // ... (Setters existentes: setNome, setDescricao, setIdTipoDemanda mantêm-se iguais)
+    // ... (Setters mantidos)
     const setNome = (nome: string) => setFormulario(prev => ({ ...prev, nome }));
     const setDescricao = (descricao: string) => setFormulario(prev => ({ ...prev, descricao }));
     const setIdTipoDemanda = (id: number) => setFormulario(prev => ({ ...prev, idTipoDemanda: id }));
 
-    // ... (addField, updateCampos, removeField, moveFields mantêm-se iguais)
+    const removeField = useCallback((id: string) => {
+        setFormulario(prev => ({ ...prev, campos: prev.campos.filter(c => c.id !== id) }));
+    }, []);
+
+    const updateCampos = useCallback((newCampos: CampoDef[] | ((prev: CampoDef[]) => CampoDef[])) => {
+        setFormulario(prev => ({ ...prev, campos: typeof newCampos === 'function' ? newCampos(prev.campos) : newCampos }));
+    }, []);
+    
+    const moveFields = useCallback((oldIndex: number, newIndex: number) => {
+        setFormulario(prev => ({ ...prev, campos: arrayMove(prev.campos, oldIndex, newIndex) }));
+    }, []);
+    
     const addField = useCallback((tipo: CampoTipo) => {
         const novoId = `campo_${Date.now()}`;
         const base = { id: novoId, name: novoId, label: `Novo ${tipo}` };
@@ -44,20 +56,8 @@ export function useFormularioBuilder() {
         setFormulario(prev => ({ ...prev, campos: [...prev.campos, novoCampo] }));
     }, []);
 
-    const updateCampos = useCallback((newCampos: CampoDef[] | ((prev: CampoDef[]) => CampoDef[])) => {
-        setFormulario(prev => ({ ...prev, campos: typeof newCampos === 'function' ? newCampos(prev.campos) : newCampos }));
-    }, []);
 
-    const removeField = useCallback((id: string) => {
-        setFormulario(prev => ({ ...prev, campos: prev.campos.filter(c => c.id !== id) }));
-    }, []);
-
-    const moveFields = useCallback((oldIndex: number, newIndex: number) => {
-        setFormulario(prev => ({ ...prev, campos: arrayMove(prev.campos, oldIndex, newIndex) }));
-    }, []);
-
-
-    // [NOVO] Função para carregar dados de um formulário existente
+    // Função para carregar dados de um formulário existente
     const loadForm = useCallback(async (id: number) => {
         setIsLoading(true);
         try {
@@ -71,8 +71,10 @@ export function useFormularioBuilder() {
                 id: data.id,
                 nome: data.nome,
                 descricao: data.descricao || '',
+                // NOTA: o backend precisa retornar id_tipo_demanda se houver
                 idTipoDemanda: data.id_tipo_demanda || '',
-                campos: data.definicao_campos || [] // O banco retorna o JSON pronto
+                // NOTA: definicao_campos deve vir como Array (objeto JSONB resolvido)
+                campos: data.definicao_campos || [] 
             });
         } catch (error) {
             console.error(error);
@@ -82,11 +84,14 @@ export function useFormularioBuilder() {
         }
     }, []);
 
-    // [ATUALIZADO] Lógica de Salvar (POST ou PUT)
+    // Lógica de Salvar (POST ou PUT)
     const confirmSave = async () => {
         if (!formulario.nome.trim() || !formulario.idTipoDemanda) {
-            throw new Error('Preencha o nome e selecione o tipo de demanda.');
+            alert('Preencha o nome e selecione o tipo de demanda.');
+            return;
         }
+        
+        setIsSaving(true); // [FIX 2] Inicia o estado de salvamento
 
         const isEditing = !!formulario.id;
         const url = isEditing ? `/api/gerenciar/formularios/${formulario.id}` : '/api/gerenciar/formularios';
@@ -104,13 +109,19 @@ export function useFormularioBuilder() {
                 }),
             });
 
-            if (!response.ok) throw new Error('Erro ao salvar formulário');
+            const result = await response.json();
+            if (!response.ok) {
+                // Lançar o erro do backend (ex: limite atingido)
+                throw new Error(result.message || 'Erro ao salvar formulário');
+            }
             
             setDialogs({ isSaveOpen: false, isSuccessOpen: true });
         } catch (error) {
             console.error(error);
-            alert('Erro ao salvar.');
+            alert(`Erro ao salvar: ${error instanceof Error ? error.message : 'Erro desconhecido'}`);
             throw error;
+        } finally {
+            setIsSaving(false); // [FIX 3] Finaliza o estado de salvamento
         }
     };
 
@@ -123,10 +134,22 @@ export function useFormularioBuilder() {
     const closeSaveDialog = () => setDialogs(prev => ({ ...prev, isSaveOpen: false }));
 
     return {
-        formulario, campos: formulario.campos, ...dialogs, isLoading,
-        setNome, setDescricao, setIdTipoDemanda, setCampos: updateCampos,
-        addField, removeField, moveFields, 
-        openSaveDialog, closeSaveDialog, confirmSave, resetAndClose,
-        loadForm // [NOVO] Exposta para o componente usar
+        formulario, 
+        campos: formulario.campos, 
+        ...dialogs, 
+        isLoading,
+        isSaving, // [FIX 4] Retorna isSaving
+        setNome, 
+        setDescricao, 
+        setIdTipoDemanda, 
+        setCampos: updateCampos,
+        addField, 
+        removeField,
+        moveFields, 
+        openSaveDialog, 
+        closeSaveDialog, 
+        confirmSave, 
+        resetAndClose,
+        loadForm
     };
 }

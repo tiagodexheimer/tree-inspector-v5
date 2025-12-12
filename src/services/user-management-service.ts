@@ -4,8 +4,8 @@ import { hash } from "bcrypt";
 import {
   UserRepository,
   UserPersistence,
-  UserRole, // Tipo UserRole importado do repositório
 } from "@/repositories/user-repository";
+import { UserRole } from "@/types/auth-types";
 import { organizationService } from "@/services/organization-service";
 import pool from "@/lib/db";
 // [CORREÇÃO SOLID/DRY] Importa o tipo centralizado para Plano

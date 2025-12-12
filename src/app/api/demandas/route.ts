@@ -1,9 +1,29 @@
+// src/app/api/demandas/route.ts
+
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/auth";
 import { demandasService } from "@/services/demandas-service";
+// [FIX] Importar UserRole
+import { UserRole } from "@/types/auth-types"; 
 
-// [IMPORTANTE] Força a rota a ser dinâmica para evitar erros de validação estática
 export const dynamic = 'force-dynamic';
+
+// --- Helper de Contexto de Segurança ---
+async function getAuthContext(session: any) {
+    if (!session || !session.user) {
+        throw new Error("Não autenticado");
+    }
+
+    const organizationId = parseInt((session.user as any).organizationId || "0", 10);
+    // [CORREÇÃO] A role do usuário é o novo tipo de plano (free, basic, pro, etc.)
+    const userRole = (session.user as any).role as UserRole; // Agora UserRole está definido
+
+    // Validação explícita de organização (necessário para NOT NULL)
+    if (isNaN(organizationId) || organizationId === 0) {
+        throw new Error("Sessão inválida: ID da organização ausente.");
+    }
+    return { organizationId, userRole };
+}
 
 // --- GET: LISTAR DEMANDAS ---
 export async function GET(request: NextRequest) {

@@ -95,10 +95,12 @@ export default function FormulariosPage() {
                 
                 <TabPanel value={tabIndex} index={0}>
                     <VisualizarFormularios 
-                        onEdit={handleEditForm} 
+                        onEdit={handleEditForm}
                         onDelete={handleDeleteClick} // Passa o handler
                         refreshTrigger={refreshListKey} // Passa o trigger
-                    />
+                        onAdd={function (): void {
+                            throw new Error('Function not implemented.');
+                        } }                    />
                 </TabPanel>
                 
                 <TabPanel value={tabIndex} index={1}>

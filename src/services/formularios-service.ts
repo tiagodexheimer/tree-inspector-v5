@@ -1,7 +1,8 @@
 // src/services/formularios-service.ts
 import { FormulariosRepository } from "@/repositories/formularios-repository";
 import { UserRole, getLimitsByRole } from "@/types/auth-types";
-import { FormulariosPersistence, CreateFormularioDTO, UpdateFormularioDTO, CampoFormulario } from "@/types/formularios";
+// [FIX CRÍTICO] Importa CampoDef em vez de CampoFormulario
+import { FormulariosPersistence, CreateFormularioDTO, UpdateFormularioDTO, CampoDef } from "@/types/formularios";
 
 export class FormulariosService {
 
@@ -9,16 +10,17 @@ export class FormulariosService {
      * Define a estrutura do formulário padrão fixo (Observações + 1 Foto).
      */
     private getFixedFormDefinition(): CreateFormularioDTO {
-        const campos: CampoFormulario[] = [
+        // [FIX] Usar o tipo CampoDef
+        const campos: CampoDef[] = [
             {
                 id: "obs",
                 name: "observacoes",
                 type: "textarea",
                 label: "Observações/Relatório Detalhado",
                 required: true,
-                placeholder: "Relatório detalhado da visita..."
-            } as CampoFormulario, // Forçando a tipagem para ser compatível com CampoDef
-            // { id: "foto", type: "file", label: "Foto de Evidência", required: false, max_files: 1, accept: "image/*" }
+                placeholder: "Relatório detalhado da visita...",
+                rows: 3
+            } as CampoDef, // Assegura compatibilidade com a união discriminada CampoDef
         ];
         
         return {
@@ -52,15 +54,14 @@ export class FormulariosService {
             throw new Error(`Limite de ${limits.MAX_FORMULARIOS} formulário(s) atingido para o Plano ${planName}.`);
         }
 
-        // 2. Validação Específica para Plano Free (Apenas pode ter 1 formulário fixo)
+        // 2. Validação Específica para Plano Free (Apenas pode ter o template fixo)
         if (userRole === 'free') {
              // O plano Free só pode ter o formulário padrão. Se for a segunda tentativa, bloqueia.
              if (currentCount > 0) {
                  throw new Error("O Plano Free não permite a criação de formulários personalizados.");
              }
              
-             // Aplica o template fixo para o plano Free (o backend já tem o registro NULL/Global, 
-             // mas criamos um registro local para o Free se a regra MAX_FORMULARIOS for 1).
+             // Aplica o template fixo
              const fixedForm = this.getFixedFormDefinition();
              
              const payload: CreateFormularioDTO = {
@@ -78,13 +79,13 @@ export class FormulariosService {
         const payload: CreateFormularioDTO = {
             ...input,
             organization_id: organizationId,
-        } as CreateFormularioDTO; // Forçando tipagem para evitar erro de 'definicao_campos'
+        } as CreateFormularioDTO;
 
         return await FormulariosRepository.create(payload);
     }
     
     /**
-     * [NOVO MÉTODO] Atualiza um formulário existente.
+     * Atualiza um formulário existente.
      */
     async updateFormulario(
         formId: number,
@@ -95,7 +96,6 @@ export class FormulariosService {
         
         // 1. Checagem de Permissão do Plano
         const limits = getLimitsByRole(userRole);
-        // [FIX] Basic (limite 2) agora passa aqui
         if (limits.MAX_FORMULARIOS <= 1) { 
              throw new Error("Seu plano atual não permite editar formulários customizados.");
         }
@@ -146,7 +146,6 @@ export class FormulariosService {
     ): Promise<void> {
         // 1. Checagem de Permissão do Plano
         const limits = getLimitsByRole(userRole);
-        // [FIX] Basic (limite 2) agora passa aqui
         if (limits.MAX_FORMULARIOS <= 1) { 
              throw new Error("Seu plano atual não permite gerenciar formulários customizados.");
         }
@@ -168,8 +167,7 @@ export class FormulariosService {
             throw new Error("Acesso negado. Você só pode deletar formulários da sua organização.");
         }
 
-        // 3. Checagem de uso (para evitar FK violation) - Implementação a ser feita no repositório
-        // await FormulariosRepository.countUsage(formId); 
+        // 3. Checagem de uso (para evitar FK violation) - Assume-se que o repositório verifica se há demandas associadas.
 
         // 4. Deleção
         const success = await FormulariosRepository.delete(formId, organizationId);
