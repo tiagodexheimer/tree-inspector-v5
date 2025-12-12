@@ -62,24 +62,30 @@ export const authConfig: NextAuthConfig = {
 
   // Callbacks: Essenciais para a propagação correta do ROLE e dados Multi-tenant
   callbacks: {
-  async jwt({ token, user }) {
-    if (user) {
-      token.id = user.id;
-      token.role = user.role as any;
-      token.organizationId = user.organizationId;
-      token.organizationName = user.organizationName; // [NOVO]
-    }
-    return token;
-  },
-  async session({ session, token }) {
-    if (token && session.user) {
-      session.user.id = token.id as string;
-      session.user.role = token.role as any;
-      session.user.organizationId = token.organizationId as string;
-      session.user.organizationName = token.organizationName as string; // [NOVO]
-    }
-    return session;
-  },
+    async jwt({ token, user }) {
+      if (user) {
+        // Usuário logado: Adiciona dados do usuário ao token
+        token.id = user.id;
+        token.role = user.role as any;
+        // Não forçamos tipagem aqui, deixando o NextAuth tratar (user.organizationId deve ser number/string)
+        token.organizationId = user.organizationId; 
+        token.organizationName = (user as any).organizationName; // [NOVO]
+      }
+      return token;
+    },
+    async session({ session, token }) {
+      if (token && session.user) {
+        session.user.id = token.id as string;
+        session.user.role = token.role as any;
+        
+        // [FIX CRÍTICO] Converte para number, pois session.user.organizationId (no d.ts) é number.
+        // O valor do token pode ser number ou string, Number() é seguro para ambos.
+        session.user.organizationId = Number(token.organizationId);
+        
+        session.user.organizationName = token.organizationName as string; 
+      }
+      return session;
+    },
 
 
     /**

@@ -1,13 +1,16 @@
 // src/lib/db.ts
-import { Pool } from '@neondatabase/serverless'; // Use o driver do Neon
+import { Pool as NeonPool } from '@neondatabase/serverless'; 
+// Importa o Pool padrão do 'pg', que é compatível com o Docker PostGIS
+import { Pool as StandardPool } from 'pg'; 
 
 declare global {
-  var pool: Pool | undefined;
+  // Define o tipo global para aceitar qualquer um dos Pools
+  var pool: NeonPool | StandardPool | undefined;
 }
 
 let connectionString: string | undefined = process.env.POSTGRES_URL;
 
-// Lógica de fallback para Docker local (mantida caso queira rodar sem internet)
+// Lógica de fallback para Docker local (mantida)
 if (!connectionString) {
   console.log('API: POSTGRES_URL não encontrada. Verificando variáveis locais...');
   const user = process.env.DB_USER;
@@ -26,22 +29,27 @@ if (!connectionString) {
   throw new Error("Não foi possível conectar ao banco de dados. Configure POSTGRES_URL.");
 }
 
-// --- BLOCO DE DEBUG TEMPORÁRIO ---
+// --- Dynamic Pool Selection Logic ---
+// Se a conexão for para 'localhost' ou '127.0.0.1' (como no CI/E2E), usamos o Pool padrão.
+const isLocalTest = connectionString.includes('localhost') || connectionString.includes('127.0.0.1');
+const PoolConstructor = isLocalTest ? StandardPool : NeonPool;
+
+// --- BLOCO DE DEBUG (Adicionado para verificar a escolha) ---
 const [protocol, rest] = connectionString.split('://');
 const safeRest = rest.replace(/:[^@]+@/, ':****@');
 console.log(`DEBUG: Conectando a: ${protocol}://${safeRest}`);
+console.log(`DEBUG: Usando Pool: ${isLocalTest ? 'Standard PG (Local/CI)' : 'Neon Serverless'}`);
 // ---------------------------------
 
 // Cria o pool (Singleton)
 if (!global.pool) {
   console.log('API: Criando novo pool de conexão...');
-  global.pool = new Pool({
+  global.pool = new PoolConstructor({
     connectionString: connectionString,
-    // O driver do Neon geralmente gerencia SSL automaticamente com a string connection,
-    // mas em alguns casos locais pode ser necessário ajustes.
+    // O Pool padrão do 'pg' não requer SSL para localhost
   });
 }
 
-const pool: Pool = global.pool;
+const pool: NeonPool | StandardPool = global.pool;
 
 export default pool;

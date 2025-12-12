@@ -1,5 +1,29 @@
+// src/app/api/demandas/import-row/route.ts
+
 import { NextRequest, NextResponse } from "next/server";
 import { demandasService } from "@/services/demandas-service";
+import { auth } from "@/auth"; // [FIX 1] Importar auth
+import { UserRole } from "@/types/auth-types"; // [FIX 2] Importar UserRole
+
+export const dynamic = 'force-dynamic';
+
+// Helper de Segurança Multi-tenant (Padrão)
+async function getAuthContext(request: NextRequest) {
+    const session = await auth();
+    if (!session || !session.user) {
+        throw new Error("Não autenticado");
+    }
+    
+    const user = session.user as any;
+    const organizationId = parseInt(user.organizationId || "0", 10);
+    const userRole = user.role as UserRole;
+
+    if (isNaN(organizationId) || organizationId === 0) {
+        throw new Error("Sessão inválida: ID da organização ausente.");
+    }
+    return { organizationId, userRole };
+}
+
 
 export async function POST(request: NextRequest) {
   // O frontend envia um objeto com os dados da linha processada + coordinates
@@ -9,8 +33,10 @@ export async function POST(request: NextRequest) {
   const rowNumberForLog = rowData["__rowNum__"] || "??";
 
   try {
-    // 1. Mapeamento: Converter chaves da planilha (Português) para o DTO do Serviço
-    // O frontend já nos envia 'cep_raw' limpo e 'coordinates' se encontrou.
+    // 1. Obtém contexto de segurança
+    const { organizationId, userRole } = await getAuthContext(request);
+
+    // 2. Mapeamento: Converter chaves da planilha (Português) para o DTO do Serviço
     const createInput = {
       nome_solicitante: rowData["Nome do Solicitante"]?.toString().trim() ?? "",
       telefone_solicitante: rowData["Telefone do Solicitante"]?.toString() || null,
@@ -24,7 +50,8 @@ export async function POST(request: NextRequest) {
       cidade: rowData["Cidade"]?.toString().trim() || null,
       uf: rowData["uf"]?.toString().trim() || null,
       
-      tipo_demanda: rowData["tipo_demanda"]?.toString().trim() ?? "Avaliação",
+      // Assumindo que a chave de importação é 'Tipo de Demanda'
+      tipo_demanda: rowData["Tipo de Demanda"]?.toString().trim() ?? "Avaliação", 
       descricao: rowData["Descrição"]?.toString().trim() ?? "",
       
       // O frontend manda a data (se houver) como string ISO ou similar
@@ -34,9 +61,12 @@ export async function POST(request: NextRequest) {
       coordinates: (rowData["coordinates"] as [number, number] | null) || null
     };
 
-    // 2. Delegação para o Serviço
-    // Isso garante que todas as regras (status pendente, geração de protocolo, etc.) sejam aplicadas
-    const novaDemanda = await demandasService.createDemanda(createInput);
+    // 3. [FIX CRÍTICO] Chama o Serviço com os 3 argumentos exigidos
+    const novaDemanda = await demandasService.createDemanda(
+        createInput,
+        organizationId,
+        userRole
+    );
 
     return NextResponse.json({ 
       success: true, 
@@ -44,8 +74,16 @@ export async function POST(request: NextRequest) {
       protocolo: novaDemanda.protocolo 
     }, { status: 201 });
 
-  } catch (error) {
+  } catch (error: any) {
     console.error(`[API /import-row] Erro na linha ${rowNumberForLog}:`, error);
+    
+    // Tratamento de Erro de Permissão
+    if (error.message.includes("Não autenticado")) {
+         return NextResponse.json({ success: false, message: "Não autorizado" }, { status: 401 });
+    }
+    if (error.message.includes("Sessão inválida")) {
+         return NextResponse.json({ success: false, message: "Acesso Proibido" }, { status: 403 });
+    }
     
     const errorMessage = error instanceof Error ? error.message : "Erro desconhecido.";
     

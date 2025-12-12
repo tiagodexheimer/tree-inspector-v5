@@ -18,20 +18,28 @@ interface UpdateTipoInput {
 export class DemandasTiposService {
   
   /**
-   * Lista todos os tipos de demanda para uma organização específica.
-   * Assumindo que a listagem já é filtrada por organizationId no repositório.
+   * Lista todos os tipos de demanda para uma organização específica, respeitando o multi-tenant.
+   * Contas Free/Basic veem apenas Tipos Globais. Contas Pro/Premium veem Globais + Customizados.
    */
-  async listAll(organizationId: number): Promise<TipoDemandaPersistence[]> {
-    return await DemandasTiposRepository.findAll(organizationId);
+  async listAll(organizationId: number, userRole: UserRole): Promise<TipoDemandaPersistence[]> {
+    const limits = getLimitsByRole(userRole);
+
+    if (!limits.ALLOW_CUSTOM_TYPES) {
+        // Free/Basic: Vê apenas Globais/Padrão
+        return await DemandasTiposRepository.findGlobalAndDefault(organizationId);
+    }
+    
+    // Pro/Premium/Admin: Vê Globais/Padrão E Customizados da Organização
+    return await DemandasTiposRepository.findGlobalAndCustom(organizationId);
   }
 
   /**
-   * Cria um novo Tipo de Demanda personalizado. Restrito a planos Pro/Premium.
+   * Cria um novo Tipo de Demanda personalizado. Restrito a planos Pro/Premium (ALLOW_CUSTOM_TYPES).
    */
   async createTipo(
     input: CreateTipoInput,
     organizationId: number,
-    userRole: UserRole // Necessário para checar permissão
+    userRole: UserRole // [PERMISSÃO] Necessário para checar permissão
   ): Promise<TipoDemandaPersistence> {
     
     if (!input.nome || input.nome.trim() === '') {
@@ -49,6 +57,7 @@ export class DemandasTiposService {
     }
 
     // 2. Checagem de duplicidade (filtrada pela organização)
+    // Assume que findByNameAndOrg filtra por organizationId OU NULL
     const existing = await DemandasTiposRepository.findByNameAndOrg(nomeLimpo, organizationId);
     if (existing) {
       throw new Error("Já existe um tipo de demanda com este nome para sua organização.");
@@ -60,44 +69,56 @@ export class DemandasTiposService {
       id_formulario: input.id_formulario || null,
       organization_id: organizationId, // Garante multi-tenant
       is_custom: true, // Tipos criados via API são personalizados
+      is_default_global: false, // Não é global
     };
 
     return await DemandasTiposRepository.create(payload);
   }
 
   /**
-   * Atualiza um Tipo de Demanda. Restrito a Tipos Personalizados e planos Pro/Premium.
+   * Atualiza um Tipo de Demanda. Restrito a Tipos Customizados da ORG e planos Pro/Premium.
    */
   async updateTipo(
     id: number, 
     input: UpdateTipoInput,
     organizationId: number,
-    userRole: UserRole // Necessário para checar permissão
+    userRole: UserRole // [PERMISSÃO] Necessário para checar permissão
   ): Promise<TipoDemandaPersistence> {
       
     // 1. Encontra o tipo existente e checa o multi-tenant
-    const current = await DemandasTiposRepository.findById(id, organizationId);
+    // Assume que findById verifica a posse do tipo (ou é global)
+    const current = await DemandasTiposRepository.findById(id); 
     if (!current) {
-      throw new Error("Tipo de demanda não encontrado ou você não tem permissão para editá-lo.");
+      throw new Error("Tipo de demanda não encontrado.");
     }
     
-    // 2. Validação básica
+    // 2. Validação básica de nome
     const nomeLimpo = input.nome ? input.nome.trim() : current.nome;
     if (!nomeLimpo || nomeLimpo.trim() === '') {
         throw new Error("O nome do tipo de demanda é obrigatório.");
     }
 
-    // 3. REGRA DE NEGÓCIO: Permissão para Edição
+    // 3. REGRA DE NEGÓCIO: Checagem de Edição (Hierarquia)
     const limits = getLimitsByRole(userRole);
     
+    // A) Bloqueia a edição de Tipos Padrão Global
+    if (current.is_default_global) {
+        throw new Error(`O tipo padrão global "${current.nome}" não pode ser editado.`);
+    }
+
+    // B) Bloqueia a edição de Tipos Customizados para Planos Free/Basic
     if (current.is_custom && !limits.ALLOW_CUSTOM_TYPES) {
-        // Se for customizado e o plano não permitir, lança erro
         throw new Error("Seu plano atual não permite editar Tipos de Demanda personalizados.");
     }
-    // Tipos padrão (is_custom: false) podem ser editados (nome/formulário) em qualquer plano.
+
+    // C) Checagem de posse Multi-tenant: Só pode editar o que pertence à ORG
+    if (current.organization_id !== organizationId) {
+        throw new Error("Você não tem permissão para editar este tipo de demanda.");
+    }
     
     // 4. Checagem de duplicidade (se o nome mudou)
     if (current.nome !== nomeLimpo) {
+      // Assume que findByNameAndOrg filtra por organizationId
       const existing = await DemandasTiposRepository.findByNameAndOrg(nomeLimpo, organizationId);
       if (existing) {
         throw new Error("Já existe um tipo de demanda com este nome para sua organização.");
@@ -110,7 +131,8 @@ export class DemandasTiposService {
         id_formulario: input.id_formulario !== undefined ? input.id_formulario : current.id_formulario 
     };
 
-    const updated = await DemandasTiposRepository.update(id, payload);
+    // Assume que o repositório verifica a posse (organizationId) na cláusula WHERE do update
+    const updated = await DemandasTiposRepository.update(id, organizationId, payload); 
 
     if (!updated) throw new Error("Erro inesperado ao atualizar.");
     
@@ -118,39 +140,47 @@ export class DemandasTiposService {
   }
 
   /**
-   * Deleta um Tipo de Demanda. Restrito a Tipos Personalizados e planos Pro/Premium.
+   * Deleta um Tipo de Demanda. Restrito a Tipos Customizados da ORG e planos Pro/Premium.
    */
   async deleteTipo(
     id: number, 
     organizationId: number,
-    userRole: UserRole // Necessário para checar permissão
+    userRole: UserRole // [PERMISSÃO] Necessário para checar permissão
   ): Promise<void> {
       
-    const current = await DemandasTiposRepository.findById(id, organizationId);
+    const current = await DemandasTiposRepository.findById(id);
     if (!current) {
-      throw new Error("Tipo de demanda não encontrado ou você não tem permissão para excluí-lo.");
+      throw new Error("Tipo de demanda não encontrado.");
     }
 
     // 1. REGRA DE NEGÓCIO: Permissão para Exclusão
     const limits = getLimitsByRole(userRole);
 
-    if (!current.is_custom) {
-        throw new Error(`O tipo de demanda padrão "${current.nome}" não pode ser excluído.`);
+    // A) Status Padrão Global NUNCA pode ser excluído
+    if (current.is_default_global) {
+        throw new Error(`O tipo de demanda padrão global "${current.nome}" não pode ser excluído.`);
     }
 
+    // B) Bloqueia a exclusão de Tipos Customizados para Planos Free/Basic
     if (current.is_custom && !limits.ALLOW_CUSTOM_TYPES) {
         throw new Error("Seu plano atual não permite excluir Tipos de Demanda personalizados.");
     }
+    
+    // C) Checagem de posse Multi-tenant: Só pode deletar o que pertence à ORG
+    if (current.organization_id !== organizationId) {
+        throw new Error("Você não tem permissão para excluir este tipo de demanda.");
+    }
 
     // 2. Checagem de uso (para evitar Foreign Key Violations)
-    // Assumimos que o DemandasTiposRepository.countUsageById já filtra por organizationId
+    // Assume que countUsageById já está implementado e deve filtrar por organizationId
     const usageCount = await DemandasTiposRepository.countUsageById(id);
     if (usageCount > 0) {
       throw new Error(`Não é possível deletar o tipo "${current.nome}" pois ele está associado a ${usageCount} demanda(s).`);
     }
 
     // 3. Deleção
-    const success = await DemandasTiposRepository.delete(id);
+    // Assume que o repositório verifica a posse (organizationId) na cláusula WHERE do delete
+    const success = await DemandasTiposRepository.delete(id, organizationId); 
     if (!success) throw new Error("Erro ao deletar tipo.");
   }
 }
