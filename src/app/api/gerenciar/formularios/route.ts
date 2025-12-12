@@ -1,138 +1,91 @@
-import { NextResponse } from 'next/server';
-import { auth } from '@/auth'; // Autenticação v5
-import db from '@/lib/db';
-import { CampoDef } from '@/types/formularios'; // [CORREÇÃO] A importação que faltava
+// src/app/api/gerenciar/formularios/route.ts
 
-// Define a estrutura do corpo da requisição POST
-interface FormularioRequestBody {
-  nome: string;
-  descricao?: string;
-  definicao_campos: CampoDef[];
-  id_tipo_demanda: number;
-}
+import { NextRequest, NextResponse } from "next/server";
+import { auth } from "@/auth";
+import { formulariosService } from "@/services/formularios-service";
+import { FormulariosRepository } from "@/repositories/formularios-repository"; 
+import { UserRole } from "@/types/auth-types"; 
 
-/**
- * POST: Cria um novo formulário e o associa a um tipo de demanda.
- */
-export async function POST(req: Request) {
-  // 1. Autenticação e Autorização (Admin)
-  const session = await auth();
+export const dynamic = 'force-dynamic';
 
-  if (!session) {
-    return NextResponse.json({ message: 'Não autenticado' }, { status: 401 });
-  }
-
-  if (session.user?.role !== 'admin') {
-    return NextResponse.json({ message: 'Acesso negado. Requer privilégios de administrador.' }, { status: 403 });
-  }
-
-  let dbClient; // Cliente do DB para transação
-
-  try {
-    // 2. Validação do Corpo da Requisição
-    const body: FormularioRequestBody = await req.json();
-    const { nome, descricao, definicao_campos, id_tipo_demanda } = body;
-
-    if (!nome || !id_tipo_demanda || !definicao_campos || definicao_campos.length === 0) {
-      return NextResponse.json({ message: 'Campos "nome", "id_tipo_demanda" e "definicao_campos" (com ao menos um campo) são obrigatórios.' }, { status: 400 });
+// --- Função Auxiliar de Segurança ---
+function getAuthContext(session: any) {
+    if (!session || !session.user) {
+        throw new Error("Não autenticado");
     }
 
-    // 3. Lógica de Banco de Dados (Transação)
-    dbClient = await db.connect(); // Pega um cliente do pool
-    await dbClient.query('BEGIN'); // Inicia a transação
+    const user = session.user as any;
+    const organizationId = parseInt(user.organizationId || "0", 10);
+    const userRole = user.role as UserRole; 
+    
+    if (isNaN(organizationId) || organizationId === 0) {
+        throw new Error("Sessão inválida: ID da organização ausente.");
+    }
+    
+    // userRole é o Plan Type (free, basic, pro, premium)
+    return { organizationId, userRole };
+}
+
+// --- GET: Listar Formulários ---
+export async function GET(request: NextRequest) {
+    const session = await auth();
 
     try {
-      // Passo 1: Inserir na tabela 'formularios'
-      const insertFormQuery = `
-        INSERT INTO formularios (nome, descricao, definicao_campos) 
-        VALUES ($1, $2, $3) 
-        RETURNING id;
-      `;
-      const formResult = await dbClient.query(insertFormQuery, [
-        nome,
-        descricao || null,
-        JSON.stringify(definicao_campos) // Armazena o array de campos como string JSON
-      ]);
+        const { organizationId } = getAuthContext(session); 
+        
+        // Lista todos os formulários pertencentes à organização
+        // Assumimos que FormulariosRepository.listByOrganization existe e garante o multi-tenant
+        const formularios = await FormulariosRepository.listByOrganization(organizationId);
 
-      const newFormularioId = formResult.rows[0].id;
+        return NextResponse.json(formularios, { status: 200 });
 
-      // Passo 2: Ligar o formulário ao tipo de demanda (UPSERT)
-      // Se já existir uma ligação para esse tipo de demanda, ela é ATUALIZADA.
-      const linkQuery = `
-        INSERT INTO demandas_tipos_formularios (id_tipo_demanda, id_formulario)
-        VALUES ($1, $2)
-        ON CONFLICT (id_tipo_demanda) 
-        DO UPDATE SET id_formulario = $2;
-      `;
-      await dbClient.query(linkQuery, [id_tipo_demanda, newFormularioId]);
-
-      // Passo 3: Finalizar a transação
-      await dbClient.query('COMMIT');
-
-      // 4. Resposta de Sucesso
-      return NextResponse.json(
-        { id: newFormularioId, nome, message: 'Formulário criado e associado com sucesso.' },
-        { status: 201 }
-      );
-
-    } catch (transactionError) {
-      // Se qualquer etapa da transação falhar, reverte
-      await dbClient.query('ROLLBACK');
-      throw transactionError; // Joga o erro para o catch externo
+    } catch (error: any) {
+        if (error.message === "Não autenticado") {
+            return NextResponse.json({ message: "Não autorizado" }, { status: 401 });
+        }
+        if (error.message.includes("Sessão inválida")) {
+            return NextResponse.json({ message: error.message }, { status: 403 });
+        }
+        console.error("[API GET Formularios]", error);
+        return NextResponse.json(
+            { message: "Falha ao buscar formulários", error: error.message },
+            { status: 500 }
+        );
     }
-
-  } catch (error) {
-    // 5. Tratamento de Erro
-    console.error('Erro ao salvar formulário:', error);
-    return NextResponse.json({ message: 'Erro interno do servidor ao salvar o formulário.' }, { status: 500 });
-
-  } finally {
-    // 6. Liberar o Cliente
-    if (dbClient) {
-      dbClient.release(); // Devolve o cliente ao pool
-    }
-  }
 }
 
-/**
- * GET: Lista todos os formulários e suas associações.
- */
-export async function GET() {
-  // Autenticação (Admin)
-  const session = await auth();
-  if (!session || session.user?.role !== 'admin') {
-    return NextResponse.json({ message: 'Acesso negado.' }, { status: 403 });
-  }
+// --- POST: Criar Formulário ---
+export async function POST(request: NextRequest) {
+    const session = await auth();
 
-  try {
-    // Query modificada para usar STRING_AGG e GROUP BY
-    const query = `
-      SELECT 
-        f.id, 
-        f.nome, 
-        f.descricao, 
-        f.updated_at,
-        -- MODIFICAÇÃO: Concatena todos os tipos de demanda associados em uma única string
-        STRING_AGG(dt.nome, ', ') AS tipo_demanda_associada
-      FROM 
-        formularios f
-      LEFT JOIN 
-        demandas_tipos_formularios dtf ON f.id = dtf.id_formulario
-      LEFT JOIN 
-        demandas_tipos dt ON dtf.id_tipo_demanda = dt.id
-      -- OBRIGATÓRIO: Agrupa pelo ID e por todas as colunas que não são agregadas
-      GROUP BY
-        f.id, f.nome, f.descricao, f.updated_at 
-      ORDER BY
-        f.updated_at DESC;
-    `;
-    
-    const result = await db.query(query);
+    try {
+        const { organizationId, userRole } = getAuthContext(session); 
+        const body = await request.json();
+        
+        // O service lida com a checagem de limite (MAX_FORMULARIOS) e a validação do tipo de formulário (Formulário Padrão Fixo para Free).
+        const newForm = await formulariosService.createFormulario(
+            body, // Contém nome, descricao, definicao_campos
+            organizationId,
+            userRole
+        );
 
-    return NextResponse.json(result.rows);
+        return NextResponse.json(newForm, { status: 201 });
 
-  } catch (error) {
-    console.error('Erro ao buscar formulários:', error);
-    return NextResponse.json({ message: 'Erro interno do servidor.' }, { status: 500 });
-  }
+    } catch (error: any) {
+        if (error.message === "Não autenticado") {
+            return NextResponse.json({ message: "Não autorizado" }, { status: 401 });
+        }
+        if (error.message.includes("Sessão inválida") || error.message.includes("Limite de") || error.message.includes("personalizados")) {
+            // Retorna 403 para erros de permissão ou limite de plano
+            return NextResponse.json({ message: error.message }, { status: 403 }); 
+        }
+        console.error("[API POST Formularios]", error);
+        return NextResponse.json(
+            { message: "Falha ao criar formulário", error: error.message },
+            { status: 500 }
+        );
+    }
 }
+
+// --- Outras Rotas (PUT, DELETE) ---
+// Estas rotas (PUT e DELETE) deverão seguir o mesmo padrão, utilizando o service e verificando a posse do formulário pela organização.

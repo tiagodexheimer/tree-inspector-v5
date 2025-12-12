@@ -145,7 +145,8 @@ CREATE TABLE IF NOT EXISTS configuracoes (
 -- Formulários Dinâmicos
 CREATE TABLE IF NOT EXISTS formularios (
     id SERIAL PRIMARY KEY,
-    organization_id INT NOT NULL REFERENCES organizations(id) ON DELETE CASCADE, 
+    -- [FIX CRÍTICO] organization_id AGORA PODE SER NULL para registros globais
+    organization_id INT REFERENCES organizations(id) ON DELETE CASCADE, 
     nome TEXT NOT NULL,
     descricao TEXT,
     definicao_campos JSONB NOT NULL,
@@ -278,7 +279,7 @@ $$ LANGUAGE plpgsql;
 CREATE OR REPLACE FUNCTION trigger_setup_new_organization()
 RETURNS TRIGGER AS $$
 BEGIN
-    -- NOTA: Status e Tipos Padrão NÃO são inseridos aqui. Eles são globais (organization_id IS NULL).
+    -- NOTA: Status, Tipos e Formulários Padrão SÃO GLOBAIS.
 
     -- 1. Inserir Configuração Padrão (SEMPRE específica da organização)
     INSERT INTO configuracoes (organization_id, chave, valor) VALUES
@@ -309,10 +310,21 @@ FOR EACH ROW
 EXECUTE FUNCTION trigger_setup_new_organization();
 
 
--- 8. SEEDING INICIAL DE STATUS E TIPOS GLOBAIS (EXECUTA APENAS UMA VEZ)
+-- 8. SEEDING INICIAL DE STATUS, TIPOS E FORMULÁRIOS GLOBAIS (EXECUTA APENAS UMA VEZ)
 -- ==========================================
 
 DO $$
+DECLARE
+    fixed_form_campos JSONB := '[
+        {
+            "id": "obs",
+            "name": "observacoes",
+            "label": "Observações/Relatório Detalhado",
+            "type": "textarea",
+            "required": true,
+            "placeholder": "Descreva o escopo da visita e as observações..."
+        }
+    ]';
 BEGIN
     -- Insere Status Padrão GLOBAL (organization_id = NULL)
     IF NOT EXISTS (SELECT 1 FROM demandas_status WHERE organization_id IS NULL LIMIT 1) THEN
@@ -331,4 +343,16 @@ BEGIN
         (NULL, 'Supressão', FALSE, TRUE),
         (NULL, 'Fiscalização', FALSE, TRUE);
     END IF;
+    
+    -- [NOVO SEEDING] Insere Formulário Padrão GLOBAL (organization_id = NULL)
+    IF NOT EXISTS (SELECT 1 FROM formularios WHERE organization_id IS NULL LIMIT 1) THEN
+        INSERT INTO formularios (organization_id, nome, descricao, definicao_campos)
+        VALUES (
+            NULL, 
+            'Relatório Simples (Padrão)', 
+            'Formulário fixo e obrigatório para Planos Free e Basic, contendo apenas um campo de observações.', 
+            fixed_form_campos 
+        );
+    END IF;
+
 END $$;
