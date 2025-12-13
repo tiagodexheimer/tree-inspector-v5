@@ -45,7 +45,7 @@ export async function GET(request: Request) {
   }
 
   try {
-    const invites = await InviteService.listPendingInvites(
+    const invites = await inviteService.listPendingInvites(
       Number(session.user.organizationId)
     );
     return NextResponse.json(invites);
@@ -80,7 +80,7 @@ export async function POST(request: Request) {
         { status: 400 }
       );
 
-    const newInvite = await InviteService.createInvite(
+    const newInvite = await inviteService.createInvite(
       Number(session.user.organizationId),
       email,
       role || "member"
@@ -116,7 +116,7 @@ export async function DELETE(request: Request) {
   }
 
   try {
-    await InviteService.revokeInvite(
+    await inviteService.revokeInvite(
       Number(id),
       Number(session.user.organizationId)
     );

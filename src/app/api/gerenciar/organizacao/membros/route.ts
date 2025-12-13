@@ -2,6 +2,7 @@
 import { NextResponse, NextRequest } from "next/server";
 import { auth } from "@/auth";
 import { userManagementService } from "@/services/user-management-service";
+import { UserRepository } from "@/repositories/user-repository";
 
 // --- AUXILIARES ---
 // Checa a permissão de LISTAGEM de membros da organização
@@ -25,22 +26,33 @@ async function checkOrganizationMembership() {
 }
 
 // --- GET: LISTAR MEMBROS DA ORGANIZAÇÃO ---
-export async function GET() {
-  const permission = await checkOrganizationMembership();
-  
-  if (!permission.authorized) {
-    return NextResponse.json({ message: permission.message }, { status: permission.status });
-  }
-
+export async function GET(request: Request) {
   try {
-    // O service deve buscar todos os usuários vinculados àquela organizationId
-    const members = await userManagementService.listOrganizationMembers(permission.organizationId);
-    
-    return NextResponse.json(members, { status: 200 });
+    // 1.2. Proteger o Endpoint: Obtendo a sessão
+    const session = await auth();
 
-  } catch (error) {
-    console.error("[API GET Org Members]", error);
-    return NextResponse.json({ message: "Erro ao listar membros da organização" }, { status: 500 });
+    // Validação de Segurança Estrita
+    if (!session || !session.user || !session.user.organizationId) {
+      return NextResponse.json(
+        { message: "Não autorizado ou sem organização vinculada." }, 
+        { status: 401 }
+      );
+    }
+
+    const organizationId = Number(session.user.organizationId);
+
+    // 1.3 e 1.4: O Repositório já deve ter o método com WHERE organization_id = $1
+    // (Implementamos isso no UserRepository em passos anteriores)
+    const members = await UserRepository.findAllByOrganization(organizationId);
+
+    return NextResponse.json(members);
+
+  } catch (error: any) {
+    console.error("Erro ao listar membros:", error);
+    return NextResponse.json(
+      { message: "Erro interno ao buscar membros." }, 
+      { status: 500 }
+    );
   }
 }
 
@@ -79,4 +91,31 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({ message }, { status });
   }
+}
+
+// DELETE: Remover membro (Bônus para completar o gerenciamento)
+export async function DELETE(request: Request) {
+    const session = await auth();
+    const { searchParams } = new URL(request.url);
+    const targetUserId = searchParams.get('userId');
+
+    if (!session?.user?.organizationId || !targetUserId) {
+        return NextResponse.json({ message: "Dados inválidos" }, { status: 400 });
+    }
+
+    const userOrgRole = (session.user as any).organizationRole;
+    if (userOrgRole !== 'owner' && userOrgRole !== 'admin') {
+        return NextResponse.json({ message: "Permissão negada" }, { status: 403 });
+    }
+
+    try {
+        // Importante: UserManagementService deve ter o método leaveOrganization ou removeMember
+        // Se não tiver, chame o repository diretamente por enquanto:
+        const { userManagementService } = await import('@/services/user-management-service');
+        await userManagementService.leaveOrganization(targetUserId, Number(session.user.organizationId));
+        
+        return NextResponse.json({ message: "Membro removido com sucesso" });
+    } catch (error: any) {
+        return NextResponse.json({ message: error.message }, { status: 500 });
+    }
 }

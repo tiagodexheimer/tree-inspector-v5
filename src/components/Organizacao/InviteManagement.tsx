@@ -1,191 +1,178 @@
 // src/components/Organizacao/InviteManagement.tsx
-import React, { useState } from 'react';
-import { Box, Typography, Paper, Grid, TextField, FormControl, InputLabel, Select, MenuItem, SelectChangeEvent, Button, CircularProgress, Alert, TableContainer, Table, TableHead, TableRow, TableCell, TableBody, Chip, IconButton } from '@mui/material';
-import MailOutlineIcon from '@mui/icons-material/MailOutline';
+import React, { useState, useEffect } from 'react';
+import { 
+    Box, Paper, Typography, TextField, Button, Grid, 
+    Table, TableBody, TableCell, TableContainer, TableHead, TableRow,
+    IconButton, Tooltip, CircularProgress, Chip, Alert
+} from '@mui/material';
 import SendIcon from '@mui/icons-material/Send';
 import DeleteIcon from '@mui/icons-material/Delete';
-import { ActiveInvite, OrganizationRole, OrganizationRoleOptions, INVITE_LIMITS_FRONTEND, UserRole } from '@/types/organization-types'; // Assuma que estas constantes e tipos foram movidos para um arquivo de tipos
+import EmailIcon from '@mui/icons-material/Email';
+import { ActiveInvite, OrganizationRole } from '@/types/auth-types';
 
 interface InviteManagementProps {
+    organizationId?: number | string | null; // Tornado opcional para evitar erros de tipo
     invitesList: ActiveInvite[];
     userPlanType: string;
-    userRole: string;
+    userRole: string; // role do sistema (free, basic...)
     fetchData: () => Promise<void>;
-    setError: React.Dispatch<React.SetStateAction<string | null>>;
+    setError: (msg: string) => void;
 }
 
-export const InviteManagement: React.FC<InviteManagementProps> = ({ invitesList, userPlanType, userRole, fetchData, setError }) => {
-    
-    const [newInviteEmail, setNewInviteEmail] = useState('');
-    const [newInviteRole, setNewInviteRole] = useState<OrganizationRole>('member');
-    const [isSendingInvite, setIsSendingInvite] = useState(false);
-    const [inviteError, setInviteError] = useState<string | null>(null);
+export const InviteManagement: React.FC<InviteManagementProps> = ({ 
+    organizationId,
+    invitesList = [], // Valor padrão para evitar crash
+    userPlanType,
+    userRole,
+    fetchData,
+    setError
+}) => {
+    const [email, setEmail] = useState('');
+    const [loading, setLoading] = useState(false);
+    const [revokeLoading, setRevokeLoading] = useState<number | null>(null);
 
-    // Lógica de Limite de Convites
-    const rawLimit = INVITE_LIMITS_FRONTEND[userRole as UserRole] || 0; // Role do sistema (admin/free/paid/pro)
-    const invitesRemaining = typeof rawLimit === 'number' ? rawLimit - invitesList.length : 'Ilimitado';
-    const canCreateInvite = rawLimit === Infinity || (typeof rawLimit === 'number' && rawLimit > 0);
-    const isLimitReached = typeof rawLimit === 'number' && invitesList.length >= rawLimit;
-    
-    // Handler para Criar Convite
-    const handleCreateInvite = async () => {
-        if (isLimitReached || !canCreateInvite) {
-            setInviteError('Limite de convites atingido ou seu plano não permite.');
+    // [DEBUG] Verifica se os convites estão chegando
+    useEffect(() => {
+        console.log("InviteManagement recebeu invitesList:", invitesList);
+    }, [invitesList]);
+
+    const handleInvite = async () => {
+        if (!email.includes('@')) {
+            setError('Digite um e-mail válido.');
             return;
         }
-        if (!newInviteEmail) {
-            setInviteError('O email do convidado é obrigatório.');
-            return;
-        }
 
-        setIsSendingInvite(true);
-        setInviteError(null);
-
+        setLoading(true);
         try {
-            const response = await fetch('/api/gerenciar/convites', {
+            const res = await fetch('/api/gerenciar/convites', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ email: newInviteEmail, role: newInviteRole }),
+                body: JSON.stringify({ email, role: 'member' }) // Padrão 'member'
             });
 
-            const data = await response.json();
-
-            if (response.ok) {
-                const link = data.acceptanceLink; 
-                setError(`Convite enviado para ${newInviteEmail} com sucesso!\nLink de Aceite (APENAS PARA TESTES): ${link}`); 
-                setNewInviteEmail('');
-                fetchData(); 
-            } else {
-                throw new Error(data.message || 'Erro desconhecido ao enviar convite.');
+            const data = await res.json();
+            
+            if (!res.ok) {
+                throw new Error(data.message || 'Erro ao enviar convite');
             }
-        } catch (error) {
-            const errorMsg = error instanceof Error ? error.message : 'Erro ao processar o convite.';
-            setInviteError(errorMsg);
+
+            setEmail(''); // Limpa o campo
+            await fetchData(); // Recarrega a lista chamando a função do pai
+            alert("Convite enviado com sucesso!"); // Feedback simples
+
+        } catch (err: any) {
+            setError(err.message);
         } finally {
-            setIsSendingInvite(false);
+            setLoading(false);
         }
     };
 
-    // Handler para Cancelar Convite
-    const handleCancelInvite = async (inviteId: number) => {
-        const confirm = window.confirm("Tem certeza que deseja cancelar este convite?");
-        if (!confirm) return;
+    const handleRevoke = async (inviteId: number) => {
+        if (!confirm("Deseja cancelar este convite?")) return;
         
+        setRevokeLoading(inviteId);
         try {
-            const response = await fetch(`/api/gerenciar/convites/${inviteId}`, { method: 'DELETE' });
-            const data = await response.json();
-
-            if (!response.ok) {
-                throw new Error(data.message || "Falha ao cancelar o convite.");
-            }
-            setError("Convite cancelado com sucesso.");
-            fetchData();
-        } catch (err) {
-            setError(err instanceof Error ? err.message : 'Erro ao cancelar convite.');
+            const res = await fetch(`/api/gerenciar/convites?id=${inviteId}`, {
+                method: 'DELETE',
+            });
+            
+            if (!res.ok) throw new Error("Falha ao revogar convite");
+            
+            await fetchData(); // Recarrega a lista
+        } catch (err: any) {
+            setError(err.message);
+        } finally {
+            setRevokeLoading(null);
         }
     };
 
     return (
-        <Grid container spacing={4} sx={{ mt: 2 }}>
-            {/* 1. Formulário de Envio */}
-            <Grid item xs={12} md={12}>
-                <Paper elevation={3} sx={{ p: 4, borderLeft: '6px solid #4caf50' }}>
-                    <Typography variant="h6" gutterBottom sx={{ display: 'flex', alignItems: 'center', gap: 1, color: '#4caf50' }}>
-                        <MailOutlineIcon /> Enviar Novo Convite
-                    </Typography>
-                    
-                    <Typography variant="body2" color="text.secondary" paragraph>
-                        Seu plano **{userPlanType}** permite **{invitesRemaining}** convite(s) ativo(s) restante(s).
-                    </Typography>
-
-                    <Grid container spacing={2} alignItems="center" sx={{ mt: 1 }}>
-                        <Grid item xs={12} sm={4}>
-                            <TextField
-                                label="Email do Convidado"
-                                fullWidth size="small" type="email"
-                                value={newInviteEmail}
-                                onChange={(e) => setNewInviteEmail(e.target.value)}
-                                disabled={!canCreateInvite || isLimitReached || isSendingInvite}
-                            />
-                        </Grid>
-                        <Grid item xs={12} sm={3}>
-                            <FormControl fullWidth size="small">
-                                <InputLabel>Papel</InputLabel>
-                                <Select
-                                    value={newInviteRole}
-                                    label="Papel"
-                                    onChange={(e: SelectChangeEvent) => setNewInviteRole(e.target.value as OrganizationRole)}
-                                    disabled={!canCreateInvite || isLimitReached || isSendingInvite}
-                                >
-                                    {OrganizationRoleOptions.filter(opt => opt.value !== 'owner').map((option) => (
-                                        <MenuItem key={option.value} value={option.value}>
-                                            {option.label}
-                                        </MenuItem>
-                                    ))}
-                                </Select>
-                            </FormControl>
-                        </Grid>
-                        <Grid item xs={12} sm={5}>
-                            <Button
-                                variant="contained" color="success"
-                                onClick={handleCreateInvite}
-                                startIcon={isSendingInvite ? <CircularProgress size={20} color="inherit" /> : <SendIcon />}
-                                disabled={!newInviteEmail || isLimitReached || isSendingInvite || !canCreateInvite}
-                                fullWidth size="medium"
-                            >
-                                {isSendingInvite ? 'Enviando...' : 'Enviar Convite'}
-                            </Button>
-                        </Grid>
+        <Paper elevation={3} sx={{ p: 3, mb: 4 }}>
+            <Typography variant="h6" gutterBottom sx={{ fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: 1 }}>
+                <EmailIcon color="action" /> Convidar Membros
+            </Typography>
+            
+            <Box sx={{ mb: 3 }}>
+                <Grid container spacing={2} alignItems="center">
+                    <Grid item xs={12} sm={8}>
+                        <TextField 
+                            fullWidth 
+                            label="E-mail do novo membro" 
+                            variant="outlined" 
+                            size="small"
+                            value={email}
+                            onChange={(e) => setEmail(e.target.value)}
+                            disabled={loading}
+                        />
                     </Grid>
+                    <Grid item xs={12} sm={4}>
+                        <Button 
+                            variant="contained" 
+                            fullWidth 
+                            startIcon={loading ? <CircularProgress size={20} color="inherit"/> : <SendIcon />}
+                            onClick={handleInvite}
+                            disabled={loading || !email}
+                        >
+                            {loading ? 'Enviando...' : 'Enviar Convite'}
+                        </Button>
+                    </Grid>
+                </Grid>
+            </Box>
 
-                    {inviteError && <Alert severity="error" sx={{ mt: 2 }} onClose={() => setInviteError(null)}>{inviteError}</Alert>}
-                    {!canCreateInvite && userRole === 'free' && (
-                        <Alert severity="warning" sx={{ mt: 2 }}>Seu plano Free não permite convidar membros. Faça upgrade para Basic ou superior.</Alert>
-                    )}
-                </Paper>
-            </Grid>
+            <Typography variant="subtitle2" sx={{ mb: 1, color: 'text.secondary' }}>
+                Convites Pendentes ({invitesList.length})
+            </Typography>
 
-            {/* 2. Lista de Convites Pendentes */}
-            <Grid item xs={12} md={12}>
-                <Typography variant="h5" gutterBottom sx={{ mb: 2, display: 'flex', alignItems: 'center', gap: 1 }}>
-                    <MailOutlineIcon /> Convites Pendentes ({invitesList.length})
-                </Typography>
-                <TableContainer component={Paper} elevation={1}>
-                    <Table size="small">
-                        <TableHead>
+            <TableContainer component={Paper} variant="outlined">
+                <Table size="small">
+                    <TableHead>
+                        <TableRow sx={{ bgcolor: '#f9f9f9' }}>
+                            <TableCell><strong>E-mail</strong></TableCell>
+                            <TableCell><strong>Função</strong></TableCell>
+                            <TableCell><strong>Status</strong></TableCell>
+                            <TableCell align="right"><strong>Ações</strong></TableCell>
+                        </TableRow>
+                    </TableHead>
+                    <TableBody>
+                        {invitesList.length === 0 ? (
                             <TableRow>
-                                <TableCell sx={{ fontWeight: 'bold' }}>Email</TableCell>
-                                <TableCell sx={{ fontWeight: 'bold' }}>Papel Convidado</TableCell>
-                                <TableCell sx={{ fontWeight: 'bold' }}>Ações</TableCell>
+                                <TableCell colSpan={4} align="center" sx={{ py: 3, color: 'text.secondary' }}>
+                                    Nenhum convite pendente.
+                                </TableCell>
                             </TableRow>
-                        </TableHead>
-                        <TableBody>
-                            {invitesList.length === 0 ? (
-                                <TableRow><TableCell colSpan={3} align="center">Nenhum convite ativo pendente.</TableCell></TableRow>
-                            ) : (
-                                invitesList.map((invite) => (
-                                    <TableRow key={invite.id}>
-                                        <TableCell>{invite.email}</TableCell>
-                                        <TableCell>
-                                            <Chip label={invite.role.toUpperCase()} size="small" variant="outlined" />
-                                        </TableCell>
-                                        <TableCell>
+                        ) : (
+                            invitesList.map((invite) => (
+                                <TableRow key={invite.id}>
+                                    <TableCell>{invite.email}</TableCell>
+                                    <TableCell>
+                                        <Chip label={invite.role} size="small" variant="outlined" />
+                                    </TableCell>
+                                    <TableCell>
+                                        <Typography variant="caption" color="warning.main">
+                                            Aguardando aceite
+                                        </Typography>
+                                    </TableCell>
+                                    <TableCell align="right">
+                                        <Tooltip title="Cancelar convite">
                                             <IconButton 
                                                 size="small" 
                                                 color="error"
-                                                onClick={() => handleCancelInvite(invite.id)}
-                                                title="Cancelar Convite"
+                                                onClick={() => handleRevoke(invite.id)}
+                                                disabled={revokeLoading === invite.id}
                                             >
-                                                <DeleteIcon fontSize="inherit" />
+                                                {revokeLoading === invite.id ? 
+                                                    <CircularProgress size={16} /> : 
+                                                    <DeleteIcon fontSize="small" />
+                                                }
                                             </IconButton>
-                                        </TableCell>
-                                    </TableRow>
-                                ))
-                            )}
-                        </TableBody>
-                    </Table>
-                </TableContainer>
-            </Grid>
-        </Grid>
+                                        </Tooltip>
+                                    </TableCell>
+                                </TableRow>
+                            ))
+                        )}
+                    </TableBody>
+                </Table>
+            </TableContainer>
+        </Paper>
     );
 };
