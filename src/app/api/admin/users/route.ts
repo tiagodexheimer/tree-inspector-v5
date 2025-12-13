@@ -1,46 +1,60 @@
+// src/app/api/admin/users/route.ts
 import { NextResponse, NextRequest } from "next/server";
 import { auth } from "@/auth";
-import { userManagementService } from "@/services/user-management-service";
+import { userManagementService } from "@/services/user-management-service"; // Requer listOrganizationMembers
 
 // --- AUXILIARES ---
-// Clean Code: Extrair verificação de permissão para função auxiliar
-async function checkAdminPermission() {
+// Checa a permissão de LISTAGEM de membros da organização
+async function checkOrganizationMembership() {
   const session = await auth();
   
-  if (!session || !session.user) {
-    return { authorized: false, status: 401, message: "Não autenticado" };
+  if (!session || !session.user || !session.user.organizationId) {
+    return { 
+      authorized: false, 
+      status: 401, 
+      message: "Não autenticado ou organização não definida." 
+    };
   }
   
-  if (session.user.role !== 'admin') {
-    return { authorized: false, status: 403, message: "Acesso restrito a administradores." };
-  }
-
-  return { authorized: true, session };
+  // Qualquer membro logado pode listar outros membros da sua própria organização
+  return { 
+      authorized: true, 
+      session, 
+      organizationId: Number(session.user.organizationId) 
+  };
 }
 
-// --- GET: LISTAR USUÁRIOS ---
+// --- GET: LISTAR MEMBROS DA ORGANIZAÇÃO ---
 export async function GET() {
-  const permission = await checkAdminPermission();
+  const permission = await checkOrganizationMembership();
+  
+  // Se não estiver autenticado ou sem organização, retorna 401
   if (!permission.authorized) {
     return NextResponse.json({ message: permission.message }, { status: permission.status });
   }
 
   try {
-    // Clean Architecture: A rota chama o serviço, não o banco de dados.
-    const users = await userManagementService.listAllUsers();
-    return NextResponse.json(users, { status: 200 });
+    // [NOVO FLUXO MULTI-TENANT] Passa o organizationId para o Service
+    // O service deve retornar todos os usuários vinculados àquela organização, 
+    // juntamente com o papel (organization_role).
+    const members = await userManagementService.listOrganizationMembers(permission.organizationId);
+    
+    // Retornamos os membros da organização
+    return NextResponse.json(members, { status: 200 });
 
   } catch (error) {
-    console.error("[API GET Users]", error);
-    return NextResponse.json({ message: "Erro ao listar usuários" }, { status: 500 });
+    console.error("[API GET Users (Org Members)]", error);
+    return NextResponse.json({ message: "Erro ao listar membros da organização" }, { status: 500 });
   }
 }
 
-// --- POST: CRIAR USUÁRIO ---
+// --- POST: CRIAR USUÁRIO (MANTIDO RESTRITO AO ADMIN GLOBAL) ---
 export async function POST(request: NextRequest) {
-  const permission = await checkAdminPermission();
-  if (!permission.authorized) {
-    return NextResponse.json({ message: permission.message }, { status: permission.status });
+  // Mantemos a checagem rígida para a criação manual de contas de super-admin
+  const session = await auth();
+  
+  if (!session || session.user.role !== 'admin') {
+    return NextResponse.json({ message: "Acesso restrito a administradores (Criação Manual)." }, { status: 403 });
   }
 
   try {
@@ -61,10 +75,8 @@ export async function POST(request: NextRequest) {
     let status = 500;
     let message = "Erro interno ao criar usuário";
 
-    // Tratamento de erros de domínio (lançados pelo service)
     if (error instanceof Error) {
       message = error.message;
-      // Mapeamento simples de erro de negócio para HTTP Code
       if (message === "Email já cadastrado.") status = 409;
       if (message.includes("obrigatórios")) status = 400;
     }

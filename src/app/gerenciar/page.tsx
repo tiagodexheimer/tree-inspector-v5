@@ -13,7 +13,7 @@ import FormatListBulletedIcon from '@mui/icons-material/FormatListBulleted';
 import SettingsSuggestIcon from '@mui/icons-material/SettingsSuggest'; 
 
 const manageItems = [
-    { title: 'Usuários', icon: <GroupIcon fontSize="large" />, href: '/gerenciar/usuarios', desc: 'Gerenciar contas e acessos' },
+    { title: 'Organização', icon: <GroupIcon fontSize="large" />, href: '/gerenciar/organizacao', desc: 'Gerenciar Organização' },
     { title: 'Tipos de Demanda', icon: <AssignmentIcon fontSize="large" />, href: '/gerenciar/tipos-demanda', desc: 'Categorias de serviço' },
     { title: 'Status', icon: <FlagIcon fontSize="large" />, href: '/gerenciar/status', desc: 'Fluxo de trabalho' },
     { title: 'Espécies', icon: <ForestIcon fontSize="large" />, href: '/gerenciar/especies', desc: 'Catálogo de árvores' },

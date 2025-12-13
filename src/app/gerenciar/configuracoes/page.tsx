@@ -1,12 +1,16 @@
+// src/app/gerenciar/configuracoes/page.tsx
 'use client';
 
 import React, { useEffect, useState } from 'react';
 import { 
-    Box, Typography, Paper, TextField, Button, Divider, Alert, CircularProgress, Stack, IconButton, InputAdornment, Chip
+    Box, Typography, Paper, TextField, Button, Divider, Alert, CircularProgress, Stack, IconButton, InputAdornment, Chip 
 } from '@mui/material';
 import SaveIcon from '@mui/icons-material/Save';
 import SearchIcon from '@mui/icons-material/Search';
-import BusinessIcon from '@mui/icons-material/Business'; // Ícone para organização
+import BusinessIcon from '@mui/icons-material/Business';
+import GroupIcon from '@mui/icons-material/Group'; // NOVO: Ícone para Grupo
+import GroupAddIcon from '@mui/icons-material/GroupAdd'; // NOVO: Ícone para Adicionar Grupo
+import Link from 'next/link'; // NOVO: Importar Link
 import dynamic from 'next/dynamic';
 
 // Importação Dinâmica do Mapa
@@ -36,7 +40,7 @@ export default function ConfiguracoesPage() {
 
     // [NOVO] Estados da Organização
     const [orgName, setOrgName] = useState('');
-    const [planType, setPlanType] = useState('Free');
+    const [planType, setPlanType] = useState('Free'); // Assume 'Free' como padrão
 
     // Estados auxiliares para os campos de endereço (Visualização)
     const [endInicio, setEndInicio] = useState<EnderecoState>({ cep: '', numero: '', logradouro: '', cidade: '', uf: '' });
@@ -44,10 +48,10 @@ export default function ConfiguracoesPage() {
 
     // Carregar configurações iniciais
     useEffect(() => {
+        // [ALTERADO] Busca dados de config, incluindo orgName e planType
         fetch('/api/gerenciar/configuracoes')
             .then(res => res.json())
             .then(data => {
-                // Separa dados da rota e da organização
                 const safeData = data || {};
                 
                 setConfig({
@@ -55,15 +59,16 @@ export default function ConfiguracoesPage() {
                     fim: safeData.fim || { lat: 0, lng: 0 }
                 });
 
-                // [NOVO] Popula dados da org
-                setOrgName(safeData.orgName || '');
+                setOrgName(safeData.orgName || 'Minha Organização');
                 setPlanType(safeData.planType || 'Free');
             })
             .catch(() => setMessage({ type: 'error', text: 'Erro ao carregar configurações.' }))
             .finally(() => setLoading(false));
     }, []);
 
-    // Atualiza Lat/Lng manualmente
+    // ... (funções handleChangeCoord, handleChangeAddress, buscarCep, buscarCoordenadas, handleSave - MANTIDAS IGUAIS) ...
+    // Note: Mantive as funções auxiliares pois você já as tinha, mas o espaço para elas foi omitido por brevidade.
+
     const handleChangeCoord = (section: 'inicio' | 'fim', field: 'lat' | 'lng', value: string) => {
         const cleanValue = value.replace(',', '.');
         setConfig(prev => ({
@@ -161,7 +166,7 @@ export default function ConfiguracoesPage() {
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     ...config,
-                    orgName // [NOVO] Envia o nome da organização junto
+                    orgName 
                 })
             });
 
@@ -177,7 +182,6 @@ export default function ConfiguracoesPage() {
 
     if (loading) return <Box p={4} display="flex" justifyContent="center"><CircularProgress /></Box>;
     
-    // [NOVO] Verifica se é Free para bloquear input
     const isFreePlan = planType === 'Free';
 
     return (
@@ -192,8 +196,28 @@ export default function ConfiguracoesPage() {
                 </Alert>
             )}
 
-            {/* [NOVO] SEÇÃO DA ORGANIZAÇÃO */}
+            {/* NOVO: LINK PARA GERENCIAMENTO DE MEMBROS */}
             <Paper elevation={3} sx={{ p: 4, mb: 4, borderLeft: '6px solid #1976d2' }}>
+                <Box sx={{ display: 'flex', alignItems: 'center', mb: 2, gap: 2 }}>
+                    <Typography variant="h6" color="primary" sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                        <GroupIcon /> Gerenciamento de Membros
+                    </Typography>
+                </Box>
+                
+                <Typography variant="body2" color="text.secondary" paragraph>
+                    Gerencie os membros da sua organização e envie convites por e-mail, de acordo com o seu plano atual ({planType}).
+                </Typography>
+
+                <Link href="/gerenciar/usuarios" passHref style={{ textDecoration: 'none' }}>
+                    <Button variant="contained" startIcon={<GroupAddIcon />} size="medium" sx={{ mt: 1 }}>
+                        Acessar Membros e Convites
+                    </Button>
+                </Link>
+            </Paper>
+            
+            {/* SEÇÃO DA ORGANIZAÇÃO (MANTIDA) */}
+            <Paper elevation={3} sx={{ p: 4, mb: 4, borderLeft: '6px solid #1976d2' }}>
+                {/* ... (Conteúdo da Organização) ... */}
                 <Box sx={{ display: 'flex', alignItems: 'center', mb: 2, gap: 2 }}>
                     <Typography variant="h6" color="primary" sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                         <BusinessIcon /> Dados da Organização
@@ -226,8 +250,9 @@ export default function ConfiguracoesPage() {
                 </Box>
             </Paper>
 
-            {/* SEÇÃO DE ROTAS (MANTIDA IGUAL) */}
+            {/* SEÇÃO DE ROTAS (MANTIDA) */}
             <Paper elevation={3} sx={{ p: 4 }}>
+                {/* ... (Conteúdo de Padrões de Rota e Mapa) ... */}
                 <Typography variant="h6" gutterBottom color="primary">
                     Padrões de Rota
                 </Typography>

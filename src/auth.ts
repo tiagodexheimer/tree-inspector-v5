@@ -1,28 +1,30 @@
+// src/auth.ts
 import NextAuth, { type NextAuthConfig } from "next-auth";
 import CredentialsProvider from "next-auth/providers/credentials";
 import { NextResponse, type NextRequest } from "next/server";
-// Importa a instância do serviço (authService)
 import { authService } from "@/services/auth-service";
 
-// [CORREÇÃO] Caminhos que requerem role 'admin'
-// A rota geral '/gerenciar' foi removida para ser acessível a todos os usuários logados.
-// Protegemos apenas a gestão de usuários e APIs de admin.
+// [CORREÇÃO DE ROTEAMENTO]
+// Definimos aqui apenas rotas que são EXCLUSIVAS do Super Admin do sistema.
 const adminRoutes = [
-  "/gerenciar/usuarios",
   "/api/admin",
-  "/api/gerenciar/usuarios",
+  "/api/admin/users", 
+  // REMOVIDO: "/api/gerenciar/convites" 
+  // Motivo: Donos de organização (users 'pro'/'basic') precisam acessar essa rota.
+  // A segurança dessa rota será feita internamente no arquivo route.ts verificando a organizationRole.
 ];
 
-// Caminhos que não requerem autenticação (incluindo as APIs de autenticação)
+// Caminhos que não requerem autenticação (Públicos)
 const publicRoutes = [
   "/login",
   "/signup",
   "/api/auth/signup",
   "/api/mobile-login",
+  "/convite", // Rota pública para aceitar convites
 ];
 
 export const authConfig: NextAuthConfig = {
-  // Configurações de Sessão e Páginas
+  // Configurações de Sessão
   session: {
     strategy: "jwt",
   },
@@ -30,7 +32,7 @@ export const authConfig: NextAuthConfig = {
     signIn: "/login",
   },
 
-  // Provedores (Credentials para autenticação por email/senha)
+  // Provedores
   providers: [
     CredentialsProvider({
       name: "Credentials",
@@ -44,7 +46,7 @@ export const authConfig: NextAuthConfig = {
         }
 
         try {
-          // Chama o método authenticate na INSTÂNCIA
+          // O authService deve retornar o usuário com organizationRole e planType
           const user = await authService.authenticate(credentials);
 
           if (user) {
@@ -53,43 +55,58 @@ export const authConfig: NextAuthConfig = {
           return null;
         } catch (error) {
           console.error("Falha na autenticação:", error);
-          // Lançar um erro aqui faz o NextAuth incluir a mensagem no objeto de erro.
           throw new Error("Email ou senha inválidos.");
         }
       },
     }),
   ],
 
-  // Callbacks: Essenciais para a propagação correta do ROLE e dados Multi-tenant
+  // Callbacks: Garantem que os dados cheguem ao Frontend
   callbacks: {
-    async jwt({ token, user }) {
+    // Adicione 'trigger' e 'session' nos argumentos
+    async jwt({ token, user, trigger, session }) {
+      
+      // 1. Login Inicial (Carrega do banco)
       if (user) {
-        // Usuário logado: Adiciona dados do usuário ao token
         token.id = user.id;
         token.role = user.role as any;
-        // Não forçamos tipagem aqui, deixando o NextAuth tratar (user.organizationId deve ser number/string)
-        token.organizationId = user.organizationId; 
-        token.organizationName = (user as any).organizationName; // [NOVO]
+        token.organizationId = user.organizationId;
+        token.organizationName = (user as any).organizationName;
+        token.organizationRole = (user as any).organizationRole;
+        token.planType = (user as any).planType;
       }
+
+      // 2. [CORREÇÃO] Atualização Manual (Quando você chama update() no frontend)
+      if (trigger === "update" && session) {
+        // Se enviarmos { organizationName: 'Novo Nome' } no frontend, atualizamos o token aqui
+        if (session.organizationName) {
+            token.organizationName = session.organizationName;
+        }
+        
+        // Se precisar atualizar outros campos futuramente (ex: role, planType), faça aqui também
+        if (session.organizationRole) token.organizationRole = session.organizationRole;
+        if (session.planType) token.planType = session.planType;
+      }
+
       return token;
     },
     async session({ session, token }) {
       if (token && session.user) {
+        // Copia dados do Token JWT para a Sessão do Cliente
         session.user.id = token.id as string;
         session.user.role = token.role as any;
-        
-        // [FIX CRÍTICO] Converte para number, pois session.user.organizationId (no d.ts) é number.
-        // O valor do token pode ser number ou string, Number() é seguro para ambos.
         session.user.organizationId = Number(token.organizationId);
+        session.user.organizationName = token.organizationName as string;
         
-        session.user.organizationName = token.organizationName as string; 
+        // [CRÍTICO] Disponibilizando para useSession() no frontend
+        (session.user as any).organizationRole = token.organizationRole as any;
+        (session.user as any).planType = token.planType as string;
       }
       return session;
     },
 
-
     /**
-     * 3. Authorized Callback (Middleware de Proteção de Rotas)
+     * Middleware de Proteção de Rotas (Authorized)
      */
     authorized({
       auth,
@@ -101,7 +118,7 @@ export const authConfig: NextAuthConfig = {
       const isLoggedIn = !!auth?.user;
       const pathname = nextUrl.pathname;
 
-      // A) TRATAMENTO DA ROTA RAIZ (/)
+      // A) ROTA RAIZ -> Dashboard ou Login
       if (pathname === "/") {
         if (isLoggedIn) {
           return NextResponse.redirect(new URL("/dashboard", nextUrl));
@@ -109,8 +126,9 @@ export const authConfig: NextAuthConfig = {
         return NextResponse.redirect(new URL("/login", nextUrl));
       }
 
-      // B) ROTAS PÚBLICAS
+      // B) ROTAS PÚBLICAS (Permite acesso sem login)
       if (publicRoutes.some((route) => pathname.startsWith(route))) {
+        // Se já está logado e tenta ir para login/signup, manda pro dashboard
         if (
           isLoggedIn &&
           (pathname.startsWith("/login") || pathname.startsWith("/signup"))
@@ -120,18 +138,19 @@ export const authConfig: NextAuthConfig = {
         return true;
       }
 
-      // C) ROTAS PROTEGIDAS POR ADMIN (CORRIGIDO)
+      // C) ROTAS EXCLUSIVAS DE SUPER ADMIN
+      // Aqui só entram rotas que NENHUM usuário comum (mesmo pagante) pode ver.
       const isAdminRoute = adminRoutes.some((route) =>
         pathname.startsWith(route)
       );
       if (isAdminRoute) {
-        // Agora, somente rotas sensíveis como /gerenciar/usuarios são protegidas
         if (auth?.user?.role !== "admin") {
           return NextResponse.redirect(new URL("/dashboard", nextUrl));
         }
       }
 
-      // D) ROTAS GERAIS PROTEGIDAS (inclui /dashboard, /demandas e /gerenciar/status, /gerenciar/tipos-demanda)
+      // D) ROTAS GERAIS PROTEGIDAS (Dashboard, Gerenciar, APIs internas)
+      // Bloqueia qualquer acesso não autenticado que não seja público
       if (!isLoggedIn) {
         return false;
       }

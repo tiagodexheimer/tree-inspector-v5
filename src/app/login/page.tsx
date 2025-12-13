@@ -3,7 +3,8 @@
 
 import React, { useState } from 'react';
 import { signIn } from 'next-auth/react';
-import { useRouter } from 'next/navigation';
+// [CORREÇÃO] Adicionar useSearchParams
+import { useRouter, useSearchParams } from 'next/navigation'; 
 import {
   Container, Box, Paper, Typography, TextField, Button, CircularProgress, Alert
 } from '@mui/material';
@@ -11,50 +12,54 @@ import Link from 'next/link';
 
 export default function LoginPage() {
   const router = useRouter();
+  // [CORREÇÃO] Capturar parâmetros da URL
+  const searchParams = useSearchParams();
+  const inviteToken = searchParams.get('invite_token'); // Captura o token
+  
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [error, setError] = useState<string | null>(null); // [NOVO] Estado para mensagens de erro
+  const [error, setError] = useState<string | null>(null); 
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const handleSubmit = async (event: React.FormEvent) => {
     event.preventDefault();
     setIsSubmitting(true);
-    setError(null); // Limpa erros anteriores
+    setError(null); 
 
-    // Verifica campos mínimos no frontend
     if (!email || !password) {
       setError('Email e senha são obrigatórios.');
       setIsSubmitting(false);
       return;
     }
+    
+    // [CORREÇÃO] Define a URL de callback com base no token
+    const callbackUrl = inviteToken ? `/convite/${inviteToken}` : '/dashboard';
 
-    // [CRÍTICO] Chama signIn com redirect: false para capturar o resultado
+
     const loginResult = await signIn('credentials', {
       redirect: false,
       email: email,
       password: password,
+      // [OPCIONAL, mas recomendado] Se o signIn fosse com redirect: true, o callbackUrl seria passado aqui.
+      // Como estamos usando redirect: false, o redirecionamento manual é suficiente.
     });
 
     setIsSubmitting(false);
 
     if (loginResult?.error) {
-      // Mapeia erros do NextAuth ou os erros lançados no auth.ts
       let errorMessage = 'Falha ao fazer login. Tente novamente.';
 
       if (loginResult.error.includes('Email ou senha inválidos.')) {
-        // Mensagem lançada pelo AuthService/Repository
         errorMessage = 'Email ou senha inválidos.';
       } else if (loginResult.error.includes('CredentialsSignin')) {
-        // Erro genérico do NextAuth (se o customize for desligado)
         errorMessage = 'Credenciais inválidas. Verifique seu email e senha.';
       }
 
       setError(errorMessage);
     } else if (loginResult?.ok) {
-      // Login bem-sucedido: Redireciona para o dashboard
-      router.push('/dashboard');
+      // [CORREÇÃO] Redireciona para a URL de callback (que será /convite/[token] se o token existir)
+      router.push(callbackUrl);
     } else {
-      // Fallback para respostas não esperadas
       setError('Ocorreu um erro desconhecido.');
     }
   };
@@ -67,7 +72,13 @@ export default function LoginPage() {
         </Typography>
         <Box component="form" onSubmit={handleSubmit} noValidate sx={{ mt: 2, width: '100%' }}>
 
-          {/* [CRÍTICO] Renderiza a mensagem de erro */}
+          {/* Renderiza aviso se houver token na URL */}
+          {inviteToken && (
+             <Alert severity="info" sx={{ mb: 2, width: '100%' }}>
+                Por favor, faça login para aceitar seu convite.
+            </Alert>
+          )}
+
           {error && (
             <Alert severity="error" sx={{ mb: 2, width: '100%' }}>
               {error}
@@ -100,8 +111,8 @@ export default function LoginPage() {
             disabled={isSubmitting}
           />
           <Button
-            type="button" // MUDE AQUI DE 'submit' PARA 'button'
-            onClick={(e) => handleSubmit(e as any)} // Força a chamada JS
+            type="button" 
+            onClick={(e) => handleSubmit(e as any)} 
             fullWidth
             variant="contained"
             sx={{ mt: 3, mb: 2, backgroundColor: '#257e1a', '&:hover': { backgroundColor: '#1a5912' } }}
