@@ -1,12 +1,10 @@
 // src/services/auth-service.ts
 import { userManagementService } from "@/services/user-management-service";
 import { compare } from "bcrypt";
-// Importar o tipo UserPersistence que você definiu no repositório
 import { UserPersistence } from "@/repositories/user-repository";
-import { User } from "next-auth"; // Tipo padrão do NextAuth
+import { User } from "next-auth"; 
 
 export const AuthService = {
-  // Garantimos que o retorno é compatível com o tipo User do NextAuth
   async authenticate(
     credentials: Partial<Record<"email" | "password", unknown>>
   ): Promise<User | null> {
@@ -15,10 +13,8 @@ export const AuthService = {
 
     if (!email || !password) return null;
 
-    // Busca usuário e faz o cast para UserPersistence para acessar os campos extras
-    const user = (await userManagementService.getUserByEmail(email)) as
-      | (UserPersistence & { organizationName: string })
-      | null;
+    // Busca usuário completo com dados da organização
+    const user = (await userManagementService.getUserByEmail(email)) as UserPersistence | null;
 
     if (!user || !user.password) return null;
 
@@ -26,16 +22,17 @@ export const AuthService = {
     const isValid = await compare(password, user.password);
     if (!isValid) return null;
 
-    // Retorna o objeto compatível com NextAuth.User.
+    // [CORREÇÃO] Repassa o organizationRole para o NextAuth
     return {
       id: user.id,
       name: user.name,
       email: user.email,
-      role: user.role,
+      role: user.role, // Role do sistema (basic, pro...)
       image: null,
       organizationId: user.organizationId,
       organizationName: user.organizationName,
       plan_type: user.plan_type,
+      organizationRole: user.organizationRole, // <--- O PULO DO GATO: Agora é 'owner'
     } as User;
   },
 };

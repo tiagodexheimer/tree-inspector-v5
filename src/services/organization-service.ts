@@ -2,36 +2,31 @@
 import pool from "@/lib/db";
 import { DEFAULT_ORGANIZATION_SETTINGS } from "@/config/organization-defaults";
 
-// [NOVO] Função auxiliar para Slug (pode estar fora da classe)
+// Função auxiliar para Slug (Mantida)
 function createSlug(name: string): string {
   return name
     .toLowerCase()
     .trim()
-    .normalize("NFD").replace(/[\u0300-\u036f]/g, "") // Remove acentos
-    .replace(/[^\w\s-]/g, '') // Remove caracteres que não são letras, números, espaços ou hífens
-    .replace(/[\s_-]+/g, '-') // Substitui espaços e hífens múltiplos por um único hífen
-    .replace(/^-+|-+$/g, ''); // Remove hífens do início e do fim
+    .normalize("NFD").replace(/[\u0300-\u036f]/g, "") 
+    .replace(/[^\w\s-]/g, '') 
+    .replace(/[\s_-]+/g, '-') 
+    .replace(/^-+|-+$/g, ''); 
 }
 
 export class OrganizationService {
     
-    // [NOVO] Método para garantir que o slug seja único no banco (com tentativa e erro)
+    // Método auxiliar de slug (Mantido)
     async createUniqueSlug(baseSlug: string, client: any, count: number = 0): Promise<string> {
         const testSlug = count === 0 ? baseSlug : `${baseSlug}-${count}`;
-        
         const checkQuery = 'SELECT slug FROM organizations WHERE slug = $1 LIMIT 1';
-        // Usa o cliente da transação para evitar problemas
         const result = await client.query(checkQuery, [testSlug]);
-        
-        if (result.rowCount === 0) {
-            return testSlug;
-        } else {
-            // Se existir, tenta o próximo número recursivamente
-            return this.createUniqueSlug(baseSlug, client, count + 1);
-        }
+        if (result.rowCount === 0) return testSlug;
+        return this.createUniqueSlug(baseSlug, client, count + 1);
     }
 
+    // Método de criação (Mantido)
     async createOrganizationForUser(userId: string, userName: string, planType: 'free' | 'pro' = 'free') {
+        // ... (seu código existente de createOrganizationForUser) ...
         const client = await pool.connect();
         
         try {
@@ -39,8 +34,6 @@ export class OrganizationService {
 
             const orgName = `Ambiente de ${userName}`;
             const baseSlug = createSlug(orgName);
-            
-            // [CRÍTICO] Chama a função de unicidade usando o cliente da transação
             const orgSlug = await this.createUniqueSlug(baseSlug, client); 
 
             // 1. Criar a Organização
@@ -49,7 +42,6 @@ export class OrganizationService {
                 VALUES ($1, $2, $3, $4)
                 RETURNING id
             `;
-            // [CORREÇÃO] Passa o slug gerado para a query
             const orgRes = await client.query(orgQuery, [orgName, orgSlug, planType, userId]);
             const orgId = orgRes.rows[0].id;
 
@@ -93,20 +85,26 @@ export class OrganizationService {
         }
     }
 
-    async updateOrganizationName(id: number, newName: string) {
-        // Validação de negócio adicional
-        if (newName.length > 100) {
-            throw new Error("O nome é muito longo.");
+    // [NOVO MÉTODO] Atualizar Organização
+    async updateOrganization(organizationId: number, data: { name: string }) {
+        if (!data.name || data.name.trim().length < 3) {
+            throw new Error("O nome da organização deve ter pelo menos 3 caracteres.");
         }
 
-        // Chama o Repository
-        const updatedOrg = await OrganizationRepository.updateName(id, newName);
+        const query = `
+            UPDATE organizations 
+            SET name = $1, updated_at = NOW()
+            WHERE id = $2
+            RETURNING id, name
+        `;
         
-        if (!updatedOrg) {
-            throw new Error("Organização não encontrada para atualização.");
+        const result = await pool.query(query, [data.name, organizationId]);
+        
+        if (result.rowCount === 0) {
+            throw new Error("Organização não encontrada.");
         }
-
-        return updatedOrg;
+        
+        return result.rows[0];
     }
 }
 

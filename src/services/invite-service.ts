@@ -31,59 +31,69 @@ export class InviteService {
   /**
    * Lógica para criar um convite, incluindo verificação de limites. (Mantido da resposta anterior)
    */
-  async createInvite(input: CreateInviteInput) {
-        // Usa a role da sessão, garantindo minúsculas e fallback
-        const inviterRole = input.inviterRole ? input.inviterRole.toLowerCase() : 'none'; 
-        
-        // Agora, 'pro' será lido corretamente como 'unlimited'
-        const limit = INVITE_LIMITS[inviterRole] || 0;
+  export const InviteService = {
+  // LISTAR Convites Pendentes da Organização
+  async listPendingInvites(organizationId: number) {
+    const query = `
+      SELECT id, email, role, token, expires_at 
+      FROM organization_invites 
+      WHERE organization_id = $1 
+      AND expires_at > NOW() -- Apenas convites válidos
+      ORDER BY created_at DESC
+    `;
+    const res = await pool.query(query, [organizationId]);
+    return res.rows;
+  },
 
-        console.log(`[InviteService] User Role: ${inviterRole}, Resolved Limit: ${limit}`);
-
-        if (limit === 0) {
-            // Mensagem de erro mais clara
-            throw new Error(`Seu papel no sistema (${inviterRole.toUpperCase()}) não tem permissão de convite.`);
-        }
-
-    // O restante da lógica de limite e criação de convite é mantida:
-
-    const activeInvitesCount = await InviteRepository.countActiveInvites(
-      input.organizationId
-    );
-
-    if (limit !== "unlimited" && activeInvitesCount >= limit) {
-      throw new Error(
-        `Limite de ${limit} convites ativos atingido para o seu plano.`
-      );
+  // CRIAR Novo Convite
+  async createInvite(organizationId: number, email: string, role: OrganizationRole) {
+    // 1. Verifica se já existe um convite pendente para este email nesta org
+    const checkQuery = `
+        SELECT id FROM organization_invites 
+        WHERE organization_id = $1 AND email = $2 AND expires_at > NOW()
+    `;
+    const checkRes = await pool.query(checkQuery, [organizationId, email]);
+    
+    if (checkRes.rowCount && checkRes.rowCount > 0) {
+        throw new Error("Já existe um convite pendente para este e-mail.");
     }
 
-    // 1. Gera Token Único
-    const token = crypto.randomBytes(32).toString("hex");
-
-    // 2. Verifica se o e-mail já é membro da organização
-    const existingUser = await UserRepository.findByEmail(input.email);
-    if (
-      existingUser &&
-      String(existingUser.organizationId) === String(input.organizationId)
-    ) {
-      throw new Error("Usuário já é membro desta organização.");
+    // 2. Verifica se o usuário JÁ É membro da organização
+    const memberCheck = `
+        SELECT u.id FROM users u
+        JOIN organization_members om ON om.user_id = u.id
+        WHERE u.email = $1 AND om.organization_id = $2
+    `;
+    const memberRes = await pool.query(memberCheck, [email, organizationId]);
+    if (memberRes.rowCount && memberRes.rowCount > 0) {
+        throw new Error("Este usuário já é membro da organização.");
     }
 
-    // 3. Cria o Convite
-    const newInvite = await InviteRepository.create(
-      input.organizationId,
-      input.email.toLowerCase(),
-      input.role,
-      token
-    );
+    // 3. Gera Token e Expiração (7 dias)
+    const token = randomBytes(32).toString("hex");
+    const expiresAt = new Date();
+    expiresAt.setDate(expiresAt.getDate() + 7);
 
-    console.log(
-      `[INVITE] Convite criado para ${newInvite.email}. Token: ${token}`
-    );
+    // 4. Insere no Banco
+    const insertQuery = `
+      INSERT INTO organization_invites (organization_id, email, token, role, expires_at)
+      VALUES ($1, $2, $3, $4, $5)
+      RETURNING id, email, role, token, expires_at
+    `;
+    
+    const res = await pool.query(insertQuery, [organizationId, email, token, role, expiresAt]);
+    return res.rows[0];
+  },
 
-    return newInvite;
-  }
-
+  // REVOGAR (Deletar) Convite
+  async revokeInvite(inviteId: number, organizationId: number) {
+    const query = `
+        DELETE FROM organization_invites 
+        WHERE id = $1 AND organization_id = $2
+    `;
+    await pool.query(query, [inviteId, organizationId]);
+  },
+  
   /**
    * Processa a aceitação do convite e adiciona o usuário à organização. (Mantido da resposta anterior)
    */

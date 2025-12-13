@@ -1,148 +1,182 @@
 // src/services/user-management-service.ts
 
-import { UserRepository, UserPersistence, CreateUserRepoDTO } from "@/repositories/user-repository";
-import { OrganizationRepository } from "@/repositories/organization-repository";
-import pool from "@/lib/db"; // Necessário para gerenciar transações
-import { hash } from "@/lib/auth"; // Assumindo que você tem uma função hash
-import { OrganizationRole } from "@/types/organization-types"; // Importando o tipo da role
+// Recomendado: usar a lib centralizada de auth que criamos para evitar erros de build
+import { hash } from "@/lib/auth"; 
+// Caso não tenha criado o @/lib/auth, use: import { hash } from "bcryptjs";
 
-// Interface para entrada do serviço de registro
-interface RegisterUserInput {
-    name?: string;
-    email: string;
-    password: string;
-    planType: string; // Ex: 'free', 'basic', 'pro'
+import {
+  UserRepository,
+  UserPersistence,
+} from "@/repositories/user-repository";
+import { UserRole, OrganizationRole } from "@/types/auth-types";
+import pool from "@/lib/db";
+import { PlanType } from "@/types/auth-types"; 
+
+// DTO para a criação de usuário (Método antigo, mantido por compatibilidade)
+interface CreateUserInput {
+  name?: string;
+  email: string;
+  password: string;
+  role: UserRole; 
 }
 
-export const userManagementService = {
+// DTO para o registro, utilizando o PlanType centralizado
+interface RegisterUserInput { 
+    name?: string; 
+    email: string; 
+    password: string; 
+    planType: PlanType; 
+}
 
-    /**
-     * [CORE] Registra um novo usuário no sistema, criando sua organização
-     * e o definindo como OWNER em uma transação atômica.
-     */
-    async registerUser(input: RegisterUserInput): Promise<UserPersistence> {
-        const client = await pool.connect();
-        
-        try {
-            await client.query("BEGIN"); // Inicia a transação
-            
-            // 0. Checagem inicial: O email já existe?
-            const existingUser = await UserRepository.findByEmail(input.email);
-            if (existingUser) {
-                throw new Error("Email já cadastrado.");
-            }
+export class UserManagementService {
+  
+  // --- Métodos de Leitura e CRUD Básico ---
 
-            // 1. Criar a Organização
-            const organizationName = `${input.name || 'Novo Usuário'}'s Org`;
-            const newOrg = await OrganizationRepository.createOrganization(organizationName, input.planType, client); 
+  async listAllUsers() {
+    return await UserRepository.findAll();
+  }
 
-            // 2. Criar o Usuário (Owner)
-            const passwordHash = await hash(input.password);
-            
-            const newUser = await UserRepository.create({
-                name: input.name,
-                email: input.email.toLowerCase(),
-                passwordHash,
-                organizationId: newOrg.id,
-                organizationRole: 'owner', // Define o papel na sessão (mas a persistência é a próxima etapa)
-                role: input.planType.toLowerCase() // Role do sistema
-            }, client); // Passa o client para a transação
+  async getUserByEmail(email: string) {
+    return await UserRepository.findByEmail(email);
+  }
 
-            // 3. REGISTRO CRÍTICO: Inserir o Owner na tabela de membros
-            // Isso garante que ele apareça nas listas e tenha o papel 'owner' definido.
-            await UserRepository.insertOrganizationMember(
-                newOrg.id,
-                newUser.id,
-                'owner',
-                client
-            ); // Passa o client para a transação
+  async deleteUser(id: string, adminId: string) {
+    return await UserRepository.delete(id); 
+  }
 
-            await client.query("COMMIT"); // Confirma a transação
-            return newUser;
+  // --- Método Antigo (Mantido por compatibilidade) ---
+  async createUser(input: {
+    name?: string | null;
+    email: string;
+    password: string;
+    role: string;
+  }): Promise<UserPersistence> {
+    if (!input.email || !input.password || !input.role) {
+      throw new Error("Dados obrigatórios faltando.");
+    }
 
-        } catch (error) {
-            await client.query("ROLLBACK"); // Desfaz se houver erro
-            console.error("[Service RegisterUser] Erro na transação:", error);
-            throw error;
-        } finally {
-            client.release();
-        }
-    },
+    const existing = await UserRepository.findByEmail(input.email);
+    if (existing) throw new Error("Email já cadastrado.");
+
+    const passwordHash = await hash(input.password);
     
-    /**
-     * Lista todos os membros de uma organização (usado na página /organizacao).
-     */
-    async listOrganizationMembers(organizationId: number): Promise<UserPersistence[]> {
-        // Assume que UserRepository.findAllByOrganization já faz o JOIN com organization_members
-        return UserRepository.findAllByOrganization(organizationId);
-    },
+    return await UserRepository.createWithOrganization({
+      name: input.name || "Sem Nome",
+      email: input.email,
+      passwordHash,
+      role: input.role as UserRole,
+      planType: 'free' as PlanType 
+    });
+  }
 
-    /**
-     * Permite que um usuário saia da sua organização atual.
-     * Regra: O DONO não pode sair. Membro convidado é removido das duas tabelas.
-     */
-    async leaveOrganization(userId: string, organizationId: number): Promise<void> {
-        
-        // 1. Obter o usuário para checar a role na organização (Assumimos que findById faz o join e traz organizationRole)
-        const user = await UserRepository.findById(userId);
-
-        if (!user || user.organizationId !== organizationId) {
-            throw new Error("Usuário não encontrado na organização especificada.");
-        }
-
-        const userOrgRole = user.organizationRole as OrganizationRole | undefined;
-
-        // 2. Checagem de Dono (Owner)
-        if (userOrgRole === 'owner') {
-            const memberCount = await UserRepository.countMembersInOrganization(organizationId);
-
-            if (memberCount >= 2) {
-                // Se há outros membros, o dono deve delegar/transferir antes de sair.
-                throw new Error("Você é o Dono da organização. Transfira a posse para outro Administrador antes de sair.");
-            } else {
-                // Se for o único membro (e dono), ele não pode abandonar a organização órfã.
-                throw new Error("Você não pode sair da organização, pois é o Dono e único membro restante. Considere deletar a organização, se necessário.");
-            }
-        }
-        
-        // 3. Ação de Saída para Membros Convidados (não-Owners)
-        
-        const defaultRole = 'viewer'; // Papel padrão para usuários sem organização principal
-
-        // CRÍTICO: Remover o usuário das duas tabelas de vínculo.
-        
-        // A. Remove o papel na organização (organization_members)
-        await UserRepository.removeUserFromOrganizationMembers(userId, organizationId);
-        
-        // B. Remove o link principal na tabela users e redefine o papel do sistema
-        await UserRepository.updateOrganizationAndRole(userId, null, defaultRole);
-    },
+  // --- CORE: Registro de Novo Usuário (Otimizado com Trigger) ---
+  async registerUser(input: RegisterUserInput) {
+    const client = await pool.connect();
     
-    // --------------------------------------------------------------------------------------------------
-    // Métodos Adicionais (Se necessários, como os do CRUD de Super Admin)
-    // --------------------------------------------------------------------------------------------------
-    
-    /**
-     * Criação de Usuário Manual (Geralmente para Super Admin/CRUD manual, não transacional com org).
-     * Nota: O Super Admin deve vincular a OrganizationId manualmente, se necessário.
-     */
-    async createUser(data: Omit<CreateUserRepoDTO, 'passwordHash'> & { password: string }): Promise<UserPersistence> {
-        // Implemente aqui a lógica de CRUD de Super Admin (hash de senha, checagem de email, etc.)
-        const passwordHash = await hash(data.password);
-        
-        // Assumindo que data.role é a role do sistema ('admin' | 'paid_user' | 'free_user')
-        const newUser = await UserRepository.create({
-            name: data.name,
-            email: data.email,
-            passwordHash: passwordHash,
-            organizationId: data.organizationId, // Pode ser nulo
-            role: data.role.toLowerCase() 
-        });
+    try {
+      await client.query('BEGIN');
 
-        // Se o Super Admin criar um usuário sem organizationId, ele não estará em nenhuma organização.
-        
-        return newUser;
-    },
-    
-    // Outros métodos como deleteUser, findById, etc.
-};
+      // 1. Verifica duplicidade
+      const existingRes = await client.query('SELECT id FROM users WHERE email = $1', [input.email]);
+      if (existingRes.rows.length > 0) {
+        throw new Error("Email já cadastrado.");
+      }
+      
+      const orgPlanType = input.planType;
+      // Mapeamento: Role do usuário no sistema = tipo do plano
+      const userRole: UserRole = orgPlanType as UserRole; 
+      
+      // 2. Cria a Organização (Inicialmente sem owner definido)
+      const orgName = input.name ? `${input.name} Org` : 'Minha Organização';
+      const orgRes = await client.query(
+        'INSERT INTO organizations (name, plan_type) VALUES ($1, $2) RETURNING id', 
+        [orgName, orgPlanType]
+      );
+      const newOrgId = orgRes.rows[0].id;
+
+      // 3. Cria o Usuário vinculado à organização
+      const passwordHash = await hash(input.password);
+      const userRes = await client.query(`
+        INSERT INTO users (id, name, email, password, role, organization_id) 
+        VALUES (gen_random_uuid(), $1, $2, $3, $4, $5) 
+        RETURNING id, name, email, role, organization_id as "organizationId"
+      `, [input.name, input.email, passwordHash, userRole, newOrgId]); 
+
+      const newUserId = userRes.rows[0].id;
+
+      // 4. [OTIMIZADO] Atualiza o owner_id na organização
+      // O Trigger 'sync_org_owner_member' no banco detectará isso e
+      // INSERIRÁ AUTOMATICAMENTE o usuário em 'organization_members' como 'owner'.
+      await client.query(`
+        UPDATE organizations SET owner_id = $1 WHERE id = $2
+      `, [newUserId, newOrgId]);
+
+      await client.query('COMMIT');
+      
+      return {
+        ...userRes.rows[0],
+        plan_type: orgPlanType,
+        organizationName: orgName
+      }; 
+
+    } catch (error) {
+      await client.query('ROLLBACK');
+      console.error("Erro no registro:", error);
+      throw error; 
+    } finally {
+      client.release();
+    }
+  }
+
+  // --- Métodos de Gestão de Organização (Necessários para UI) ---
+
+  /**
+   * Lista membros da organização.
+   */
+  async listOrganizationMembers(organizationId: number) {
+      return await UserRepository.findAllByOrganization(organizationId);
+  }
+
+  /**
+   * Permite sair da organização (se não for o único dono).
+   */
+  async leaveOrganization(userId: string, organizationId: number): Promise<void> {
+      const user = await UserRepository.findByEmail((await UserRepository.findById(userId))?.email || ''); // Re-busca para garantir dados
+      
+      if (!user || user.organizationId !== organizationId) {
+          throw new Error("Usuário não pertence a esta organização.");
+      }
+
+      // Verifica se é owner
+      if (user.organizationRole === 'owner') {
+           // Opcional: Verificar se há outros owners antes de bloquear
+           throw new Error("O dono da organização não pode sair. Transfira a propriedade ou exclua a organização.");
+      }
+
+      const client = await pool.connect();
+      try {
+          await client.query('BEGIN');
+          
+          // 1. Remove da tabela de membros
+          await client.query(
+              'DELETE FROM organization_members WHERE user_id = $1 AND organization_id = $2', 
+              [userId, organizationId]
+          );
+
+          // 2. Remove vínculo principal
+          await client.query(
+              'UPDATE users SET organization_id = NULL WHERE id = $1',
+              [userId]
+          );
+          
+          await client.query('COMMIT');
+      } catch (e) {
+          await client.query('ROLLBACK');
+          throw e;
+      } finally {
+          client.release();
+      }
+  }
+}
+
+export const userManagementService = new UserManagementService();

@@ -1,245 +1,185 @@
-// src/app/gerenciar/organizacao/page.tsx
 'use client';
 
 import React, { useState, useEffect, useCallback } from 'react';
-import {
-    Box, Typography, CircularProgress, Alert, Grid, Button,
-} from '@mui/material';
-import GroupIcon from '@mui/icons-material/Group';
-import AddIcon from '@mui/icons-material/Add';
-import LockIcon from '@mui/icons-material/Lock';
 import { useSession } from 'next-auth/react';
+import { 
+  Container, Typography, Box, Alert, CircularProgress, Divider, Paper 
+} from '@mui/material';
 
-// Importa os tipos e constantes do arquivo dedicado
-import { OrganizationMember, ActiveInvite, OrganizationRole } from '@/types/organization-types';
-
-// Importa os novos componentes
+// Componentes da UI
 import { OrgNameEditor } from '@/components/Organizacao/OrgNameEditor';
-import { PlanLimitsCard } from '@/components/Organizacao/PlanLimitsCard';
-import { InviteManagement } from '@/components/Organizacao/InviteManagement';
-import { MemberList } from '@/components/Organizacao/MemberList';
-import { SuperAdminCrudModal } from '@/components/Organizacao/SuperAdminCrudModal';
+import { InviteManagement } from '@/components/Organizacao/InviteManagement'; 
+import { OrganizationMembersList } from '@/components/Organizacao/OrganizationMembersList'; 
 
+// Tipos
+import { OrganizationRole, ActiveInvite, OrganizationMember } from '@/types/auth-types'; 
 
 export default function GerenciarOrganizacaoPage() {
-    const { data: session, status, update } = useSession();
+  const { data: session, status, update } = useSession();
+  
+  // Inicializa como arrays vazios para evitar erros de .map undefined
+  const [members, setMembers] = useState<OrganizationMember[]>([]);
+  const [invites, setInvites] = useState<ActiveInvite[]>([]);
+  
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
-    // Extração de Dados da Sessão
-    const sessionUserId = session?.user?.id || '';
-    const sessionRole = session?.user?.role || 'free';
-    const sessionOrgRole: OrganizationRole = (session?.user?.organizationRole as OrganizationRole) || 'viewer';
-    const sessionPlanType = session?.user?.planType || sessionRole;
+  // 1. Extração de Dados da Sessão
+  const sessionOrgRole: OrganizationRole = (session?.user as any)?.organizationRole || 'viewer';
+  const userPlanType = (session?.user as any)?.planType || 'free';
+  const userRole = session?.user?.role || 'free'; 
+  
+  const organizationId = session?.user?.organizationId;
+  const organizationName = (session?.user as any)?.organizationName || 'Minha Organização';
 
-    const initialOrgName = session?.user?.organizationName || 'Organização Desconhecida';
-    const organizationId = session?.user?.organizationId || 0;
+  const canManageOrgDetails = sessionOrgRole === 'owner' || sessionOrgRole === 'admin';
 
-    const userPlanType = sessionPlanType.toUpperCase();
-    const isSuperAdminCreation = session?.user?.role === 'admin';
+  // 2. Busca de Dados
+  const fetchManagementData = useCallback(async () => {
+    if (!organizationId) return;
+    
+    setIsLoading(true);
+    setError(null);
+    
+    try {
+      // A) Buscar Membros
+      const membersRes = await fetch('/api/gerenciar/organizacao/membros');
+      if (!membersRes.ok) {
+          // Se falhar silenciosamente, apenas loga, mas não quebra a tela toda se possível
+          console.error("Falha ao carregar membros");
+      } else {
+          const membersData = await membersRes.json();
+          if (Array.isArray(membersData)) setMembers(membersData);
+      }
 
-    // LÓGICA DE PERMISSÃO E PROPRIEDADE
-    const isCurrentUserOwner = sessionOrgRole === 'owner';
-    const canManageOrgDetails = isCurrentUserOwner || sessionOrgRole === 'admin';
-    const isOrganizationAlheia = !isCurrentUserOwner;
-
-
-    // --- ESTADOS DE ORQUESTRAÇÃO ---
-    const [membersList, setMembersList] = useState<OrganizationMember[]>([]);
-    const [invitesList, setInvitesList] = useState<ActiveInvite[]>([]);
-
-    const [isLoading, setIsLoading] = useState<boolean>(true);
-    const [error, setError] = useState<string | null>(null);
-    const [openCrudModal, setOpenCrudModal] = useState(false);
-
-
-    // --- Handlers de Organização/Edição (Centralizado aqui) ---
-    const handleUpdateOrgName = useCallback(async (newName: string) => {
-        const response = await fetch('/api/gerenciar/organizacao', {
-            method: 'PUT',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ newName }),
-        });
-
-        const data = await response.json();
-
-        if (!response.ok) {
-            throw new Error(data.message || 'Falha ao atualizar o nome da organização.');
+      // B) Buscar Convites (Apenas se tiver permissão)
+      if (canManageOrgDetails) {
+        const invitesRes = await fetch('/api/gerenciar/convites');
+        if (invitesRes.ok) {
+           const invitesData = await invitesRes.json();
+           
+           // [CORREÇÃO DE SEGURANÇA] Verifica se é array
+           if (Array.isArray(invitesData)) {
+               setInvites(invitesData);
+           } else {
+               console.warn("Formato inválido de convites:", invitesData);
+               setInvites([]); 
+           }
         }
-        await update({ organizationName: data.organizationName });
-    }, [update]);
-
-
-    // --- Busca de Dados ---
-    const fetchManagementData = useCallback(async () => {
-        if (!session || !session.user.organizationId) {
-            setIsLoading(false);
-            return;
-        }
-        setIsLoading(true);
-        try {
-            // 1. Buscar lista de Membros (ROTA CORRIGIDA)
-            const membersRes = await fetch('/api/gerenciar/organizacao/membros');
-            const membersData = await membersRes.json();
-
-            if (membersRes.ok) {
-                setMembersList(membersData.map((u: any) => ({
-                    id: u.id,
-                    name: u.name,
-                    email: u.email,
-                    // O backend deve retornar organization_role (ou orgRole)
-                    role: (u.organization_role || 'member') as OrganizationMember['role'],
-                })));
-            } else {
-                setError(`Falha ao listar membros: ${membersData.message || 'Erro de API.'}`);
-            }
-
-            // 2. Buscar Convites Ativos
-            const invitesRes = await fetch('/api/gerenciar/convites');
-            const invitesData = await invitesRes.json();
-            if (invitesRes.ok) {
-                setInvitesList(invitesData.invites || []);
-            } else if (invitesRes.status !== 403) {
-                console.error("Erro ao buscar convites:", invitesData.message);
-            }
-
-        } catch (err) {
-            setError(err instanceof Error ? err.message : 'Erro ao carregar dados de gerenciamento.');
-        } finally {
-            setIsLoading(false);
-        }
-    }, [session]);
-
-    useEffect(() => {
-        if (status === 'authenticated' && session.user.organizationId) {
-            fetchManagementData();
-        } else if (status !== 'loading') {
-            setIsLoading(false);
-        }
-    }, [status, session, fetchManagementData]);
-
-
-    // --- RENDERIZAÇÃO (Segurança e Loading) ---
-    if (status === 'loading') {
-        return (
-            <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '80vh' }}>
-                <CircularProgress /> <Typography sx={{ ml: 2 }}>Verificando autorização...</Typography>
-            </Box>
-        );
+      }
+    } catch (err: any) {
+      console.error("Erro ao carregar dados:", err);
+      setError(err.message || "Erro ao carregar detalhes.");
+    } finally {
+      setIsLoading(false);
     }
+  }, [organizationId, canManageOrgDetails]);
 
-    // Se não está autenticado ou não pertence a nenhuma organização (mesmo a 'free' inicial)
-    if (status !== 'authenticated' || !session.user.organizationId) {
-        return (
-            <Box sx={{ p: 4, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2 }}>
-                <LockIcon color="error" sx={{ fontSize: 60 }} />
-                <Typography variant="h5" color="error">Acesso Negado</Typography>
-                <Typography>Você precisa estar logado em uma organização para gerenciar esta página.</Typography>
-            </Box>
-        );
+  useEffect(() => {
+    if (status === 'authenticated' && organizationId) {
+      fetchManagementData();
+    } else if (status === 'authenticated' && !organizationId) {
+      setIsLoading(false); 
     }
+  }, [status, organizationId, fetchManagementData]);
 
-    // Exibição da Página
+
+  // 3. Handlers
+  const handleUpdateOrgName = async (newName: string) => {
+    try {
+      const res = await fetch('/api/gerenciar/organizacao', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: newName }),
+      });
+
+      if (!res.ok) throw new Error("Falha ao atualizar nome.");
+      await update({ organizationName: newName });
+      
+    } catch (err: any) {
+      throw new Error(err.message);
+    }
+  };
+  
+  const handleLeaveSuccess = async () => {
+      setMembers([]);
+      setInvites([]);
+  };
+
+  // 4. Renderização
+  if (status === 'loading' || (isLoading && !members.length && !error)) {
     return (
-        <Box sx={{ p: 4 }}>
-            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
-
-                {/* TÍTULO CONDICIONAL */}
-                <Typography variant="h4" component="h1" gutterBottom>
-                    <GroupIcon fontSize="inherit" sx={{ mr: 1 }} />
-                    {isOrganizationAlheia ?
-                        `Organização Convidada: ${initialOrgName}`
-                        :
-                        `Gerenciamento da Sua Organização`
-                    }
-                </Typography>
-
-                {isSuperAdminCreation && (
-                    <Button
-                        variant="contained"
-                        startIcon={<AddIcon />}
-                        onClick={() => setOpenCrudModal(true)}
-                        sx={{ backgroundColor: '#257e1a', '&:hover': { backgroundColor: '#1a5912' } }}
-                    >
-                        Adicionar Usuário (Admin CRUD)
-                    </Button>
-                )}
-            </Box>
-
-            {/* Aviso de erro/sucesso principal */}
-            {error && (
-                <Alert
-                    severity={error.includes('sucesso') ? 'success' : 'error'}
-                    sx={{ mb: 2 }}
-                    onClose={() => setError(null)}
-                >
-                    {error}
-                </Alert>
-            )}
-
-            {/* ALERTA VISUAL DE ORGANIZAÇÃO ALHEIA */}
-            {isOrganizationAlheia && (
-                <Alert severity="info" sx={{ mb: 4, width: '100%' }}>
-                    Você é um **{sessionOrgRole.toUpperCase()}** nesta organização de terceiros. Seu papel concede acesso limitado apenas a visualização de membros e rotas.
-                </Alert>
-            )}
-
-            {/* --- 1. Edição do Nome e Saída --- */}
-            <OrgNameEditor
-                initialName={initialOrgName}
-                orgId={organizationId}
-                userRole={sessionRole}
-                orgRole={sessionOrgRole}
-                canEdit={canManageOrgDetails}
-                onOrgUpdate={handleUpdateOrgName}
-                onLeaveSuccess={fetchManagementData} // <-- Passando o handler de atualização
-            />
-
-            <Grid container spacing={4}>
-
-                {/* 2. Limites e Plano Atual */}
-                <Grid item xs={12} md={6} lg={4}>
-                    <PlanLimitsCard planType={userPlanType} />
-                </Grid>
-
-                {/* 3. Gestão de Convites (Exibido apenas se puder gerenciar, ou seja, se for dono/admin e tiver plano) */}
-                <Grid item xs={12} md={6} lg={8}>
-                    {canManageOrgDetails && (
-                        <InviteManagement
-                            invitesList={invitesList}
-                            userPlanType={userPlanType}
-                            userRole={userRole}
-                            fetchData={fetchManagementData}
-                            setError={setError}
-                        />
-                    )}
-
-                    {/* Placeholder para quem não tem permissão para gerenciar convites */}
-                    {!canManageOrgDetails && (
-                        <Alert severity="warning">Somente Administradores ou o Dono da organização podem gerenciar convites.</Alert>
-                    )}
-                </Grid>
-
-                {/* 4. Listagem de Membros Ativos (Visível para todos, mas ações desabilitadas) */}
-                <Grid item xs={12}>
-                    <MemberList
-                        membersList={membersList}
-                        isLoading={isLoading}
-                        sessionUserId={sessionUserId}
-                        fetchData={fetchManagementData}
-                        setError={setError}
-                        // Passamos a role na organização para controlar as ações de edição/remoção de outros membros
-                        sessionOrgRole={sessionOrgRole}
-                    />
-                </Grid>
-            </Grid>
-
-            {/* Modal Super Admin CRUD */}
-            {isSuperAdminCreation && (
-                <SuperAdminCrudModal
-                    open={openCrudModal}
-                    onClose={() => setOpenCrudModal(false)}
-                    fetchData={fetchManagementData}
-                />
-            )}
-        </Box>
+      <Box sx={{ display: 'flex', justifyContent: 'center', p: 5 }}>
+        <CircularProgress />
+      </Box>
     );
+  }
+
+  if (!organizationId) {
+    return (
+      <Container maxWidth="md" sx={{ mt: 4 }}>
+        <Alert severity="warning">
+          Você não pertence a nenhuma organização.
+        </Alert>
+      </Container>
+    );
+  }
+
+  return (
+    <Container maxWidth="lg" sx={{ py: 4 }}>
+      <Box sx={{ mb: 4 }}>
+        <Typography variant="h4" component="h1" gutterBottom sx={{ fontWeight: 'bold' }}>
+          Gerenciar Organização
+        </Typography>
+        <Typography variant="body1" color="text.secondary">
+          Administre os membros e configurações da <strong>{organizationName}</strong>.
+        </Typography>
+      </Box>
+
+      {error && (
+        <Alert severity="error" sx={{ mb: 3 }} onClose={() => setError(null)}>
+          {error}
+        </Alert>
+      )}
+
+      <OrgNameEditor 
+        initialName={organizationName}
+        orgId={organizationId}
+        userRole={userRole}           
+        orgRole={sessionOrgRole}      
+        canEdit={canManageOrgDetails} 
+        onOrgUpdate={handleUpdateOrgName}
+        onLeaveSuccess={handleLeaveSuccess}
+      />
+
+      {/* Gestão de Convites */}
+      {canManageOrgDetails ? (
+        <InviteManagement 
+          organizationId={organizationId}
+          invitesList={invites}
+          userPlanType={userPlanType}
+          userRole={userRole} 
+          fetchData={fetchManagementData} 
+          setError={(msg) => setError(msg)}
+        />
+      ) : (
+        <Paper sx={{ p: 3, mb: 4, bgcolor: '#f5f5f5' }}>
+            <Typography variant="body2" color="text.secondary" align="center">
+                Somente Administradores ou o Dono da organização podem gerenciar convites.
+            </Typography>
+        </Paper>
+      )}
+
+      <Divider sx={{ my: 4 }} />
+
+      {/* Lista de Membros */}
+      <OrganizationMembersList 
+        members={members}
+        currentUserId={session?.user?.id}
+        currentUserOrgRole={sessionOrgRole}
+        onMemberUpdate={fetchManagementData} 
+      />
+
+    </Container>
+  );
 }

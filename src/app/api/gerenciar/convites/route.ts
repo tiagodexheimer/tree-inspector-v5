@@ -31,93 +31,100 @@ async function checkInvitePermission(isPost: boolean) {
   return { authorized: true, session, userRole, organizationId };
 }
 
-// --- GET: LISTAR CONVITES PENDENTES ---
-export async function GET() {
-  const permission = await checkInvitePermission(false);
-  if (!permission.authorized) {
-    return NextResponse.json(
-      { message: permission.message },
-      { status: permission.status }
-    );
+export async function GET(request: Request) {
+  const session = await auth();
+
+  if (!session?.user?.organizationId) {
+    return NextResponse.json({ message: "Não autorizado" }, { status: 401 });
+  }
+
+  // Verifica permissão (apenas admin/owner vê convites)
+  const userOrgRole = (session.user as any).organizationRole;
+  if (userOrgRole !== "owner" && userOrgRole !== "admin") {
+    return NextResponse.json({ message: "Permissão negada" }, { status: 403 });
   }
 
   try {
-    // Chamada ao Service para listar convites ativos da organização
-    const activeInvites = await inviteService.listActiveInvites(
-      permission.organizationId
+    const invites = await InviteService.listPendingInvites(
+      Number(session.user.organizationId)
     );
-
-    return NextResponse.json({ invites: activeInvites }, { status: 200 });
-  } catch (error) {
-    console.error("[API GET Invites]", error);
-    let status = 500;
-    let message = "Erro ao listar convites.";
-
-    if (error instanceof Error && error.message.includes("limite"))
-      status = 403;
-
-    return NextResponse.json({ message, error: message }, { status });
+    return NextResponse.json(invites);
+  } catch (error: any) {
+    return NextResponse.json({ message: error.message }, { status: 500 });
   }
 }
 
-// --- POST: CRIAR NOVO CONVITE ---
-export async function POST(request: NextRequest) {
-  const permission = await checkInvitePermission(true);
+// POST: Cria um novo convite
+export async function POST(request: Request) {
+  const session = await auth();
 
-  if (!permission.authorized) {
+  if (!session?.user?.organizationId) {
+    return NextResponse.json({ message: "Não autorizado" }, { status: 401 });
+  }
+
+  // Verifica permissão
+  const userOrgRole = (session.user as any).organizationRole;
+  if (userOrgRole !== "owner" && userOrgRole !== "admin") {
     return NextResponse.json(
-      { message: permission.message },
-      { status: permission.status }
+      { message: "Apenas Admin/Dono pode convidar." },
+      { status: 403 }
     );
   }
 
-  const organizationId = permission.organizationId;
-  const inviterRole = permission.userRole;
-
   try {
-    const body = await request.json();
-    const { email, role } = body;
+    const { email, role } = await request.json();
 
-    if (!email || !role) {
+    if (!email)
       return NextResponse.json(
-        { message: "Email e role são obrigatórios." },
+        { message: "Email obrigatório" },
         { status: 400 }
       );
-    }
 
-    const newInvite = await inviteService.createInvite({
-      organizationId,
-      inviterRole,
+    const newInvite = await InviteService.createInvite(
+      Number(session.user.organizationId),
       email,
-      role,
-    });
-
-    // [FLUXO DE TESTE] Constrói e retorna o link de aceite para o frontend exibir.
-    const baseUrl = request.nextUrl.origin;
-    const acceptanceLink = `${baseUrl}/convite/${newInvite.token}`;
-
-    return NextResponse.json(
-      {
-        message: "Convite criado com sucesso. (LINK GERADO ABAIXO)",
-        invite: newInvite,
-        acceptanceLink: acceptanceLink, 
-      },
-      { status: 201 }
+      role || "member"
     );
+
+    // TODO: AQUI VOCÊ INTEGRARIA COM UM SERVIÇO DE EMAIL (RESEND, NODEMAILER)
+    // await sendEmail(newInvite.email, newInvite.token);
+
+    return NextResponse.json(newInvite);
+  } catch (error: any) {
+    console.error("Erro ao criar convite:", error);
+    return NextResponse.json(
+      { message: error.message || "Erro ao processar convite." },
+      { status: 400 }
+    );
+  }
+}
+
+// DELETE: Revoga um convite
+export async function DELETE(request: Request) {
+  const session = await auth();
+  const { searchParams } = new URL(request.url);
+  const id = searchParams.get("id");
+
+  if (!session?.user?.organizationId || !id) {
+    return NextResponse.json({ message: "Dados inválidos" }, { status: 400 });
+  }
+
+  // Verifica permissão
+  const userOrgRole = (session.user as any).organizationRole;
+  if (userOrgRole !== "owner" && userOrgRole !== "admin") {
+    return NextResponse.json({ message: "Permissão negada" }, { status: 403 });
+  }
+
+  try {
+    await InviteService.revokeInvite(
+      Number(id),
+      Number(session.user.organizationId)
+    );
+    return NextResponse.json({ message: "Convite removido" });
   } catch (error) {
-    console.error("[API POST Invite]", error);
-    let status = 500;
-    let message = "Erro ao criar convite.";
-
-    if (error instanceof Error) {
-      message = error.message;
-      if (message.includes("limite") || message.includes("plano não permite"))
-        status = 403;
-      if (message.includes("obrigatório") || message.includes("inválido"))
-        status = 400;
-      if (message.includes("já é membro")) status = 409;
-    }
-
-    return NextResponse.json({ message, error: message }, { status });
+    return NextResponse.json(
+      { message: "Erro ao remover convite" },
+      { status: 500 }
+    );
   }
 }

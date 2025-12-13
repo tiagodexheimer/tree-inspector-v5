@@ -1,16 +1,30 @@
 // src/types/auth-types.ts
 
-// [FIX] Exportação explícita do tipo UserRole
+// [MANTIDO] Tipos existentes
 export type UserRole = "admin" | "free" | "basic" | "pro" | "premium";
-
-/**
- * Define os tipos de planos válidos para a organização.
- */
 export type PlanType = "free" | "basic" | "pro" | "premium";
 
-// ==========================================================
-// CENTRALIZAÇÃO DE REGRAS DE NEGÓCIO (LIMITES POR PLANO/ROLE)
-// ==========================================================
+// [NOVO] Papéis dentro da organização
+export type OrganizationRole = 'owner' | 'admin' | 'member' | 'viewer';
+
+// [NOVO] Interface para Membros da Organização
+export interface OrganizationMember {
+    id: string;
+    name: string;
+    email: string;
+    role: UserRole; // Role do sistema (ex: 'basic')
+    organizationRole: OrganizationRole; // Role na organização (ex: 'owner')
+    organizationId: number;
+}
+
+// [NOVO] Interface para Convites Ativos
+export interface ActiveInvite {
+    id: number;
+    email: string;
+    role: OrganizationRole;
+    token: string;
+    expires_at: string; // ou Date, dependendo de como vem do JSON
+}
 
 export const PLAN_LIMITS = {
     FREE: {

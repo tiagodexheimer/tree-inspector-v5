@@ -6,19 +6,18 @@ import {
 } from '@mui/material';
 import EditIcon from '@mui/icons-material/Edit';
 import SaveIcon from '@mui/icons-material/Save';
-import CloseIcon from '@mui/icons-material/Close';
 import ExitToAppIcon from '@mui/icons-material/ExitToApp';
 import { useSession } from 'next-auth/react';
-import { OrganizationRole } from '@/types/organization-types'; // Importando o tipo
+import { OrganizationRole } from '@/types/auth-types'; // Ou onde você definiu seus tipos
 
 interface OrgNameEditorProps {
     initialName: string;
     orgId: string | number;
-    userRole: string; // Role do sistema (admin/free/paid)
-    orgRole: OrganizationRole; // Role na organização (owner/admin/member/viewer)
-    canEdit: boolean; // Permissão para editar o nome (baseada em orgRole)
+    userRole: string;          // Role do sistema (free, pro, admin)
+    orgRole: OrganizationRole; // Role na organização (owner, admin, member)
+    canEdit: boolean;          // Permissão calculada na página pai
     onOrgUpdate: (newName: string) => Promise<void>;
-    onLeaveSuccess: () => Promise<void>;
+    onLeaveSuccess: () => void | Promise<void>; // Callback para atualizar a lista após sair
 }
 
 export const OrgNameEditor: React.FC<OrgNameEditorProps> = ({ 
@@ -27,7 +26,7 @@ export const OrgNameEditor: React.FC<OrgNameEditorProps> = ({
     userRole, 
     orgRole,
     canEdit,
-    onOrgUpdate ,
+    onOrgUpdate,
     onLeaveSuccess
 }) => {
     const [name, setName] = useState(initialName || 'Minha Organização');
@@ -37,12 +36,14 @@ export const OrgNameEditor: React.FC<OrgNameEditorProps> = ({
     const [message, setMessage] = useState<{ type: 'success' | 'error', text: string } | null>(null);
     const { update } = useSession();
 
+    // Verifica se é o dono para esconder o botão de sair
+    const isOwner = orgRole === 'owner';
+
     useEffect(() => {
-        // Garante que o estado interno do nome se sincronize quando o initialName carregar ou mudar
-        if (initialName && name !== initialName) {
+        if (initialName && name !== initialName && !isEditing) {
             setName(initialName);
         }
-    }, [initialName]);
+    }, [initialName, isEditing]);
 
     // --- Handler de Edição do Nome ---
     const handleSubmit = async () => {
@@ -57,12 +58,12 @@ export const OrgNameEditor: React.FC<OrgNameEditorProps> = ({
         try {
             await onOrgUpdate(name.trim());
             setMessage({ type: 'success', text: "Nome da organização atualizado com sucesso." });
+            setIsEditing(false);
         } catch (error: any) {
             setMessage({ type: 'error', text: error.message || 'Falha ao atualizar o nome.' });
-            setName(initialName);
+            setName(initialName); // Reverte ao nome original em caso de erro
         } finally {
             setIsLoading(false);
-            setIsEditing(false);
         }
     };
     
@@ -74,19 +75,23 @@ export const OrgNameEditor: React.FC<OrgNameEditorProps> = ({
         setMessage(null);
 
         try {
-            // Chamada para a rota de saída
             const response = await fetch('/api/gerenciar/organizacao/membros/sair', { method: 'POST' });
             const data = await response.json();
 
             if (response.ok) {
-                // Atualiza a sessão para desvincular a organização e redefine o papel
-                await update({ organizationId: null, organizationName: null, organizationRole: 'viewer', planType: 'FREE' }); 
+                // 1. Atualiza a sessão local para remover os dados da organização
+                await update({ 
+                    organizationId: null, 
+                    organizationName: null, 
+                    organizationRole: null, 
+                    planType: 'free' 
+                }); 
                 
-                // 1. Atualiza os dados do pai (opcional, pois o redirect vai acontecer, mas é bom para consistência)
-                onLeaveSuccess(); 
+                // 2. Chama o callback do pai (opcional, mas bom para limpar estados)
+                if (onLeaveSuccess) await onLeaveSuccess();
 
-                // 2. Redireciona para o dashboard base (Obrigatório após update)
-                window.location.href = '/dashboard';
+                // 3. Redireciona para o dashboard
+                window.location.href = '/dashboard'; 
             } else {
                 setMessage({ type: 'error', text: data.message || 'Falha ao sair da organização.' });
             }
@@ -96,7 +101,6 @@ export const OrgNameEditor: React.FC<OrgNameEditorProps> = ({
             setIsLeaving(false);
         }
     };
-
 
     return (
         <Paper elevation={3} sx={{ p: 3, mb: 4 }}>
@@ -115,22 +119,21 @@ export const OrgNameEditor: React.FC<OrgNameEditorProps> = ({
 
             <Grid container spacing={2} alignItems="center">
                 
-                {/* 1. Edição do Nome */}
+                {/* 1. Campo de Nome */}
                 <Grid item xs={12} sm={8} md={7}>
                     <TextField
                         fullWidth
                         label="Nome da Organização"
                         value={name}
                         onChange={(e) => setName(e.target.value)}
-                        // Desabilita se não puder editar ou se estiver processando
+                        // Habilitado apenas se: puder editar, estiver no modo edição e não estiver carregando
                         disabled={!isEditing || isLoading || isLeaving || !canEdit} 
-                        // readonly se não estiver em edição
-                        InputProps={{ readOnly: !isEditing || !canEdit }}
+                        InputProps={{ readOnly: !isEditing }}
                         helperText={!canEdit && "Apenas o Administrador ou Dono pode editar o nome."}
                     />
                 </Grid>
                 
-                {/* 2. Botões de Edição */}
+                {/* 2. Botões de Ação (Editar/Salvar) */}
                 <Grid item xs={12} sm={4} md={3}>
                     {canEdit && (
                         isEditing ? (
@@ -140,15 +143,15 @@ export const OrgNameEditor: React.FC<OrgNameEditorProps> = ({
                                     color="primary"
                                     startIcon={isLoading ? <CircularProgress size={20} color="inherit" /> : <SaveIcon />}
                                     onClick={handleSubmit}
-                                    disabled={isLoading || name.trim().length < 3 || name.trim() === initialName.trim()}
+                                    disabled={isLoading || name.trim().length < 3}
                                     fullWidth
                                 >
-                                    {isLoading ? 'Salvando...' : 'Salvar'}
+                                    {isLoading ? 'Salvar' : 'Salvar'}
                                 </Button>
                                 <Button
                                     variant="outlined"
                                     color="secondary"
-                                    onClick={() => { setName(initialName); setIsEditing(false); }}
+                                    onClick={() => { setName(initialName); setIsEditing(false); setMessage(null); }}
                                     disabled={isLoading}
                                 >
                                     Cancelar
@@ -170,9 +173,11 @@ export const OrgNameEditor: React.FC<OrgNameEditorProps> = ({
                 
                 {/* 3. Botão Sair da Organização */}
                 <Grid item xs={12} md={2}>
-                    {/* O Super Admin (role='admin') não é um membro normal e não deve sair. 
-                       O owner real só deve sair se houver outro membro (checado no backend). */}
-                    {userRole !== 'admin' && (
+                    {/* LÓGICA DE EXIBIÇÃO:
+                        1. O Super Admin (role='admin') não deve ver esse botão aqui.
+                        2. O Dono (isOwner) não pode sair da própria organização (deve deletá-la ou transferir).
+                    */}
+                    {userRole !== 'admin' && !isOwner && (
                         <Button
                             variant="outlined"
                             color="error"
@@ -180,10 +185,17 @@ export const OrgNameEditor: React.FC<OrgNameEditorProps> = ({
                             onClick={handleLeaveOrganization}
                             disabled={isLeaving || isEditing}
                             fullWidth
-                            title="Desvincula sua conta desta organização"
+                            title="Sair desta organização"
                         >
                             {isLeaving ? 'Saindo...' : 'Sair'}
                         </Button>
+                    )}
+                    
+                    {/* Feedback visual para o dono (opcional) */}
+                    {isOwner && (
+                         <Typography variant="caption" color="text.secondary" sx={{ display: 'block', textAlign: 'center' }}>
+                            Você é o Dono
+                         </Typography>
                     )}
                 </Grid>
             </Grid>

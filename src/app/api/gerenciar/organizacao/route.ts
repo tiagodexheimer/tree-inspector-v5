@@ -63,3 +63,43 @@ export async function PUT(request: NextRequest) {
         return NextResponse.json({ message }, { status: 500 });
     }
 }
+
+export async function PATCH(request: Request) {
+  try {
+    const session = await auth();
+    
+    // 1. Verificar Autenticação
+    if (!session || !session.user || !session.user.organizationId) {
+      return NextResponse.json({ message: "Não autorizado." }, { status: 401 });
+    }
+
+    // 2. Verificar Permissão (Apenas Owner ou Admin podem editar)
+    const role = (session.user as any).organizationRole;
+    if (role !== 'owner' && role !== 'admin') {
+        return NextResponse.json({ message: "Permissão negada." }, { status: 403 });
+    }
+
+    // 3. Ler corpo da requisição
+    const body = await request.json();
+    const { name } = body;
+
+    if (!name) {
+        return NextResponse.json({ message: "Nome é obrigatório." }, { status: 400 });
+    }
+
+    // 4. Chamar o serviço
+    const updatedOrg = await organizationService.updateOrganization(
+        Number(session.user.organizationId),
+        { name }
+    );
+
+    return NextResponse.json(updatedOrg);
+
+  } catch (error: any) {
+    console.error("Erro ao atualizar organização:", error);
+    return NextResponse.json(
+        { message: error.message || "Erro interno ao atualizar." }, 
+        { status: 500 }
+    );
+  }
+}

@@ -10,11 +10,11 @@ export interface UserPersistence {
   name: string;
   email: string;
   password?: string;
-  // [ATUALIZADO] Utiliza o tipo importado
   role: UserRole;
   organizationId: number;
   plan_type: string;
   organizationName: string;
+  organizationRole: OrganizationRole;
 }
 
 export interface CreateUserRepoDTO {
@@ -27,24 +27,27 @@ export interface CreateUserRepoDTO {
 }
 
 export const UserRepository = {
-  // 1. Busca usuário E dados da organização (JOIN) - Mantido
+  // 1. Busca usuário E dados da organização E papel na organização
   async findByEmail(email: string): Promise<UserPersistence | null> {
     try {
+      // O JOIN com organization_members (om) é essencial para ler a role 'owner'
+      // criada pelo trigger.
       const query = `
         SELECT 
           u.id, u.name, u.email, u.password, u.role, 
           u.organization_id as "organizationId",
           o.plan_type,
-          o.name as "organizationName"
+          o.name as "organizationName",
+          om.role as "organizationRole" 
         FROM users u
         LEFT JOIN organizations o ON u.organization_id = o.id
+        LEFT JOIN organization_members om ON om.user_id = u.id AND om.organization_id = o.id
         WHERE u.email = $1
-    `;
+      `;
 
       const result = await pool.query(query, [email]);
 
       if (result.rows.length === 0) return null;
-      // O resultado do banco de dados deve ser mapeado para o novo tipo UserPersistence
       return result.rows[0] as UserPersistence;
     } catch (error) {
       console.error("Erro no UserRepository.findByEmail:", error);
@@ -72,14 +75,9 @@ export const UserRepository = {
   },
 
   async findAll(): Promise<UserPersistence[]> {
-    const query = `
-      SELECT id, name, email, role, organization_id as "organizationId" 
-      FROM users 
-      ORDER BY name ASC
-    `;
+    const query = `SELECT * FROM users ORDER BY name ASC`; 
     const result = await pool.query(query);
-    // Mapeamento necessário
-    return result.rows;
+    return result.rows as UserPersistence[];
   },
 
   // 2. CRIAÇÃO COM ORGANIZAÇÃO (Fluxo de Cadastro / Signup)
@@ -139,7 +137,10 @@ export const UserRepository = {
 
   // Método padrão de criação (redireciona para o fluxo com organização)
   async create(data: CreateUserRepoDTO): Promise<UserPersistence> {
-    return this.createWithOrganization(data);
+    // Implementação simplificada ou throw error se deve usar o service
+    throw new Error(
+      "Use userManagementService.registerUser para criar usuários"
+    );
   },
 
   async delete(id: string): Promise<boolean> {
@@ -152,14 +153,17 @@ export const UserRepository = {
     organizationId: number
   ): Promise<UserPersistence[]> {
     const query = `
-      SELECT id, name, email, role, organization_id as "organizationId"
-      FROM users
-      WHERE organization_id = $1
-      ORDER BY name ASC
+      SELECT 
+        u.id, u.name, u.email, u.role, 
+        om.organization_id as "organizationId",
+        om.role as "organizationRole"
+      FROM organization_members om
+      JOIN users u ON u.id = om.user_id
+      WHERE om.organization_id = $1
+      ORDER BY u.name ASC
     `;
     const result = await pool.query(query, [organizationId]);
-    // Mapeamento necessário
-    return result.rows;
+    return result.rows as UserPersistence[];
   },
 
   /**
