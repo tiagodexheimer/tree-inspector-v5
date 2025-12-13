@@ -4,7 +4,7 @@
 import React, { useEffect, useState } from 'react';
 import { 
     Box, Paper, Typography, CircularProgress, Card, CardContent, 
-    Divider, Button 
+    Divider, Button, Alert, Link as MuiLink // [NOVO] Alert, Link e Button importados
 } from '@mui/material';
 import { 
     Assignment, CheckCircle, PendingActions, Route 
@@ -14,6 +14,16 @@ import {
 } from 'recharts';
 import Link from 'next/link';
 import { DashboardData } from '@/types/dashboard';
+import { useSession } from 'next-auth/react'; // [NOVO] Importar useSession
+
+// [NOVO] Interface para o Convite Pendente
+interface PendingInvite {
+    id: number;
+    organization_id: number;
+    organization_name: string;
+    token: string;
+    role: string;
+}
 
 // Componente auxiliar para Card de KPI
 const KPICard = ({ title, value, icon, color }: { title: string, value: number, icon: React.ReactNode, color: string }) => (
@@ -33,30 +43,108 @@ const KPICard = ({ title, value, icon, color }: { title: string, value: number, 
 );
 
 export default function DashboardPage() {
+    const { data: session, status } = useSession(); // [NOVO] Capturar sessão
     const [data, setData] = useState<DashboardData | null>(null);
     const [loading, setLoading] = useState(true);
+    // [NOVO] Estado para convites pendentes
+    const [invites, setInvites] = useState<PendingInvite[]>([]);
 
-    useEffect(() => {
+
+    // [NOVO] Função para buscar convites pendentes
+    const fetchInvites = async () => {
+        if (status !== 'authenticated') return;
+        
+        try {
+            const response = await fetch('/api/convites/pendentes'); 
+            const resData = await response.json();
+
+            if (response.ok) {
+                setInvites(resData.convites || []);
+            } else {
+                console.error("Falha ao buscar convites pendentes:", resData.message);
+            }
+        } catch (error) {
+            console.error("Erro de rede ao buscar convites:", error);
+        }
+    };
+    
+    // Função para buscar dados do Dashboard original
+    const fetchData = () => {
         fetch('/api/dashboard')
             .then(res => res.json())
             .then(setData)
             .catch(console.error)
             .finally(() => setLoading(false));
-    }, []);
-
-    if (loading) {
-        return <Box sx={{ display: 'flex', justifyContent: 'center', mt: 10 }}><CircularProgress /></Box>;
     }
 
-    if (!data) return <Typography>Erro ao carregar dados.</Typography>;
+
+    useEffect(() => {
+        // [MODIFICADO] Carrega os dados do dashboard E os convites
+        if (status === 'authenticated') {
+            fetchInvites();
+            fetchData();
+        } else if (status !== 'loading') {
+            // Se não está logado, paramos o loading para evitar loop e evitar chamada de API
+            setLoading(false); 
+        }
+    }, [status]);
+    
+    
+    // Lógica de Redirecionamento e Loading
+    if (status === 'loading' || loading) {
+        return <Box sx={{ display: 'flex', justifyContent: 'center', mt: 10 }}><CircularProgress /></Box>;
+    }
+    
+    if (status === 'unauthenticated') {
+        // O middleware deve redirecionar, mas este é um bom fallback de UX
+        return <Typography>Você precisa estar logado para acessar o Dashboard.</Typography>;
+    }
+
+    if (!data) return <Typography>Erro ao carregar dados do Dashboard.</Typography>;
+    
+    
+    // [NOVO] Notificação de Convite
+    const InviteNotification = invites.length > 0 && (
+        <Alert 
+            severity="success" // <-- CORRIGIDO PARA VERDE (success)
+            sx={{ mb: 4 }}
+            variant="filled"
+        >
+            <Typography variant="body1" fontWeight="bold">Você tem {invites.length} convite(s) pendente(s):</Typography>
+            {invites.map(invite => (
+                <Box key={invite.token} sx={{ mt: 1, display: 'flex', alignItems: 'center' }}>
+                    <Typography variant="body2" sx={{ mr: 2 }}>
+                        Convidado para ser **{invite.role.toUpperCase()}** em **{invite.organization_name}**.
+                    </Typography>
+                    <Button 
+                        variant="contained" 
+                        // O Button padrão usa a cor 'primary' do tema, que deve contrastar com o verde do Alert.
+                        color="secondary" 
+                        size="small" 
+                        // Linka para a rota de aceite, passando o token
+                        component={MuiLink} 
+                        href={`/convite/${invite.token}`}
+                        sx={{ whiteSpace: 'nowrap' }}
+                    >
+                        Aceitar Convite Agora
+                    </Button>
+                </Box>
+            ))}
+        </Alert>
+    );
+
 
     return (
         <Box sx={{ p: 3 }}>
+            
+            {/* 0. NOTIFICAÇÃO DE CONVITE (Aparece no topo) */}
+            {InviteNotification}
+
             <Typography variant="h4" fontWeight="bold" sx={{ mb: 4, color: '#2c3e50' }}>
                 Visão Geral da Operação
             </Typography>
 
-            {/* 1. KPIs (Indicadores) - CORRIGIDO: usa Box MUI para controlar a margem inferior */}
+            {/* 1. KPIs (Indicadores) */}
             <Box sx={{ mb: 4 }}> 
                 <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-6">
                     <KPICard 
@@ -86,7 +174,6 @@ export default function DashboardPage() {
                 </div>
             </Box>
             
-
             {/* 2. Gráficos e Ações */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                 
@@ -105,7 +192,6 @@ export default function DashboardPage() {
                                         cx="50%"
                                         cy="50%"
                                         labelLine={false}
-                                        // CORREÇÃO AQUI: Adicionado fallback (percent || 0)
                                         label={({ name, percent }) => `${name} ${((percent || 0) * 100).toFixed(0)}%`}
                                         outerRadius={120}
                                         fill="#8884d8"

@@ -1,24 +1,29 @@
+// src/auth.ts
 import NextAuth, { type NextAuthConfig } from "next-auth";
 import CredentialsProvider from "next-auth/providers/credentials";
 import { NextResponse, type NextRequest } from "next/server";
-// Importa a instância do serviço (authService)
 import { authService } from "@/services/auth-service";
 
-// [CORREÇÃO] Caminhos que requerem role 'admin'
-// A rota geral '/gerenciar' foi removida para ser acessível a todos os usuários logados.
-// Protegemos apenas a gestão de usuários e APIs de admin.
+// [CORREÇÃO CRÍTICA] Caminhos que requerem role 'admin'
+// 1. Removemos a página de UI '/gerenciar/usuarios' para que users paid/pro/premium possam acessá-la.
+// 2. Mantivemos as APIs administrativas e adicionamos as novas APIs de convites.
 const adminRoutes = [
-  "/gerenciar/usuarios",
   "/api/admin",
-  "/api/gerenciar/usuarios",
+  // A API /api/admin/users para CRUD de usuários deve ser restrita
+  "/api/admin/users",
+  // A API para gerenciar/convites (POST, GET lista de convites) deve ser restrita apenas àqueles com permissão de convite.
+  // Por enquanto, mantemos como 'admin' aqui e fazemos a checagem detalhada dentro da API Route (como fizemos no invite-service).
+  "/api/gerenciar/convites",
 ];
 
-// Caminhos que não requerem autenticação (incluindo as APIs de autenticação)
+// Caminhos que não requerem autenticação
 const publicRoutes = [
   "/login",
   "/signup",
   "/api/auth/signup",
   "/api/mobile-login",
+  // NOVO: A rota pública para o link de aceite do convite
+  "/convite",
 ];
 
 export const authConfig: NextAuthConfig = {
@@ -44,7 +49,6 @@ export const authConfig: NextAuthConfig = {
         }
 
         try {
-          // Chama o método authenticate na INSTÂNCIA
           const user = await authService.authenticate(credentials);
 
           if (user) {
@@ -53,7 +57,6 @@ export const authConfig: NextAuthConfig = {
           return null;
         } catch (error) {
           console.error("Falha na autenticação:", error);
-          // Lançar um erro aqui faz o NextAuth incluir a mensagem no objeto de erro.
           throw new Error("Email ou senha inválidos.");
         }
       },
@@ -67,9 +70,11 @@ export const authConfig: NextAuthConfig = {
         // Usuário logado: Adiciona dados do usuário ao token
         token.id = user.id;
         token.role = user.role as any;
-        // Não forçamos tipagem aqui, deixando o NextAuth tratar (user.organizationId deve ser number/string)
-        token.organizationId = user.organizationId; 
-        token.organizationName = (user as any).organizationName; // [NOVO]
+        token.organizationId = user.organizationId;
+        token.organizationName = (user as any).organizationName;
+        // --- ADIÇÃO CRÍTICA: Role na Organização e Tipo de Plano ---
+        token.organizationRole = (user as any).organizationRole;
+        token.planType = (user as any).planType;
       }
       return token;
     },
@@ -77,16 +82,14 @@ export const authConfig: NextAuthConfig = {
       if (token && session.user) {
         session.user.id = token.id as string;
         session.user.role = token.role as any;
-        
-        // [FIX CRÍTICO] Converte para number, pois session.user.organizationId (no d.ts) é number.
-        // O valor do token pode ser number ou string, Number() é seguro para ambos.
         session.user.organizationId = Number(token.organizationId);
-        
-        session.user.organizationName = token.organizationName as string; 
+        session.user.organizationName = token.organizationName as string;
+        // --- ADIÇÃO CRÍTICA: Role na Organização e Tipo de Plano ---
+        (session.user as any).organizationRole = token.organizationRole as any;
+        (session.user as any).planType = token.planType as string;
       }
       return session;
     },
-
 
     /**
      * 3. Authorized Callback (Middleware de Proteção de Rotas)
@@ -120,18 +123,20 @@ export const authConfig: NextAuthConfig = {
         return true;
       }
 
-      // C) ROTAS PROTEGIDAS POR ADMIN (CORRIGIDO)
+      // C) ROTAS PROTEGIDAS POR ADMIN (APENAS APIs SENSÍVEIS)
       const isAdminRoute = adminRoutes.some((route) =>
         pathname.startsWith(route)
       );
       if (isAdminRoute) {
-        // Agora, somente rotas sensíveis como /gerenciar/usuarios são protegidas
+        // Apenas 'admin' (super-usuário) pode acessar essas APIs
         if (auth?.user?.role !== "admin") {
           return NextResponse.redirect(new URL("/dashboard", nextUrl));
         }
       }
 
-      // D) ROTAS GERAIS PROTEGIDAS (inclui /dashboard, /demandas e /gerenciar/status, /gerenciar/tipos-demanda)
+      // D) ROTAS GERAIS PROTEGIDAS (Inclui /dashboard, /demandas e /gerenciar/*)
+      // Se não for uma rota pública, e o usuário não estiver logado, ele é barrado.
+      // A UI de Gerenciamento de Usuários cai aqui e é liberada para todos os autenticados.
       if (!isLoggedIn) {
         return false;
       }

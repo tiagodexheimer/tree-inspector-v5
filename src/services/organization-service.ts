@@ -92,6 +92,22 @@ export class OrganizationService {
             client.release();
         }
     }
+
+    async updateOrganizationName(id: number, newName: string) {
+        // Validação de negócio adicional
+        if (newName.length > 100) {
+            throw new Error("O nome é muito longo.");
+        }
+
+        // Chama o Repository
+        const updatedOrg = await OrganizationRepository.updateName(id, newName);
+        
+        if (!updatedOrg) {
+            throw new Error("Organização não encontrada para atualização.");
+        }
+
+        return updatedOrg;
+    }
 }
 
 export const organizationService = new OrganizationService();

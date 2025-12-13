@@ -1,7 +1,7 @@
-// src/app/api/admin/users/route.ts
+// src/app/api/gerenciar/organizacao/membros/route.ts (Conteúdo movido de /api/admin/users/route.ts)
 import { NextResponse, NextRequest } from "next/server";
 import { auth } from "@/auth";
-import { userManagementService } from "@/services/user-management-service"; // Requer listOrganizationMembers
+import { userManagementService } from "@/services/user-management-service";
 
 // --- AUXILIARES ---
 // Checa a permissão de LISTAGEM de membros da organização
@@ -28,32 +28,28 @@ async function checkOrganizationMembership() {
 export async function GET() {
   const permission = await checkOrganizationMembership();
   
-  // Se não estiver autenticado ou sem organização, retorna 401
   if (!permission.authorized) {
     return NextResponse.json({ message: permission.message }, { status: permission.status });
   }
 
   try {
-    // [NOVO FLUXO MULTI-TENANT] Passa o organizationId para o Service
-    // O service deve retornar todos os usuários vinculados àquela organização, 
-    // juntamente com o papel (organization_role).
+    // O service deve buscar todos os usuários vinculados àquela organizationId
     const members = await userManagementService.listOrganizationMembers(permission.organizationId);
     
-    // Retornamos os membros da organização
     return NextResponse.json(members, { status: 200 });
 
   } catch (error) {
-    console.error("[API GET Users (Org Members)]", error);
+    console.error("[API GET Org Members]", error);
     return NextResponse.json({ message: "Erro ao listar membros da organização" }, { status: 500 });
   }
 }
 
-// --- POST: CRIAR USUÁRIO (MANTIDO RESTRITO AO ADMIN GLOBAL) ---
+// --- POST: CRIAR USUÁRIO (MANTIDO RESTRITO AO ADMIN GLOBAL, APENAS PARA CRIAR CONTAS DE ADMIN) ---
 export async function POST(request: NextRequest) {
-  // Mantemos a checagem rígida para a criação manual de contas de super-admin
   const session = await auth();
   
-  if (!session || session.user.role !== 'admin') {
+  // POST é mantido sob permissão estrita de 'admin' global (role do sistema)
+  if (!session || session.user.role.toLowerCase() !== 'admin') {
     return NextResponse.json({ message: "Acesso restrito a administradores (Criação Manual)." }, { status: 403 });
   }
 
@@ -65,7 +61,7 @@ export async function POST(request: NextRequest) {
         name: body.name,
         email: body.email,
         password: body.password,
-        role: body.role
+        role: body.role // Role do sistema: 'admin' | 'paid_user' | 'free_user'
     });
 
     return NextResponse.json(newUser, { status: 201 });
