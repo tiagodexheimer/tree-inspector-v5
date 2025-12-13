@@ -70,39 +70,58 @@ export const inviteService = {
   },
 
   async acceptInvite(token: string, userId: string) {
-      const client = await pool.connect();
-      try {
-          await client.query('BEGIN');
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
 
-          // Busca com Lock
-          const inviteRes = await client.query(`
-              SELECT * FROM organization_invites WHERE token = $1 AND expires_at > NOW() FOR UPDATE
-          `, [token]);
+      // 1. Validar o convite
+      const inviteRes = await client.query(
+        `SELECT * FROM organization_invites WHERE token = $1 AND expires_at > NOW()`,
+        [token]
+      );
 
-          if (inviteRes.rowCount === 0) throw new Error("Convite inválido ou expirado.");
-          const invite = inviteRes.rows[0];
-
-          // Insere Membro
-          await client.query(`
-              INSERT INTO organization_members (organization_id, user_id, role)
-              VALUES ($1, $2, $3)
-              ON CONFLICT (organization_id, user_id) DO NOTHING
-          `, [invite.organization_id, userId, invite.role]);
-
-          // Atualiza Org Ativa do Usuário
-          await client.query('UPDATE users SET organization_id = $1 WHERE id = $2', [invite.organization_id, userId]);
-
-          // Deleta Convite
-          await client.query('DELETE FROM organization_invites WHERE id = $1', [invite.id]);
-
-          await client.query('COMMIT');
-          return invite.organization_id;
-
-      } catch (error) {
-          await client.query('ROLLBACK');
-          throw error;
-      } finally {
-          client.release();
+      if (inviteRes.rows.length === 0) {
+        throw new Error("Convite inválido ou expirado.");
       }
+
+      const invite = inviteRes.rows[0];
+
+      // 2. Verificar se o usuário já é membro (Idempotência)
+      const memberCheck = await client.query(
+        `SELECT id FROM organization_members WHERE organization_id = $1 AND user_id = $2`,
+        [invite.organization_id, userId]
+      );
+
+      if (memberCheck.rows.length === 0) {
+        // 3. Adicionar o usuário à organização (Tabela de Membros)
+        await client.query(
+          `INSERT INTO organization_members (organization_id, user_id, role) VALUES ($1, $2, $3)`,
+          [invite.organization_id, userId, invite.role || 'member']
+        );
+      }
+
+      // 4. [A CORREÇÃO] Atualizar a Organização Ativa do usuário
+      // Isso faz com que ele "entre" imediatamente na nova organização ao aceitar.
+      await client.query(
+        `UPDATE users SET organization_id = $1 WHERE id = $2`,
+        [invite.organization_id, userId]
+      );
+
+      // 5. Remover o convite usado
+      await client.query(`DELETE FROM organization_invites WHERE id = $1`, [invite.id]);
+
+      await client.query('COMMIT');
+
+      return { 
+        success: true, 
+        organizationId: invite.organization_id // Retorna o ID para o frontend
+      };
+
+    } catch (error) {
+      await client.query('ROLLBACK');
+      throw error;
+    } finally {
+      client.release();
+    }
   }
 };

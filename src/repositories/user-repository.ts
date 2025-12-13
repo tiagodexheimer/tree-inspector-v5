@@ -64,22 +64,25 @@ export const UserRepository = {
         u.id, u.name, u.email, u.password, u.role, 
         u.organization_id as "organizationId",
         o.plan_type,
-        o.name as "organizationName"
+        o.name as "organizationName",
+        om.role as "organizationRole"  -- [IMPORTANTE] Faltava este campo
       FROM users u
       LEFT JOIN organizations o ON u.organization_id = o.id
+      -- Faz o join para pegar o papel do usuário NA organização ativa
+      LEFT JOIN organization_members om ON om.user_id = u.id AND om.organization_id = o.id
       WHERE u.id = $1
     `;
-    const result = await pool.query(query, [id]);
-    if (result.rows.length === 0) return null;
-    return result.rows[0] as UserPersistence;
+    
+    try {
+        const result = await pool.query(query, [id]);
+        if (result.rows.length === 0) return null;
+        return result.rows[0] as UserPersistence;
+    } catch (error) {
+        console.error("Erro no UserRepository.findById:", error);
+        return null;
+    }
   },
-
-  async findAll(): Promise<UserPersistence[]> {
-    const query = `SELECT * FROM users ORDER BY name ASC`; 
-    const result = await pool.query(query);
-    return result.rows as UserPersistence[];
-  },
-
+  
   // 2. CRIAÇÃO COM ORGANIZAÇÃO (Fluxo de Cadastro / Signup)
   // Atualizado para usar o planType fornecido
   async createWithOrganization(
