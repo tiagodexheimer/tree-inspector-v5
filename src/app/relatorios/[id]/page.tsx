@@ -1,14 +1,14 @@
 'use client';
 
 import React, { useEffect, useState } from 'react';
-import { 
-    Box, 
-    Typography, 
-    Paper, 
-    Divider, 
-    CircularProgress, 
-    Stack, 
-    Button, 
+import {
+    Box,
+    Typography,
+    Paper,
+    Divider,
+    CircularProgress,
+    Stack,
+    Button,
     Chip,
     Container,
     Card,
@@ -25,7 +25,7 @@ const RenderizarResposta = ({ valor }: { valor: any }) => {
     // 1. Verifica se é uma LISTA (Array) de imagens (Novo padrão do Android)
     if (Array.isArray(valor)) {
         if (valor.length === 0) return <Typography color="text.secondary" variant="body2">Sem imagens</Typography>;
-        
+
         return (
             <Stack direction="row" flexWrap="wrap" gap={2} mt={1}>
                 {valor.map((item, index) => (
@@ -51,22 +51,22 @@ const RenderizarResposta = ({ valor }: { valor: any }) => {
                         component="img"
                         image={valor}
                         alt="Evidência Fotográfica"
-                        sx={{ 
-                            height: 200, 
-                            width: 'auto', 
+                        sx={{
+                            height: 200,
+                            width: 'auto',
                             minWidth: 150,
-                            objectFit: 'contain', 
+                            objectFit: 'contain',
                             bgcolor: '#f0f0f0',
                             cursor: 'pointer'
                         }}
-                        onClick={() => window.open(valor, '_blank')} // Abre em nova aba ao clicar
+                        onClick={() => window.open(valor, '_blank')}
                     />
                 </Card>
             );
         }
     }
 
-    // 3. Caso padrão: Texto ou Número
+    // 3. Caso padrão: Texto
     return <Typography variant="body1" sx={{ whiteSpace: 'pre-line' }}>{String(valor)}</Typography>;
 };
 
@@ -86,6 +86,7 @@ export default function RelatorioDetalhePage() {
                     return res.json();
                 })
                 .then(data => {
+                    console.log('[RelatorioPage] Dados recebidos:', data);
                     setRelatorio(data);
                     setLoading(false);
                 })
@@ -116,37 +117,75 @@ export default function RelatorioDetalhePage() {
         );
     }
 
-    // Prepara os campos para exibição (mescla campos dinâmicos com fixos se necessário)
-    const camposParaExibir = [
-        ...(relatorio.definicaoCampos || []).map((c: any) => ({
-            label: c.label,
-            key: c.name
-        })),
-        // Garante que as fotos gerais apareçam mesmo se não estiverem na definição do formulário
-        { label: "Evidências Fotográficas (Geral)", key: "fotos_evidencia" },
-        // Campos fixos legados (caso existam no JSON)
-        { label: "Observações Gerais", key: "observacoes" }
-    ];
+    // --- FUNÇÃO HELPER PARA MAPEAR VALORES ---
+    const mapearValor = (campo: any, valor: any): { display: React.ReactNode; isMulti: boolean } => {
+        // Campos com opções (checkbox_group, select, radio)
+        if (campo.options && Array.isArray(campo.options)) {
+            // Multi-valor (ex: "op1,valor_2")
+            if (typeof valor === 'string' && valor.includes(',')) {
+                const ids = valor.split(',').map((s: string) => s.trim());
+                const labels = ids.map((id: string) => {
+                    const opt = campo.options.find((o: any) => o.value === id || o.id === id);
+                    return opt ? opt.label : id;
+                });
+                return {
+                    display: (
+                        <Stack direction="column" spacing={0.5}>
+                            {labels.map((txt: string, idx: number) => (
+                                <Typography key={idx} variant="body1" sx={{ display: 'flex', alignItems: 'center' }}>
+                                    <Box component="span" sx={{ width: 6, height: 6, borderRadius: '50%', bgcolor: '#2e7d32', mr: 1, display: 'inline-block' }} />
+                                    {txt}
+                                </Typography>
+                            ))}
+                        </Stack>
+                    ),
+                    isMulti: true
+                };
+            }
+            // Valor único
+            const opt = campo.options.find((o: any) => o.value === valor || o.id === valor);
+            if (opt) return { display: <Typography variant="body1">{opt.label}</Typography>, isMulti: false };
+        }
+
+        // Booleanos (switch, checkbox single)
+        if (campo.type === 'switch' || campo.type === 'checkbox') {
+            const texto = (valor === true || valor === 'true' || valor === 'on') ? 'Sim' : 'Não';
+            return { display: <Typography variant="body1">{texto}</Typography>, isMulti: false };
+        }
+
+        // Data
+        if (campo.type === 'date' && typeof valor === 'string' && valor.includes('-')) {
+            try {
+                const [y, m, d] = valor.split('-');
+                if (y.length === 4) {
+                    return { display: <Typography variant="body1">{`${d}/${m}/${y}`}</Typography>, isMulti: false };
+                }
+            } catch (e) { /* fallback */ }
+        }
+
+        // Default: usa RenderizarResposta
+        return { display: <RenderizarResposta valor={valor} />, isMulti: false };
+    };
 
     return (
-        <Box sx={{ p: 3, backgroundColor: '#f5f5f5', minHeight: '100vh' }}>
+        <Box className="report-container" sx={{ p: 3, backgroundColor: '#f5f5f5', minHeight: '100vh', '@media print': { p: 0, backgroundColor: 'white' } }}>
             {/* Barra de Ações Superior */}
-            <Stack direction="row" justifyContent="space-between" alignItems="center" mb={3} maxWidth="lg" mx="auto">
+            <Stack direction="row" justifyContent="space-between" alignItems="center" mb={3} maxWidth="lg" mx="auto" className="no-print">
                 <Button startIcon={<ArrowBackIcon />} onClick={() => router.back()}>
                     Voltar
                 </Button>
-                <Button 
-                    variant="contained" 
-                    startIcon={<PrintIcon />} 
+                <Button
+                    variant="contained"
+                    startIcon={<PrintIcon />}
                     onClick={() => window.print()}
                 >
                     Imprimir / PDF
                 </Button>
             </Stack>
 
-            <Container maxWidth="lg">
-                <Paper elevation={3} sx={{ p: 5, mb: 5 }}>
-                    
+            <Container maxWidth="lg" sx={{ '@media print': { maxWidth: '100% !important', p: 0 } }}>
+                <Paper elevation={3} sx={{ p: 5, mb: 5, '@media print': { boxShadow: 'none', p: 0, mb: 0 } }}>
+
                     {/* CABEÇALHO DO RELATÓRIO */}
                     <Stack spacing={1} mb={4}>
                         <Stack direction="row" justifyContent="space-between" alignItems="flex-start">
@@ -158,9 +197,9 @@ export default function RelatorioDetalhePage() {
                             </Box>
                             <Chip label={relatorio.protocolo} color="primary" variant="outlined" />
                         </Stack>
-                        
+
                         <Typography variant="subtitle1">
-                            <strong>Data da Vistoria:</strong> {new Date(relatorio.data_realizacao).toLocaleDateString('pt-BR')} às {new Date(relatorio.data_realizacao).toLocaleTimeString('pt-BR', {hour: '2-digit', minute:'2-digit'})}
+                            <strong>Data da Vistoria:</strong> {new Date(relatorio.data_realizacao).toLocaleDateString('pt-BR')} às {new Date(relatorio.data_realizacao).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
                         </Typography>
                     </Stack>
 
@@ -171,7 +210,7 @@ export default function RelatorioDetalhePage() {
                         <Typography variant="h6" gutterBottom sx={{ bgcolor: '#e8f5e9', p: 1, pl: 2, borderRadius: 1 }}>
                             1. Dados da Solicitação
                         </Typography>
-                        
+
                         <Stack direction={{ xs: 'column', md: 'row' }} spacing={4} mt={2}>
                             <Box flex={1}>
                                 <Typography variant="caption" color="text.secondary">Solicitante</Typography>
@@ -186,7 +225,7 @@ export default function RelatorioDetalhePage() {
                                 </Typography>
                             </Box>
                         </Stack>
-                        
+
                         <Box mt={2}>
                             <Typography variant="caption" color="text.secondary">Descrição da Demanda</Typography>
                             <Typography variant="body1" sx={{ fontStyle: 'italic', color: '#555' }}>
@@ -202,23 +241,98 @@ export default function RelatorioDetalhePage() {
                         </Typography>
 
                         <Stack spacing={3} mt={2}>
-                            {camposParaExibir.map((campo: any) => {
-                                const valor = relatorio.respostas ? relatorio.respostas[campo.key] : null;
-                                
-                                // Pula campos vazios ou nulos para deixar o relatório limpo
-                                if (!valor || (Array.isArray(valor) && valor.length === 0)) return null;
+                            {(() => {
+                                const respostas = relatorio.respostas || {};
+                                const definicao = relatorio.definicaoCampos || [];
+                                const chavesProcessadas = new Set(definicao.map((c: any) => c.name));
 
-                                return (
-                                    <Box key={campo.key} sx={{ breakInside: 'avoid' }}>
-                                        <Typography variant="subtitle2" sx={{ fontWeight: 'bold', mb: 0.5 }}>
-                                            {campo.label}
-                                        </Typography>
-                                        <Box sx={{ pl: 1, borderLeft: '3px solid #eee' }}>
-                                            <RenderizarResposta valor={valor} />
+                                // 1. Renderiza campos definidos pelo formulário
+                                const camposDefinidos = definicao.map((campo: any) => {
+                                    const valor = respostas[campo.name];
+
+                                    // Debug
+                                    if (campo.options) {
+                                        console.log(`[RelatorioPage] Campo '${campo.label}': valor='${valor}'`, campo.options);
+                                    }
+
+                                    // Layout: Header
+                                    if (campo.type === 'header') {
+                                        return (
+                                            <Box key={campo.id} sx={{ mt: 3, mb: 1, borderBottom: '2px solid #2e7d32', pb: 0.5 }}>
+                                                <Typography variant="h6" sx={{ color: '#2e7d32', fontWeight: 'bold' }}>
+                                                    {campo.label}
+                                                </Typography>
+                                            </Box>
+                                        );
+                                    }
+
+                                    // Layout: Separator
+                                    if (campo.type === 'separator') {
+                                        return <Divider key={campo.id} sx={{ my: 3, borderColor: '#ddd' }} />;
+                                    }
+
+                                    // Pular campos vazios
+                                    if (valor === null || valor === undefined || valor === "" || (Array.isArray(valor) && valor.length === 0)) {
+                                        return null;
+                                    }
+
+                                    // Mapear valor para exibição
+                                    const { display } = mapearValor(campo, valor);
+
+                                    return (
+                                        <Box key={campo.id} sx={{ breakInside: 'avoid', mb: 2 }}>
+                                            <Typography variant="subtitle2" sx={{ fontWeight: 'bold', color: '#555', mb: 0.5, textTransform: 'uppercase', fontSize: '0.75rem', letterSpacing: '0.5px' }}>
+                                                {campo.label}
+                                            </Typography>
+                                            <Box sx={{ pl: 1, borderLeft: '4px solid #e0e0e0', ml: 0.5 }}>
+                                                {display}
+                                            </Box>
                                         </Box>
+                                    );
+                                });
+
+                                // 2. Fallback para campos extras
+                                const camposExtras = Object.keys(respostas)
+                                    .filter(k => !chavesProcessadas.has(k) && k !== 'fotos_evidencia' && k !== 'observacoes')
+                                    .map(k => (
+                                        <Box key={k} sx={{ breakInside: 'avoid', mb: 2, opacity: 0.8 }}>
+                                            <Typography variant="subtitle2" sx={{ fontWeight: 'bold', color: '#777', mb: 0.5, fontStyle: 'italic' }}>
+                                                {k} (Campo Adicional)
+                                            </Typography>
+                                            <Box sx={{ pl: 1, borderLeft: '4px solid #eee', ml: 0.5 }}>
+                                                <RenderizarResposta valor={respostas[k]} />
+                                            </Box>
+                                        </Box>
+                                    ));
+
+                                if (camposDefinidos.filter(Boolean).length === 0 && camposExtras.length === 0) {
+                                    return <Typography color="text.secondary" fontStyle="italic">Nenhum dado técnico registrado.</Typography>;
+                                }
+
+                                return [...camposDefinidos, ...camposExtras];
+                            })()}
+
+                            {/* Evidências Fotográficas */}
+                            {relatorio.respostas && relatorio.respostas['fotos_evidencia'] && (
+                                <Box sx={{ breakInside: 'avoid', mt: 2 }}>
+                                    <Typography variant="subtitle2" sx={{ fontWeight: 'bold', mb: 1 }}>
+                                        Evidências Fotográficas
+                                    </Typography>
+                                    <RenderizarResposta valor={relatorio.respostas['fotos_evidencia']} />
+                                </Box>
+                            )}
+
+                            {/* Observações Gerais */}
+                            {relatorio.observacoes && (
+                                <Box sx={{ breakInside: 'avoid', mt: 2 }}>
+                                    <Typography variant="subtitle2" sx={{ fontWeight: 'bold', mb: 0.5 }}>
+                                        Observações Gerais
+                                    </Typography>
+                                    <Box sx={{ pl: 1, borderLeft: '3px solid #eee' }}>
+                                        <Typography variant="body1" sx={{ whiteSpace: 'pre-line' }}>{relatorio.observacoes}</Typography>
                                     </Box>
-                                );
-                            })}
+                                </Box>
+                            )}
                         </Stack>
                     </Box>
 

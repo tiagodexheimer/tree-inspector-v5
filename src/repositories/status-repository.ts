@@ -49,6 +49,23 @@ export const StatusRepository = {
         }
     },
 
+    // Retorna APENAS Status Customizados da Organização (para quem usa uses_custom_schema=TRUE)
+    async findCustomOnly(organizationId: number): Promise<StatusPersistence[]> {
+        try {
+            const query = `
+                SELECT id, nome, cor, organization_id, is_custom, is_default_global
+                FROM demandas_status 
+                WHERE organization_id = $1
+                ORDER BY nome
+            `;
+            const result = await pool.query(query, [organizationId]);
+            return result.rows as StatusPersistence[];
+        } catch (error) {
+            console.error("Erro no StatusRepository.findCustomOnly:", error);
+            throw new Error("Falha ao buscar status customizados.");
+        }
+    },
+
     // Retorna Status Globais (NULL) e Padrão da Org (ID=X AND is_custom=FALSE)
     async findGlobalAndDefault(organizationId: number): Promise<StatusPersistence[]> {
         try {
@@ -127,7 +144,7 @@ export const StatusRepository = {
             const result = await pool.query(query, [
                 data.nome,
                 data.cor,
-                data.organization_id, 
+                data.organization_id,
                 data.is_custom,
             ]);
             return result.rows[0] as StatusPersistence;
@@ -156,7 +173,7 @@ export const StatusRepository = {
             }
 
             if (fields.length === 0) {
-                return this.findById(id); 
+                return this.findById(id);
             }
 
             // Garante que APENAS status customizados E pertencentes à organização possam ser editados
@@ -169,7 +186,7 @@ export const StatusRepository = {
                 RETURNING id, nome, cor, organization_id, is_custom, is_default_global
             `;
             values.push(id, organizationId);
-            
+
             const result = await pool.query(query, values);
             return (result.rows[0] as StatusPersistence) || null;
         } catch (error) {

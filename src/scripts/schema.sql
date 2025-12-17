@@ -23,6 +23,9 @@ CREATE TABLE IF NOT EXISTS organizations (
     -- Referência ao dono (pode ser NULL inicialmente, preenchido após criar o user)
     owner_id TEXT, 
 
+    -- [NOVO] Flag para ativar esquema customizado (Pro/Enterprise)
+    uses_custom_schema BOOLEAN DEFAULT FALSE,
+
     created_at TIMESTAMPTZ DEFAULT NOW(),
     updated_at TIMESTAMPTZ DEFAULT NOW()
 );

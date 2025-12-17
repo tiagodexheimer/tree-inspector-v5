@@ -14,6 +14,8 @@ import { OrganizationMembersList } from '@/components/Organizacao/OrganizationMe
 // Tipos
 import { OrganizationRole, ActiveInvite, OrganizationMember } from '@/types/auth-types';
 
+import { PersonalizacaoSettings } from '@/components/Organizacao/PersonalizacaoSettings';
+
 export default function GerenciarOrganizacaoPage() {
   const { data: session, status, update } = useSession();
 
@@ -125,6 +127,7 @@ export default function GerenciarOrganizacaoPage() {
     );
   }
 
+
   return (
     <Container maxWidth="lg" sx={{ py: 4 }}>
       <Box sx={{ mb: 4 }}>
@@ -142,6 +145,7 @@ export default function GerenciarOrganizacaoPage() {
         </Alert>
       )}
 
+      {/* 1. Nome e Detalhes */}
       <OrgNameEditor
         initialName={organizationName}
         orgId={organizationId}
@@ -152,7 +156,18 @@ export default function GerenciarOrganizacaoPage() {
         onLeaveSuccess={handleLeaveSuccess}
       />
 
-      {/* Gestão de Convites */}
+      {/* 2. Personalização (Pro Only) */}
+      {(userPlanType === 'pro' || userPlanType === 'enterprise') && canManageOrgDetails && (
+        <Box mt={6} mb={6}>
+          <Divider sx={{ mb: 4 }} />
+          <PersonalizacaoSettings />
+        </Box>
+      )}
+
+      {/* 4. Gestão de Convites */}
+      <Divider sx={{ my: 4 }} />
+      <Typography variant="h5" gutterBottom>Convites</Typography>
+
       {canManageOrgDetails ? (
         <InviteManagement
           organizationId={organizationId}
@@ -173,7 +188,8 @@ export default function GerenciarOrganizacaoPage() {
 
       <Divider sx={{ my: 4 }} />
 
-      {/* Lista de Membros */}
+      {/* 5. Lista de Membros */}
+      <Typography variant="h5" gutterBottom>Membros</Typography>
       <OrganizationMembersList
         members={members}
         currentUserId={session?.user?.id}

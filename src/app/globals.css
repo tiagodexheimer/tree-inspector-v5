@@ -122,3 +122,58 @@ textarea {
 @media (min-width: 1280px) {
   /* xl */
 }
+
+/* =============================== */
+/* ESTILOS DE IMPRESSÃO (RELATÓRIOS PDF) */
+/* =============================== */
+@media print {
+  /* 1. Ocultar elementos de navegação e sistema */
+  /* Sidebar (Drawer), Header (AppBar), Botões flutuantes */
+  header, nav, aside, .MuiDrawer-root, .MuiAppBar-root {
+    display: none !important;
+  }
+
+  /* 2. Ocultar botões de ação na página */
+  button, .no-print {
+    display: none !important;
+  }
+
+  /* 3. Resetar Layout Principal */
+  html, body {
+    width: 100%;
+    height: auto;
+    background: white !important;
+    overflow: visible !important;
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+
+  /* Forçar que containers ocupem 100% e removam sombras */
+  .MuiPaper-root {
+    box-shadow: none !important;
+    border: none !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    width: 100% !important;
+    max-width: 100% !important;
+  }
+
+  /* Ajustar tipografia para impresso */
+  p, span, div, h1, h2, h3, h4, h5, h6 {
+    color: black !important;
+    text-shadow: none !important;
+  }
+
+  /* Quebra de página inteligente */
+  .break-inside-avoid {
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+  
+  /* Ajuste específico para o container do relatório se precisar */
+  .report-container {
+    width: 100% !important;
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+}
