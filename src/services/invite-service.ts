@@ -1,10 +1,10 @@
 // src/services/invite-service.ts
 import pool from "@/lib/db";
 import { randomBytes } from "crypto";
-import { OrganizationRole } from "@/types/auth-types";
+import { OrganizationRole, PLAN_LIMITS } from "@/types/auth-types";
 
 export const inviteService = {
-  
+
   // --- GESTÃO ---
 
   async listPendingInvites(organizationId: number) {
@@ -18,37 +18,59 @@ export const inviteService = {
     return res.rows;
   },
 
-  async createInvite(organizationId: number, email: string, role: OrganizationRole) {
+  async createInvite(organizationId: number, email: string, role: OrganizationRole, inviterSystemRole?: string) {
+    if (inviterSystemRole === 'free' || inviterSystemRole === 'free_user') {
+      throw new Error("Seu plano (Free) não permite enviar convites.");
+    }
+
     const client = await pool.connect();
     try {
-        // Validações...
-        const checkQuery = `SELECT id FROM organization_invites WHERE organization_id = $1 AND email = $2 AND expires_at > NOW()`;
-        const checkRes = await client.query(checkQuery, [organizationId, email]);
-        if (checkRes.rowCount && checkRes.rowCount > 0) throw new Error("Convite já pendente.");
+      // 1. Verificação de Limites do Plano Basic
+      if (inviterSystemRole === 'basic') {
+        const membersCountRes = await client.query(
+          'SELECT count(*) FROM organization_members WHERE organization_id = $1',
+          [organizationId]
+        );
+        const invitesCountRes = await client.query(
+          'SELECT count(*) FROM organization_invites WHERE organization_id = $1 AND expires_at > NOW()',
+          [organizationId]
+        );
 
-        const memberCheck = `
+        const totalUsers = Number(membersCountRes.rows[0].count) + Number(invitesCountRes.rows[0].count);
+
+        if (totalUsers >= PLAN_LIMITS.BASIC.MAX_USERS) {
+          throw new Error(`Limite de ${PLAN_LIMITS.BASIC.MAX_USERS} usuários atingido para o plano Basic.`);
+        }
+      }
+
+      // Validações...
+      const checkQuery = `SELECT id FROM organization_invites WHERE organization_id = $1 AND email = $2 AND expires_at > NOW()`;
+      const checkRes = await client.query(checkQuery, [organizationId, email]);
+      if (checkRes.rowCount && checkRes.rowCount > 0) throw new Error("Convite já pendente.");
+
+      const memberCheck = `
             SELECT u.id FROM users u
             JOIN organization_members om ON om.user_id = u.id
             WHERE u.email = $1 AND om.organization_id = $2
         `;
-        const memberRes = await client.query(memberCheck, [email, organizationId]);
-        if (memberRes.rowCount && memberRes.rowCount > 0) throw new Error("Usuário já é membro.");
+      const memberRes = await client.query(memberCheck, [email, organizationId]);
+      if (memberRes.rowCount && memberRes.rowCount > 0) throw new Error("Usuário já é membro.");
 
-        // Criação
-        const token = randomBytes(32).toString("hex");
-        const expiresAt = new Date();
-        expiresAt.setDate(expiresAt.getDate() + 7);
+      // Criação
+      const token = randomBytes(32).toString("hex");
+      const expiresAt = new Date();
+      expiresAt.setDate(expiresAt.getDate() + 7);
 
-        const insertQuery = `
+      const insertQuery = `
           INSERT INTO organization_invites (organization_id, email, token, role, expires_at)
           VALUES ($1, $2, $3, $4, $5)
           RETURNING id, email, role, token, expires_at
         `;
-        
-        const res = await client.query(insertQuery, [organizationId, email, token, role, expiresAt]);
-        return res.rows[0];
+
+      const res = await client.query(insertQuery, [organizationId, email, token, role, expiresAt]);
+      return res.rows[0];
     } finally {
-        client.release();
+      client.release();
     }
   },
 
@@ -59,14 +81,14 @@ export const inviteService = {
   // --- PÚBLICO / ACEITE ---
 
   async getInviteByToken(token: string) {
-      const query = `
+    const query = `
         SELECT i.id, i.email, i.role, i.organization_id, i.expires_at, o.name as "organizationName"
         FROM organization_invites i
         JOIN organizations o ON o.id = i.organization_id
         WHERE i.token = $1 AND i.expires_at > NOW()
       `;
-      const res = await pool.query(query, [token]);
-      return res.rows[0] || null;
+    const res = await pool.query(query, [token]);
+    return res.rows[0] || null;
   },
 
   async acceptInvite(token: string, userId: string) {
@@ -112,8 +134,8 @@ export const inviteService = {
 
       await client.query('COMMIT');
 
-      return { 
-        success: true, 
+      return {
+        success: true,
         organizationId: invite.organization_id // Retorna o ID para o frontend
       };
 

@@ -84,6 +84,7 @@ export const authConfig: NextAuthConfig = {
             token.organizationName = freshUser.organizationName;
             token.organizationRole = freshUser.organizationRole;
             token.planType = freshUser.plan_type;
+            token.role = freshUser.role; // [CORREÇÃO] Sincroniza o role do sistema (free/basic/pro)
           }
         } catch (error) {
           console.error("Erro ao revalidar token:", error);

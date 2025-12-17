@@ -11,30 +11,36 @@ import EmailIcon from '@mui/icons-material/Email';
 import { ActiveInvite, OrganizationRole } from '@/types/auth-types';
 
 interface InviteManagementProps {
-    organizationId?: number | string | null; // Tornado opcional para evitar erros de tipo
+    organizationId?: number | string | null;
     invitesList: ActiveInvite[];
     userPlanType: string;
-    userRole: string; // role do sistema (free, basic...)
+    userRole: string;
     fetchData: () => Promise<void>;
     setError: (msg: string) => void;
+    membersCount: number;
 }
 
 export const InviteManagement: React.FC<InviteManagementProps> = ({
     organizationId,
-    invitesList = [], // Valor padrão para evitar crash
+    invitesList = [],
     userPlanType,
     userRole,
     fetchData,
-    setError
+    setError,
+    membersCount
 }) => {
     const [email, setEmail] = useState('');
     const [loading, setLoading] = useState(false);
     const [revokeLoading, setRevokeLoading] = useState<number | null>(null);
 
-    // [DEBUG] Verifica se os convites estão chegando
-    useEffect(() => {
-        console.log("InviteManagement recebeu invitesList:", invitesList);
-    }, [invitesList]);
+    // Lógica de Limites
+    const isFree = userRole === 'free' || userRole === 'free_user';
+    const isBasic = userRole === 'basic';
+
+    // Limite Basic: 5 usuários no total (membros + convites pendentes)
+    const totalUsage = membersCount + invitesList.length;
+    const basicLimit = 5;
+    const isBasicLimitReached = isBasic && totalUsage >= basicLimit;
 
     const handleInvite = async () => {
         if (!email.includes('@')) {
@@ -47,7 +53,7 @@ export const InviteManagement: React.FC<InviteManagementProps> = ({
             const res = await fetch('/api/gerenciar/convites', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ email, role: 'member' }) // Padrão 'member'
+                body: JSON.stringify({ email, role: 'member' })
             });
 
             const data = await res.json();
@@ -56,9 +62,9 @@ export const InviteManagement: React.FC<InviteManagementProps> = ({
                 throw new Error(data.message || 'Erro ao enviar convite');
             }
 
-            setEmail(''); // Limpa o campo
-            await fetchData(); // Recarrega a lista chamando a função do pai
-            alert("Convite enviado com sucesso!"); // Feedback simples
+            setEmail('');
+            await fetchData();
+            alert("Convite enviado com sucesso!");
 
         } catch (err: any) {
             setError(err.message);
@@ -78,7 +84,7 @@ export const InviteManagement: React.FC<InviteManagementProps> = ({
 
             if (!res.ok) throw new Error("Falha ao revogar convite");
 
-            await fetchData(); // Recarrega a lista
+            await fetchData();
         } catch (err: any) {
             setError(err.message);
         } finally {
@@ -92,32 +98,57 @@ export const InviteManagement: React.FC<InviteManagementProps> = ({
                 <EmailIcon color="action" /> Convidar Membros
             </Typography>
 
-            <Box sx={{ mb: 3 }}>
-                <Grid container spacing={2} alignItems="center">
-                    <Grid size={{ xs: 12, sm: 8 }}>
-                        <TextField
-                            fullWidth
-                            label="E-mail do novo membro"
-                            variant="outlined"
-                            size="small"
-                            value={email}
-                            onChange={(e) => setEmail(e.target.value)}
-                            disabled={loading}
-                        />
+            {/* SEÇÃO FREE: BLOQUEIO TOTAL */}
+            {isFree && (
+                <Alert severity="warning" sx={{ mb: 2 }}>
+                    Seu plano <strong>Free</strong> não permite convidar novos membros.
+                    <Button color="inherit" size="small" sx={{ ml: 1, textDecoration: 'underline' }}>
+                        Faça Upgrade
+                    </Button>
+                </Alert>
+            )}
+
+            {/* SEÇÃO BASIC: LIMITE */}
+            {isBasic && (
+                <Box sx={{ mb: 2 }}>
+                    <Alert severity={isBasicLimitReached ? "error" : "info"}>
+                        Plano Basic: {totalUsage} / {basicLimit} usuários utilizados (Membros + Convites).
+                        {isBasicLimitReached && <strong> Limite atingido.</strong>}
+                    </Alert>
+                </Box>
+            )}
+
+            {/* FORMULÁRIO (Exibido apenas se não for Free) */}
+            {!isFree && (
+                <Box sx={{ mb: 3 }}>
+                    <Grid container spacing={2} alignItems="center">
+                        <Grid size={{ xs: 12, sm: 8 }}>
+                            <TextField
+                                fullWidth
+                                label="E-mail do novo membro"
+                                variant="outlined"
+                                size="small"
+                                value={email}
+                                onChange={(e) => setEmail(e.target.value)}
+                                disabled={loading || isBasicLimitReached} // Bloqueia se atingiu limite
+                                placeholder={isBasicLimitReached ? "Limite de usuários atingido" : "exemplo@email.com"}
+                            />
+                        </Grid>
+                        <Grid size={{ xs: 12, sm: 4 }}>
+                            <Button
+                                variant="contained"
+                                fullWidth
+                                startIcon={loading ? <CircularProgress size={20} color="inherit" /> : <SendIcon />}
+                                onClick={handleInvite}
+                                disabled={loading || !email || isBasicLimitReached} // Bloqueia botão
+                                color={isBasicLimitReached ? 'error' : 'primary'}
+                            >
+                                {loading ? 'Enviando...' : (isBasicLimitReached ? 'Limite Atingido' : 'Enviar Convite')}
+                            </Button>
+                        </Grid>
                     </Grid>
-                    <Grid size={{ xs: 12, sm: 4 }}>
-                        <Button
-                            variant="contained"
-                            fullWidth
-                            startIcon={loading ? <CircularProgress size={20} color="inherit" /> : <SendIcon />}
-                            onClick={handleInvite}
-                            disabled={loading || !email}
-                        >
-                            {loading ? 'Enviando...' : 'Enviar Convite'}
-                        </Button>
-                    </Grid>
-                </Grid>
-            </Box>
+                </Box>
+            )}
 
             <Typography variant="subtitle2" sx={{ mb: 1, color: 'text.secondary' }}>
                 Convites Pendentes ({invitesList.length})

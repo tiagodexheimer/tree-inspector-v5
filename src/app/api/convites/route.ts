@@ -20,7 +20,7 @@ async function checkInvitePermission(isPost: boolean) {
   const organizationId = Number(session.user.organizationId);
 
   // Para POST (Criação de convite): O usuário Free não pode enviar convites.
-  if (isPost && userRole === "free") {
+  if (isPost && (userRole === "free" || userRole === "free_user")) {
     return {
       authorized: false,
       status: 403,
@@ -96,6 +96,7 @@ export async function POST(request: NextRequest) {
       organizationId,
       email,
       role,
+      inviterRole
     );
 
     const baseUrl = request.nextUrl.origin;

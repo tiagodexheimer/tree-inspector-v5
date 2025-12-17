@@ -29,10 +29,10 @@ export default function EditorFormularios({ campos, setCampos }: EditorProps) {
         // Atualização segura baseada no nome da propriedade
         if (name === 'label') return { ...campo, label: newValue as string };
         if (name === 'placeholder') return { ...campo, placeholder: newValue as string };
-        
+
         // Type Guard para 'rows' (apenas Textarea)
         if (name === 'rows' && campo.type === 'textarea') {
-            return { ...campo, rows: Number(newValue) };
+          return { ...campo, rows: Number(newValue) };
         }
 
         return campo;
@@ -53,13 +53,13 @@ export default function EditorFormularios({ campos, setCampos }: EditorProps) {
         if (campo.id !== campoId) return campo;
 
         // [CORREÇÃO DO ERRO]: Verifica se o campo suporta opções
-        if (campo.type === 'select' || campo.type === 'radio') {
-            const currentOptions = campo.options || [];
-            const count = currentOptions.length + 1;
-            return {
-                ...campo,
-                options: [...currentOptions, { id: newOptionId, value: `valor_${count}`, label: `Opção ${count}` }]
-            };
+        if (campo.type === 'select' || campo.type === 'radio' || campo.type === 'checkbox_group') {
+          const currentOptions = campo.options || [];
+          const count = currentOptions.length + 1;
+          return {
+            ...campo,
+            options: [...currentOptions, { id: newOptionId, value: `valor_${count}`, label: `Opção ${count}` }]
+          };
         }
         return campo;
       })
@@ -72,11 +72,11 @@ export default function EditorFormularios({ campos, setCampos }: EditorProps) {
         if (campo.id !== campoId) return campo;
 
         // Verifica se o campo suporta opções antes de filtrar
-        if (campo.type === 'select' || campo.type === 'radio') {
-            return { 
-                ...campo, 
-                options: campo.options.filter(opt => opt.id !== optionId) 
-            };
+        if (campo.type === 'select' || campo.type === 'radio' || campo.type === 'checkbox_group') {
+          return {
+            ...campo,
+            options: campo.options.filter(opt => opt.id !== optionId)
+          };
         }
         return campo;
       })
@@ -101,14 +101,14 @@ export default function EditorFormularios({ campos, setCampos }: EditorProps) {
       campos.map(campo => {
         if (campo.id !== campoId) return campo;
 
-        // Verifica se o campo suporta opções antes de map
-        if (campo.type === 'select' || campo.type === 'radio') {
-            return {
-              ...campo,
-              options: campo.options.map(opt =>
-                opt.id === optionId ? { ...opt, label: tempOptionLabel, value: tempOptionValue } : opt
-              )
-            };
+        // [CORREÇÃO]: Verifica se o campo suporta opções (Select, Radio, CheckboxGroup)
+        if (campo.type === 'select' || campo.type === 'radio' || campo.type === 'checkbox_group') {
+          return {
+            ...campo,
+            options: campo.options.map(opt =>
+              opt.id === optionId ? { ...opt, label: tempOptionLabel, value: tempOptionValue } : opt
+            )
+          };
         }
         return campo;
       })
@@ -120,43 +120,43 @@ export default function EditorFormularios({ campos, setCampos }: EditorProps) {
   // Aceita apenas campos que sabemos que têm opções ou faz a checagem interna
   const renderOptionEditor = (campo: CampoDef) => {
     // Checagem de segurança extra na renderização
-    if (campo.type !== 'select' && campo.type !== 'radio') return null;
+    if (campo.type !== 'select' && campo.type !== 'radio' && campo.type !== 'checkbox_group') return null;
 
     return (
-        <Box sx={{ mt: 2, borderTop: '1px dashed #ccc', pt: 1 }}>
+      <Box sx={{ mt: 2, borderTop: '1px dashed #ccc', pt: 1 }}>
         <Typography variant="caption" display="block" gutterBottom>Opções:</Typography>
         <List dense disablePadding>
-            {campo.options.map((option) => (
+          {campo.options.map((option) => (
             <ListItem
-                key={option.id}
-                disableGutters
-                secondaryAction={
+              key={option.id}
+              disableGutters
+              secondaryAction={
                 <>
-                    <IconButton edge="end" size="small" onClick={() => handleStartEditOption(campo.id, option)} disabled={!!editingOption}>
+                  <IconButton edge="end" size="small" onClick={() => handleStartEditOption(campo.id, option)} disabled={!!editingOption}>
                     <Edit fontSize="inherit" />
-                    </IconButton>
-                    <IconButton edge="end" size="small" onClick={() => handleRemoveOption(campo.id, option.id)} disabled={!!editingOption}>
+                  </IconButton>
+                  <IconButton edge="end" size="small" onClick={() => handleRemoveOption(campo.id, option.id)} disabled={!!editingOption}>
                     <DeleteOutline fontSize="inherit" />
-                    </IconButton>
+                  </IconButton>
                 </>
-                }
+              }
             >
-                {editingOption?.campoId === campo.id && editingOption?.optionId === option.id ? (
+              {editingOption?.campoId === campo.id && editingOption?.optionId === option.id ? (
                 <Box sx={{ display: 'flex', gap: 1, width: '100%', mr: 8 }}>
-                    <TextField label="Label" size="small" variant="standard" value={tempOptionLabel} onChange={(e) => setTempOptionLabel(e.target.value)} fullWidth />
-                    <TextField label="Valor" size="small" variant="standard" value={tempOptionValue} onChange={(e) => setTempOptionValue(e.target.value)} fullWidth />
-                    <Button size="small" onClick={handleSaveOption}>OK</Button>
+                  <TextField label="Label" size="small" variant="standard" value={tempOptionLabel} onChange={(e) => setTempOptionLabel(e.target.value)} fullWidth />
+                  <TextField label="Valor" size="small" variant="standard" value={tempOptionValue} onChange={(e) => setTempOptionValue(e.target.value)} fullWidth />
+                  <Button size="small" onClick={handleSaveOption}>OK</Button>
                 </Box>
-                ) : (
+              ) : (
                 <ListItemText primary={option.label} secondary={`Valor: ${option.value}`} />
-                )}
+              )}
             </ListItem>
-            ))}
+          ))}
         </List>
         <Button size="small" startIcon={<AddCircleOutline />} onClick={() => handleAddOption(campo.id)} disabled={!!editingOption}>
-            Adicionar Opção
+          Adicionar Opção
         </Button>
-        </Box>
+      </Box>
     );
   };
 
@@ -179,47 +179,66 @@ export default function EditorFormularios({ campos, setCampos }: EditorProps) {
             <Button size="small" color="error" onClick={() => handleRemoverCampo(campo.id)}>Remover</Button>
           </Box>
 
-          <TextField 
-            fullWidth 
-            label="Rótulo (Label)" 
-            variant="outlined" 
-            size="small" 
-            name="label" 
-            value={campo.label} 
-            onChange={(e) => handleCampoChange(campo.id, e)} 
-            sx={{ mb: 2, bgcolor: 'white' }} 
+          <TextField
+            fullWidth
+            label="Rótulo (Label)"
+            variant="outlined"
+            size="small"
+            name="label"
+            value={campo.label}
+            onChange={(e) => handleCampoChange(campo.id, e)}
+            sx={{ mb: 2, bgcolor: 'white' }}
           />
-          
+
           {/* Type Guards para renderização de inputs específicos */}
           {(campo.type === 'text' || campo.type === 'textarea' || campo.type === 'email' || campo.type === 'number') && (
-            <TextField 
-                fullWidth 
-                label="Placeholder" 
-                variant="outlined" 
-                size="small" 
-                name="placeholder" 
-                value={campo.placeholder || ''} 
-                onChange={(e) => handleCampoChange(campo.id, e)} 
-                sx={{ mb: 2, bgcolor: 'white' }} 
+            <TextField
+              fullWidth
+              label="Placeholder"
+              variant="outlined"
+              size="small"
+              name="placeholder"
+              value={campo.placeholder || ''}
+              onChange={(e) => handleCampoChange(campo.id, e)}
+              sx={{ mb: 2, bgcolor: 'white' }}
             />
           )}
 
           {campo.type === 'textarea' && (
-             <TextField 
-                fullWidth 
-                label="Linhas" 
-                type="number" 
-                variant="outlined" 
-                size="small" 
-                name="rows" 
-                value={campo.rows || 3} 
-                onChange={(e) => handleCampoChange(campo.id, e)} 
-                sx={{ mb: 2, bgcolor: 'white' }} 
+            <TextField
+              fullWidth
+              label="Linhas"
+              type="number"
+              variant="outlined"
+              size="small"
+              name="rows"
+              value={campo.rows || 3}
+              onChange={(e) => handleCampoChange(campo.id, e)}
+              sx={{ mb: 2, bgcolor: 'white' }}
             />
           )}
 
-          {/* Só chama o editor se for Select ou Radio */}
-          {(campo.type === 'select' || campo.type === 'radio') && renderOptionEditor(campo)}
+          {/* Inputs de Data e Número e Arquivo e Árvore */}
+          {(campo.type === 'date' || campo.type === 'number' || campo.type === 'file' || campo.type === 'tree_species') && (
+            <Typography variant="caption" color="textSecondary">
+              {campo.type === 'file' ? 'Campo de Upload (Configurações adicionais em breve)' :
+                campo.type === 'tree_species' ? 'Este campo terá autocomplete de Espécies.' : 'Configurações padrão aplicadas.'}
+            </Typography>
+          )}
+
+          {/* CAMPOS DE LAYOUT (Visual) */}
+          {(campo.type === 'header') && (
+            <Box sx={{ p: 1, bgcolor: '#e0e0e0', borderRadius: 1, textAlign: 'center' }}>
+              <Typography variant="h6">PRÉ-VISUALIZAÇÃO: {campo.label}</Typography>
+            </Box>
+          )}
+
+          {(campo.type === 'separator') && (
+            <Box sx={{ my: 2, borderBottom: '2px solid #ccc' }} />
+          )}
+
+          {/* Só chama o editor se for Select, Radio ou CheckboxGroup */}
+          {(campo.type === 'select' || campo.type === 'radio' || campo.type === 'checkbox_group') && renderOptionEditor(campo)}
         </Card>
       ))}
     </Box>
