@@ -1,8 +1,8 @@
 // src/components/Organizacao/OrgNameEditor.tsx
 import React, { useState, useEffect } from 'react';
-import { 
-    Box, Typography, Paper, Grid, TextField, Button, Alert, 
-    Collapse, CircularProgress 
+import {
+    Box, Typography, Paper, Grid, TextField, Button, Alert,
+    Collapse, CircularProgress
 } from '@mui/material';
 import EditIcon from '@mui/icons-material/Edit';
 import SaveIcon from '@mui/icons-material/Save';
@@ -20,10 +20,10 @@ interface OrgNameEditorProps {
     onLeaveSuccess: () => void | Promise<void>; // Callback para atualizar a lista após sair
 }
 
-export const OrgNameEditor: React.FC<OrgNameEditorProps> = ({ 
-    initialName, 
-    orgId, 
-    userRole, 
+export const OrgNameEditor: React.FC<OrgNameEditorProps> = ({
+    initialName,
+    orgId,
+    userRole,
     orgRole,
     canEdit,
     onOrgUpdate,
@@ -66,11 +66,11 @@ export const OrgNameEditor: React.FC<OrgNameEditorProps> = ({
             setIsLoading(false);
         }
     };
-    
+
     // --- Handler para Sair da Organização ---
     const handleLeaveOrganization = async () => {
         if (!window.confirm("ATENÇÃO: Você tem certeza que deseja sair desta organização?")) return;
-        
+
         setIsLeaving(true);
         setMessage(null);
 
@@ -80,18 +80,18 @@ export const OrgNameEditor: React.FC<OrgNameEditorProps> = ({
 
             if (response.ok) {
                 // 1. Atualiza a sessão local para remover os dados da organização
-                await update({ 
-                    organizationId: null, 
-                    organizationName: null, 
-                    organizationRole: null, 
-                    planType: 'free' 
-                }); 
-                
+                await update({
+                    organizationId: null,
+                    organizationName: null,
+                    organizationRole: null,
+                    planType: 'free'
+                });
+
                 // 2. Chama o callback do pai (opcional, mas bom para limpar estados)
                 if (onLeaveSuccess) await onLeaveSuccess();
 
                 // 3. Redireciona para o dashboard
-                window.location.href = '/dashboard'; 
+                window.location.href = '/dashboard';
             } else {
                 setMessage({ type: 'error', text: data.message || 'Falha ao sair da organização.' });
             }
@@ -107,7 +107,7 @@ export const OrgNameEditor: React.FC<OrgNameEditorProps> = ({
             <Typography variant="h5" gutterBottom sx={{ fontWeight: 'bold' }}>
                 Detalhes da Organização
             </Typography>
-            
+
             {/* Alertas de Feedback */}
             <Collapse in={!!message} sx={{ mb: 2 }}>
                 {message && (
@@ -118,23 +118,23 @@ export const OrgNameEditor: React.FC<OrgNameEditorProps> = ({
             </Collapse>
 
             <Grid container spacing={2} alignItems="center">
-                
+
                 {/* 1. Campo de Nome */}
-                <Grid item xs={12} sm={8} md={7}>
+                <Grid size={{ xs: 12, sm: 8, md: 7 }}>
                     <TextField
                         fullWidth
                         label="Nome da Organização"
                         value={name}
                         onChange={(e) => setName(e.target.value)}
                         // Habilitado apenas se: puder editar, estiver no modo edição e não estiver carregando
-                        disabled={!isEditing || isLoading || isLeaving || !canEdit} 
+                        disabled={!isEditing || isLoading || isLeaving || !canEdit}
                         InputProps={{ readOnly: !isEditing }}
                         helperText={!canEdit && "Apenas o Administrador ou Dono pode editar o nome."}
                     />
                 </Grid>
-                
+
                 {/* 2. Botões de Ação (Editar/Salvar) */}
-                <Grid item xs={12} sm={4} md={3}>
+                <Grid size={{ xs: 12, sm: 4, md: 3 }}>
                     {canEdit && (
                         isEditing ? (
                             <Box sx={{ display: 'flex', gap: 1 }}>
@@ -170,9 +170,9 @@ export const OrgNameEditor: React.FC<OrgNameEditorProps> = ({
                         )
                     )}
                 </Grid>
-                
+
                 {/* 3. Botão Sair da Organização */}
-                <Grid item xs={12} md={2}>
+                <Grid size={{ xs: 12, md: 2 }}>
                     {/* LÓGICA DE EXIBIÇÃO:
                         1. O Super Admin (role='admin') não deve ver esse botão aqui.
                         2. O Dono (isOwner) não pode sair da própria organização (deve deletá-la ou transferir).
@@ -190,12 +190,12 @@ export const OrgNameEditor: React.FC<OrgNameEditorProps> = ({
                             {isLeaving ? 'Saindo...' : 'Sair'}
                         </Button>
                     )}
-                    
+
                     {/* Feedback visual para o dono (opcional) */}
                     {isOwner && (
-                         <Typography variant="caption" color="text.secondary" sx={{ display: 'block', textAlign: 'center' }}>
+                        <Typography variant="caption" color="text.secondary" sx={{ display: 'block', textAlign: 'center' }}>
                             Você é o Dono
-                         </Typography>
+                        </Typography>
                     )}
                 </Grid>
             </Grid>

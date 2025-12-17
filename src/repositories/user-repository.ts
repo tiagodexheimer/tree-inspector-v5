@@ -1,7 +1,7 @@
 // src/repositories/user-repository.ts
 import pool from "@/lib/db";
 // [CORREÇÃO] Importa a definição canônica de UserRole
-import { UserRole } from "@/types/auth-types";
+import { UserRole, OrganizationRole } from "@/types/auth-types";
 
 // [REMOVIDO] A definição de UserRole foi movida para '@/types/auth-types'
 
@@ -64,20 +64,23 @@ export const UserRepository = {
         u.id, u.name, u.email, u.password, u.role, 
         u.organization_id as "organizationId",
         o.plan_type,
-        o.name as "organizationName"
+        o.name as "organizationName",
+        om.role as "organizationRole"  -- [IMPORTANTE] Faltava este campo
       FROM users u
       LEFT JOIN organizations o ON u.organization_id = o.id
+      -- Faz o join para pegar o papel do usuário NA organização ativa
+      LEFT JOIN organization_members om ON om.user_id = u.id AND om.organization_id = o.id
       WHERE u.id = $1
     `;
-    const result = await pool.query(query, [id]);
-    if (result.rows.length === 0) return null;
-    return result.rows[0] as UserPersistence;
-  },
 
-  async findAll(): Promise<UserPersistence[]> {
-    const query = `SELECT * FROM users ORDER BY name ASC`; 
-    const result = await pool.query(query);
-    return result.rows as UserPersistence[];
+    try {
+      const result = await pool.query(query, [id]);
+      if (result.rows.length === 0) return null;
+      return result.rows[0] as UserPersistence;
+    } catch (error) {
+      console.error("Erro no UserRepository.findById:", error);
+      return null;
+    }
   },
 
   // 2. CRIAÇÃO COM ORGANIZAÇÃO (Fluxo de Cadastro / Signup)
@@ -147,6 +150,23 @@ export const UserRepository = {
     const query = "DELETE FROM users WHERE id = $1 RETURNING id";
     const res = await pool.query(query, [id]);
     return (res.rowCount ?? 0) > 0;
+  },
+
+  async findAll(): Promise<UserPersistence[]> {
+    const query = `
+      SELECT 
+        u.id, u.name, u.email, u.role, 
+        u.organization_id as "organizationId",
+        o.name as "organizationName",
+        o.plan_type,
+        om.role as "organizationRole"
+      FROM users u
+      LEFT JOIN organizations o ON u.organization_id = o.id
+      LEFT JOIN organization_members om ON om.user_id = u.id AND om.organization_id = o.id
+      ORDER BY u.name ASC
+    `;
+    const result = await pool.query(query);
+    return result.rows as UserPersistence[];
   },
 
   async findAllByOrganization(
@@ -248,7 +268,7 @@ export const UserRepository = {
     orgId: number,
     userId: string,
     role: string,
-    client
+    client: any
   ) {
     const query = `
         INSERT INTO organization_members (organization_id, user_id, role)

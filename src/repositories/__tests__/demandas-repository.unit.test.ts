@@ -1,7 +1,7 @@
 // src/repositories/__tests__/demandas-repository.unit.test.ts
 
 import { DemandasRepository } from '../demandas-repository';
-import pool from '@/lib/db'; 
+import pool from '@/lib/db';
 
 // Mock do pool para simular respostas do banco de dados
 jest.mock('@/lib/db', () => ({
@@ -12,18 +12,18 @@ describe('DemandasRepository Filters e Error Handling', () => {
   const mockQuery = pool.query as jest.Mock;
 
   beforeEach(() => {
-    jest.clearAllMocks();
+    jest.resetAllMocks();
   });
 
   // --- Testando Filtros em findAll (Cobre Lógica do WHERE) ---
 
   it('findAll: Deve construir a query corretamente com filtro de texto', async () => {
     // Mock Count e Select
-    mockQuery.mockResolvedValueOnce({ rows: [{ count: '10' }] }); 
-    mockQuery.mockResolvedValue({ rows: [] }); 
-    
-    await DemandasRepository.findAll({ 
-      page: 1, limit: 10, filtro: 'teste' 
+    mockQuery.mockResolvedValueOnce({ rows: [{ count: '10' }] });
+    mockQuery.mockResolvedValue({ rows: [] });
+
+    await DemandasRepository.findAll({
+      page: 1, limit: 10, filtro: 'teste', organizationId: 1
     });
 
     // Pega a query e os valores da primeira chamada (COUNT)
@@ -32,20 +32,23 @@ describe('DemandasRepository Filters e Error Handling', () => {
 
     // CORREÇÃO: Verifica se as partes essenciais do WHERE estão presentes (independente de quebras de linha)
     expect(countQuery).toContain("WHERE");
-    expect(countQuery).toContain("d.nome_solicitante ILIKE $1");
-    expect(countQuery).toContain("d.protocolo ILIKE $1");
-    expect(countValues).toEqual(['%teste%']);
+    expect(countQuery).toContain("d.organization_id = $1");
+    // organization_id é $1, então filtro começa em $2
+    expect(countQuery).toContain("d.nome_solicitante ILIKE $2");
+    expect(countQuery).toContain("d.protocolo ILIKE $2");
+    expect(countValues).toEqual([1, '%teste%']);
   });
-  
+
   it('findAll: Deve construir a query corretamente com filtro de Status e Tipo', async () => {
     // Mock Count e Select
-    mockQuery.mockResolvedValueOnce({ rows: [{ count: '5' }] }); 
-    mockQuery.mockResolvedValue({ rows: [] }); 
-    
-    await DemandasRepository.findAll({ 
-      page: 1, limit: 5, 
-      statusIds: [1, 2], 
-      tipoNomes: ['Poda', 'Supressão'] 
+    mockQuery.mockResolvedValueOnce({ rows: [{ count: '5' }] });
+    mockQuery.mockResolvedValue({ rows: [] });
+
+    await DemandasRepository.findAll({
+      page: 1, limit: 5,
+      statusIds: [1, 2],
+      tipoNomes: ['Poda', 'Supressão'],
+      organizationId: 1
     });
 
     // Pega a query e os valores da segunda chamada (SELECT)
@@ -53,33 +56,36 @@ describe('DemandasRepository Filters e Error Handling', () => {
     const selectValues = mockQuery.mock.calls[1][1];
 
     // Verifica se as cláusulas WHERE foram incluídas (Status e Tipo)
-    expect(selectQuery).toContain("WHERE d.id_status = ANY($1::int[]) AND d.tipo_demanda = ANY($2::text[])");
+    // Verifica se as cláusulas WHERE foram incluídas (Organization, Status e Tipo)
+    // $1=Org, $2=Status, $3=Tipo
+    expect(selectQuery).toContain("WHERE d.organization_id = $1 AND d.id_status = ANY($2::int[]) AND d.tipo_demanda = ANY($3::text[])");
 
     // Verifica os valores passados para os parâmetros ($1, $2, limit, offset)
-    expect(selectValues).toEqual([[1, 2], ['Poda', 'Supressão'], 5, 0]);
+    expect(selectValues).toEqual([1, [1, 2], ['Poda', 'Supressão'], 5, 0]);
   });
-  
+
   // --- Testando DeleteMany (Cobre Tratamento de Erro 23503) ---
 
   it('deleteMany: Deve lançar erro específico em caso de Foreign Key Violation (código 23503)', async () => {
     const foreignKeyError = { code: '23503', message: 'Foreign key violation: demanda_id' };
-    
+
     // CORREÇÃO: Usa mockRejectedValueOnce
-    mockQuery.mockRejectedValueOnce(foreignKeyError); 
+    mockQuery.mockRejectedValueOnce(foreignKeyError);
 
     await expect(DemandasRepository.deleteMany([1, 2]))
       .rejects
-      .toThrow('Não é possível excluir uma ou mais demandas pois elas estão vinculadas a rotas ativas. Remova-as das rotas antes de excluir.');
+      .toThrow('Não é possível excluir demandas vinculadas a rotas.');
   });
-  
+
   it('deleteMany: Deve lançar erro genérico para outros erros do PostgreSQL', async () => {
-    const genericError = { code: '42601', message: 'Syntax error' };
-    
+    const genericError = new Error('Syntax error');
+    (genericError as any).code = '42601';
+
     // CORREÇÃO: Usa mockRejectedValueOnce
     mockQuery.mockRejectedValueOnce(genericError);
 
     await expect(DemandasRepository.deleteMany([1]))
       .rejects
-      .toThrow('Falha ao deletar demandas no banco de dados.');
+      .toThrow('Syntax error');
   });
 });

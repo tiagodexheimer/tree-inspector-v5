@@ -140,36 +140,74 @@ export class UserManagementService {
   /**
    * Permite sair da organização (se não for o único dono).
    */
-  async leaveOrganization(userId: string, organizationId: number): Promise<void> {
-      const user = await UserRepository.findByEmail((await UserRepository.findById(userId))?.email || ''); // Re-busca para garantir dados
-      
-      if (!user || user.organizationId !== organizationId) {
-          throw new Error("Usuário não pertence a esta organização.");
-      }
-
-      // Verifica se é owner
-      if (user.organizationRole === 'owner') {
-           // Opcional: Verificar se há outros owners antes de bloquear
-           throw new Error("O dono da organização não pode sair. Transfira a propriedade ou exclua a organização.");
-      }
+  async leaveOrganization(userId: string, organizationIdToLeave: number): Promise<number | null> {
+      // 1. Validações básicas (Garanti que o user existe)
+      const user = await UserRepository.findById(userId);
+      if (!user) throw new Error("Usuário não encontrado.");
 
       const client = await pool.connect();
       try {
           await client.query('BEGIN');
-          
-          // 1. Remove da tabela de membros
-          await client.query(
-              'DELETE FROM organization_members WHERE user_id = $1 AND organization_id = $2', 
-              [userId, organizationId]
+
+          // 2. Verificar se o usuário pertence à organização alvo
+          const memberCheck = await client.query(
+              'SELECT role FROM organization_members WHERE user_id = $1 AND organization_id = $2',
+              [userId, organizationIdToLeave]
           );
 
-          // 2. Remove vínculo principal
+          if (memberCheck.rows.length === 0) {
+              // Se não é membro, assumimos que já foi removido, mas continuamos para ajustar o fallback se necessário
+          } else {
+             // (Opcional) Bloqueio: O Dono não pode abandonar a org sem transferir
+             if (memberCheck.rows[0].role === 'owner') {
+                  throw new Error("O Dono não pode sair da organização. Transfira a propriedade ou exclua a organização.");
+             }
+          }
+
+          // 3. Remover o utilizador da tabela de membros da organização que está saindo
           await client.query(
-              'UPDATE users SET organization_id = NULL WHERE id = $1',
-              [userId]
+              'DELETE FROM organization_members WHERE user_id = $1 AND organization_id = $2', 
+              [userId, organizationIdToLeave]
+          );
+
+          // 4. [LOGICA DE FALLBACK] Encontrar a Organização Pessoal (Padrão)
+          // Procuramos a organização onde o usuário possui o papel de 'owner'.
+          const fallbackOrgRes = await client.query(`
+              SELECT organization_id 
+              FROM organization_members 
+              WHERE user_id = $1 AND role = 'owner'
+              LIMIT 1
+          `, [userId]);
+
+          let newActiveOrgId: number | null = null;
+
+          if (fallbackOrgRes.rows.length > 0) {
+              // Encontrou a organização padrão dele
+              newActiveOrgId = fallbackOrgRes.rows[0].organization_id;
+          } else {
+              // Caso raríssimo: Usuário não é dono de nenhuma org (ex: apagou a conta dele mas foi mantido em outra)
+              // Tenta achar qualquer outra organização onde ele seja membro
+              const anyOrgRes = await client.query(`
+                  SELECT organization_id FROM organization_members 
+                  WHERE user_id = $1 LIMIT 1
+              `, [userId]);
+              
+              if (anyOrgRes.rows.length > 0) {
+                  newActiveOrgId = anyOrgRes.rows[0].organization_id;
+              }
+          }
+
+          // 5. Atualizar o contexto ativo do utilizador (users.organization_id)
+          // Forçamos a atualização para garantir que ele "caia" na organização correta imediatamente.
+          await client.query(
+              'UPDATE users SET organization_id = $1 WHERE id = $2',
+              [newActiveOrgId, userId]
           );
           
           await client.query('COMMIT');
+
+          return newActiveOrgId;
+
       } catch (e) {
           await client.query('ROLLBACK');
           throw e;

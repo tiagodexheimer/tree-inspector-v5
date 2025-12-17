@@ -3,15 +3,15 @@ import pool from "@/lib/db"; // [CORREÇÃO] Importa a conexão correta: 'pool'
 import crypto from 'crypto';
 
 export interface InvitePersistence {
-  id: number;
-  organization_id: number;
-  email: string;
-  token: string;
-  role: 'member' | 'viewer' | 'admin';
-  expires_at: Date;
-  created_at: Date;
-  // Adicionado para o GET de convites pendentes no Dashboard
-  organization_name?: string; 
+    id: number;
+    organization_id: number;
+    email: string;
+    token: string;
+    role: 'member' | 'viewer' | 'admin';
+    expires_at: Date;
+    created_at: Date;
+    // Adicionado para o GET de convites pendentes no Dashboard
+    organization_name?: string;
 }
 
 export const InviteRepository = {
@@ -42,7 +42,7 @@ export const InviteRepository = {
         const result = await pool.query(query, [organizationId]);
         return parseInt(result.rows[0].count, 10);
     },
-    
+
     /**
      * [CORRIGIDO] Lista convites ativos que foram enviados para um email específico.
      */
@@ -54,6 +54,8 @@ export const InviteRepository = {
                 oi.organization_id, 
                 oi.token, 
                 oi.role, 
+                oi.email,
+                oi.created_at,
                 oi.expires_at, 
                 o.name AS organization_name  
             FROM organization_invites oi
@@ -62,7 +64,7 @@ export const InviteRepository = {
             ORDER BY oi.created_at DESC;
         `;
         const result = await pool.query(query, [email]); // [CORREÇÃO] Uso de pool.query
-        
+
         // Mapeia para garantir que o resultado tenha o organization_name
         return result.rows.map(row => ({
             id: row.id,
@@ -70,6 +72,8 @@ export const InviteRepository = {
             organization_name: row.organization_name,
             token: row.token,
             role: row.role,
+            email: row.email,
+            created_at: row.created_at,
             expires_at: row.expires_at,
         }));
     },
@@ -98,7 +102,7 @@ export const InviteRepository = {
         const result = await pool.query(query, [token]);
         return result.rows[0] || null;
     },
-    
+
     /**
      * Busca um convite pelo ID, para verificações de segurança.
      */

@@ -1,10 +1,10 @@
 // src/services/invite-service.ts
 import pool from "@/lib/db";
 import { randomBytes } from "crypto";
-import { OrganizationRole } from "@/types/auth-types";
+import { OrganizationRole, PLAN_LIMITS } from "@/types/auth-types";
 
 export const inviteService = {
-  
+
   // --- GESTÃO ---
 
   async listPendingInvites(organizationId: number) {
@@ -18,37 +18,59 @@ export const inviteService = {
     return res.rows;
   },
 
-  async createInvite(organizationId: number, email: string, role: OrganizationRole) {
+  async createInvite(organizationId: number, email: string, role: OrganizationRole, inviterSystemRole?: string) {
+    if (inviterSystemRole === 'free' || inviterSystemRole === 'free_user') {
+      throw new Error("Seu plano (Free) não permite enviar convites.");
+    }
+
     const client = await pool.connect();
     try {
-        // Validações...
-        const checkQuery = `SELECT id FROM organization_invites WHERE organization_id = $1 AND email = $2 AND expires_at > NOW()`;
-        const checkRes = await client.query(checkQuery, [organizationId, email]);
-        if (checkRes.rowCount && checkRes.rowCount > 0) throw new Error("Convite já pendente.");
+      // 1. Verificação de Limites do Plano Basic
+      if (inviterSystemRole === 'basic') {
+        const membersCountRes = await client.query(
+          'SELECT count(*) FROM organization_members WHERE organization_id = $1',
+          [organizationId]
+        );
+        const invitesCountRes = await client.query(
+          'SELECT count(*) FROM organization_invites WHERE organization_id = $1 AND expires_at > NOW()',
+          [organizationId]
+        );
 
-        const memberCheck = `
+        const totalUsers = Number(membersCountRes.rows[0].count) + Number(invitesCountRes.rows[0].count);
+
+        if (totalUsers >= PLAN_LIMITS.BASIC.MAX_USERS) {
+          throw new Error(`Limite de ${PLAN_LIMITS.BASIC.MAX_USERS} usuários atingido para o plano Basic.`);
+        }
+      }
+
+      // Validações...
+      const checkQuery = `SELECT id FROM organization_invites WHERE organization_id = $1 AND email = $2 AND expires_at > NOW()`;
+      const checkRes = await client.query(checkQuery, [organizationId, email]);
+      if (checkRes.rowCount && checkRes.rowCount > 0) throw new Error("Convite já pendente.");
+
+      const memberCheck = `
             SELECT u.id FROM users u
             JOIN organization_members om ON om.user_id = u.id
             WHERE u.email = $1 AND om.organization_id = $2
         `;
-        const memberRes = await client.query(memberCheck, [email, organizationId]);
-        if (memberRes.rowCount && memberRes.rowCount > 0) throw new Error("Usuário já é membro.");
+      const memberRes = await client.query(memberCheck, [email, organizationId]);
+      if (memberRes.rowCount && memberRes.rowCount > 0) throw new Error("Usuário já é membro.");
 
-        // Criação
-        const token = randomBytes(32).toString("hex");
-        const expiresAt = new Date();
-        expiresAt.setDate(expiresAt.getDate() + 7);
+      // Criação
+      const token = randomBytes(32).toString("hex");
+      const expiresAt = new Date();
+      expiresAt.setDate(expiresAt.getDate() + 7);
 
-        const insertQuery = `
+      const insertQuery = `
           INSERT INTO organization_invites (organization_id, email, token, role, expires_at)
           VALUES ($1, $2, $3, $4, $5)
           RETURNING id, email, role, token, expires_at
         `;
-        
-        const res = await client.query(insertQuery, [organizationId, email, token, role, expiresAt]);
-        return res.rows[0];
+
+      const res = await client.query(insertQuery, [organizationId, email, token, role, expiresAt]);
+      return res.rows[0];
     } finally {
-        client.release();
+      client.release();
     }
   },
 
@@ -59,50 +81,69 @@ export const inviteService = {
   // --- PÚBLICO / ACEITE ---
 
   async getInviteByToken(token: string) {
-      const query = `
+    const query = `
         SELECT i.id, i.email, i.role, i.organization_id, i.expires_at, o.name as "organizationName"
         FROM organization_invites i
         JOIN organizations o ON o.id = i.organization_id
         WHERE i.token = $1 AND i.expires_at > NOW()
       `;
-      const res = await pool.query(query, [token]);
-      return res.rows[0] || null;
+    const res = await pool.query(query, [token]);
+    return res.rows[0] || null;
   },
 
   async acceptInvite(token: string, userId: string) {
-      const client = await pool.connect();
-      try {
-          await client.query('BEGIN');
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
 
-          // Busca com Lock
-          const inviteRes = await client.query(`
-              SELECT * FROM organization_invites WHERE token = $1 AND expires_at > NOW() FOR UPDATE
-          `, [token]);
+      // 1. Validar o convite
+      const inviteRes = await client.query(
+        `SELECT * FROM organization_invites WHERE token = $1 AND expires_at > NOW()`,
+        [token]
+      );
 
-          if (inviteRes.rowCount === 0) throw new Error("Convite inválido ou expirado.");
-          const invite = inviteRes.rows[0];
-
-          // Insere Membro
-          await client.query(`
-              INSERT INTO organization_members (organization_id, user_id, role)
-              VALUES ($1, $2, $3)
-              ON CONFLICT (organization_id, user_id) DO NOTHING
-          `, [invite.organization_id, userId, invite.role]);
-
-          // Atualiza Org Ativa do Usuário
-          await client.query('UPDATE users SET organization_id = $1 WHERE id = $2', [invite.organization_id, userId]);
-
-          // Deleta Convite
-          await client.query('DELETE FROM organization_invites WHERE id = $1', [invite.id]);
-
-          await client.query('COMMIT');
-          return invite.organization_id;
-
-      } catch (error) {
-          await client.query('ROLLBACK');
-          throw error;
-      } finally {
-          client.release();
+      if (inviteRes.rows.length === 0) {
+        throw new Error("Convite inválido ou expirado.");
       }
+
+      const invite = inviteRes.rows[0];
+
+      // 2. Verificar se o usuário já é membro (Idempotência)
+      const memberCheck = await client.query(
+        `SELECT id FROM organization_members WHERE organization_id = $1 AND user_id = $2`,
+        [invite.organization_id, userId]
+      );
+
+      if (memberCheck.rows.length === 0) {
+        // 3. Adicionar o usuário à organização (Tabela de Membros)
+        await client.query(
+          `INSERT INTO organization_members (organization_id, user_id, role) VALUES ($1, $2, $3)`,
+          [invite.organization_id, userId, invite.role || 'member']
+        );
+      }
+
+      // 4. [A CORREÇÃO] Atualizar a Organização Ativa do usuário
+      // Isso faz com que ele "entre" imediatamente na nova organização ao aceitar.
+      await client.query(
+        `UPDATE users SET organization_id = $1 WHERE id = $2`,
+        [invite.organization_id, userId]
+      );
+
+      // 5. Remover o convite usado
+      await client.query(`DELETE FROM organization_invites WHERE id = $1`, [invite.id]);
+
+      await client.query('COMMIT');
+
+      return {
+        success: true,
+        organizationId: invite.organization_id // Retorna o ID para o frontend
+      };
+
+    } catch (error) {
+      await client.query('ROLLBACK');
+      throw error;
+    } finally {
+      client.release();
+    }
   }
 };

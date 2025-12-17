@@ -5,8 +5,7 @@ import { MapContainer, TileLayer, Marker, Popup, Polyline, useMap } from 'react-
 import 'leaflet/dist/leaflet.css';
 import L, { LatLngExpression, LatLngBoundsExpression, DivIcon } from 'leaflet';
 import { DemandaType } from '@/types/demanda';
-
-const DEFAULT_FALLBACK: LatLngExpression = [-29.8533191, -51.1789191];
+import { useGeolocation } from '@/hooks/use-geolocation';
 
 const iconDefault = new L.Icon({
     iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-blue.png',
@@ -59,21 +58,22 @@ interface RouteMapProps {
     endPoint?: { latitude: number; longitude: number } | null;
     modalIsOpen?: boolean;
     viewMode?: 'route' | 'points';
-    // [NOVO] Callback de clique no marcador
     onMarkerClick?: (demanda: DemandaComCoordenadas) => void;
 }
 
-const RouteMap: React.FC<RouteMapProps> = ({ 
+const RouteMap: React.FC<RouteMapProps> = ({
     demandas, path, modalIsOpen = true, startPoint, endPoint, viewMode = 'route', onMarkerClick
 }) => {
+    const { latitude, longitude } = useGeolocation();
+    const fallbackPos: [number, number] = [latitude, longitude];
 
-    const startPos: [number, number] = startPoint 
-        ? [startPoint.latitude, startPoint.longitude] 
-        : (DEFAULT_FALLBACK as [number, number]);
+    const startPos: [number, number] = startPoint
+        ? [startPoint.latitude, startPoint.longitude]
+        : fallbackPos;
 
-    const endPos: [number, number] = endPoint 
-        ? [endPoint.latitude, endPoint.longitude] 
-        : (DEFAULT_FALLBACK as [number, number]);
+    const endPos: [number, number] = endPoint
+        ? [endPoint.latitude, endPoint.longitude]
+        : fallbackPos;
 
     const polylinePositions = useMemo(() => {
         if (viewMode === 'points') return [];
@@ -88,7 +88,7 @@ const RouteMap: React.FC<RouteMapProps> = ({
 
     const demandMarkers = demandas.map((demanda, index) => {
         if (typeof demanda.lat !== 'number' || typeof demanda.lng !== 'number') return null;
-        
+
         let iconToUse;
         if (viewMode === 'points') {
             iconToUse = iconDefault;
@@ -101,18 +101,16 @@ const RouteMap: React.FC<RouteMapProps> = ({
         }
 
         return (
-            <Marker 
-                key={demanda.id} 
-                position={[demanda.lat, demanda.lng]} 
+            <Marker
+                key={demanda.id}
+                position={[demanda.lat, demanda.lng]}
                 icon={iconToUse}
-                // [NOVO] Evento de clique
                 eventHandlers={{
                     click: () => {
                         if (onMarkerClick) onMarkerClick(demanda);
                     }
                 }}
             >
-                {/* Popup opcional (pode remover se quiser que só abra o modal) */}
                 <Popup>
                     <b>{viewMode === 'route' ? `Parada ${index + 1}` : `Demanda #${demanda.id}`}</b><br />
                     {demanda.logradouro}, {demanda.numero}<br />
@@ -133,12 +131,12 @@ const RouteMap: React.FC<RouteMapProps> = ({
         pointsForBounds.push(endPos);
     }
 
-    const bounds: LatLngBoundsExpression = pointsForBounds.length > 0 
-        ? pointsForBounds as any 
-        : [DEFAULT_FALLBACK];
+    const bounds: LatLngBoundsExpression = pointsForBounds.length > 0
+        ? pointsForBounds as any
+        : [fallbackPos];
 
     return (
-        <MapContainer center={DEFAULT_FALLBACK as LatLngExpression} zoom={13} style={{ height: '100%', width: '100%', borderRadius: '8px' }}>
+        <MapContainer center={fallbackPos as LatLngExpression} zoom={13} style={{ height: '100%', width: '100%', borderRadius: '8px' }}>
             <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" attribution='&copy; OpenStreetMap' />
 
             {viewMode === 'route' && (
@@ -149,7 +147,7 @@ const RouteMap: React.FC<RouteMapProps> = ({
             )}
 
             {demandMarkers}
-            
+
             {viewMode === 'route' && polylinePositions.length > 0 && (
                 <Polyline positions={polylinePositions as LatLngExpression[]} color="blue" />
             )}

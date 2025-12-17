@@ -2,33 +2,33 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
 import { useSession } from 'next-auth/react';
-import { 
-  Container, Typography, Box, Alert, CircularProgress, Divider, Paper 
+import {
+  Container, Typography, Box, Alert, CircularProgress, Divider, Paper
 } from '@mui/material';
 
 // Componentes da UI
 import { OrgNameEditor } from '@/components/Organizacao/OrgNameEditor';
-import { InviteManagement } from '@/components/Organizacao/InviteManagement'; 
-import { OrganizationMembersList } from '@/components/Organizacao/OrganizationMembersList'; 
+import { InviteManagement } from '@/components/Organizacao/InviteManagement';
+import { OrganizationMembersList } from '@/components/Organizacao/OrganizationMembersList';
 
 // Tipos
-import { OrganizationRole, ActiveInvite, OrganizationMember } from '@/types/auth-types'; 
+import { OrganizationRole, ActiveInvite, OrganizationMember } from '@/types/auth-types';
 
 export default function GerenciarOrganizacaoPage() {
   const { data: session, status, update } = useSession();
-  
+
   // Inicializa como arrays vazios para evitar erros de .map undefined
   const [members, setMembers] = useState<OrganizationMember[]>([]);
   const [invites, setInvites] = useState<ActiveInvite[]>([]);
-  
+
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   // 1. Extração de Dados da Sessão
   const sessionOrgRole: OrganizationRole = (session?.user as any)?.organizationRole || 'viewer';
   const userPlanType = (session?.user as any)?.planType || 'free';
-  const userRole = session?.user?.role || 'free'; 
-  
+  const userRole = session?.user?.role || 'free';
+
   const organizationId = session?.user?.organizationId;
   const organizationName = (session?.user as any)?.organizationName || 'Minha Organização';
 
@@ -37,34 +37,34 @@ export default function GerenciarOrganizacaoPage() {
   // 2. Busca de Dados
   const fetchManagementData = useCallback(async () => {
     if (!organizationId) return;
-    
+
     setIsLoading(true);
     setError(null);
-    
+
     try {
       // A) Buscar Membros
       const membersRes = await fetch('/api/gerenciar/organizacao/membros');
       if (!membersRes.ok) {
-          // Se falhar silenciosamente, apenas loga, mas não quebra a tela toda se possível
-          console.error("Falha ao carregar membros");
+        // Se falhar silenciosamente, apenas loga, mas não quebra a tela toda se possível
+        console.error("Falha ao carregar membros");
       } else {
-          const membersData = await membersRes.json();
-          if (Array.isArray(membersData)) setMembers(membersData);
+        const membersData = await membersRes.json();
+        if (Array.isArray(membersData)) setMembers(membersData);
       }
 
       // B) Buscar Convites (Apenas se tiver permissão)
       if (canManageOrgDetails) {
         const invitesRes = await fetch('/api/gerenciar/convites');
         if (invitesRes.ok) {
-           const invitesData = await invitesRes.json();
-           
-           // [CORREÇÃO DE SEGURANÇA] Verifica se é array
-           if (Array.isArray(invitesData)) {
-               setInvites(invitesData);
-           } else {
-               console.warn("Formato inválido de convites:", invitesData);
-               setInvites([]); 
-           }
+          const invitesData = await invitesRes.json();
+
+          // [CORREÇÃO DE SEGURANÇA] Verifica se é array
+          if (Array.isArray(invitesData)) {
+            setInvites(invitesData);
+          } else {
+            console.warn("Formato inválido de convites:", invitesData);
+            setInvites([]);
+          }
         }
       }
     } catch (err: any) {
@@ -79,7 +79,7 @@ export default function GerenciarOrganizacaoPage() {
     if (status === 'authenticated' && organizationId) {
       fetchManagementData();
     } else if (status === 'authenticated' && !organizationId) {
-      setIsLoading(false); 
+      setIsLoading(false);
     }
   }, [status, organizationId, fetchManagementData]);
 
@@ -95,15 +95,15 @@ export default function GerenciarOrganizacaoPage() {
 
       if (!res.ok) throw new Error("Falha ao atualizar nome.");
       await update({ organizationName: newName });
-      
+
     } catch (err: any) {
       throw new Error(err.message);
     }
   };
-  
+
   const handleLeaveSuccess = async () => {
-      setMembers([]);
-      setInvites([]);
+    setMembers([]);
+    setInvites([]);
   };
 
   // 4. Renderização
@@ -142,42 +142,43 @@ export default function GerenciarOrganizacaoPage() {
         </Alert>
       )}
 
-      <OrgNameEditor 
+      <OrgNameEditor
         initialName={organizationName}
         orgId={organizationId}
-        userRole={userRole}           
-        orgRole={sessionOrgRole}      
-        canEdit={canManageOrgDetails} 
+        userRole={userRole}
+        orgRole={sessionOrgRole}
+        canEdit={canManageOrgDetails}
         onOrgUpdate={handleUpdateOrgName}
         onLeaveSuccess={handleLeaveSuccess}
       />
 
       {/* Gestão de Convites */}
       {canManageOrgDetails ? (
-        <InviteManagement 
+        <InviteManagement
           organizationId={organizationId}
           invitesList={invites}
           userPlanType={userPlanType}
-          userRole={userRole} 
-          fetchData={fetchManagementData} 
+          userRole={userRole}
+          fetchData={fetchManagementData}
           setError={(msg) => setError(msg)}
+          membersCount={members.length}
         />
       ) : (
         <Paper sx={{ p: 3, mb: 4, bgcolor: '#f5f5f5' }}>
-            <Typography variant="body2" color="text.secondary" align="center">
-                Somente Administradores ou o Dono da organização podem gerenciar convites.
-            </Typography>
+          <Typography variant="body2" color="text.secondary" align="center">
+            Somente Administradores ou o Dono da organização podem gerenciar convites.
+          </Typography>
         </Paper>
       )}
 
       <Divider sx={{ my: 4 }} />
 
       {/* Lista de Membros */}
-      <OrganizationMembersList 
+      <OrganizationMembersList
         members={members}
         currentUserId={session?.user?.id}
         currentUserOrgRole={sessionOrgRole}
-        onMemberUpdate={fetchManagementData} 
+        onMemberUpdate={fetchManagementData}
       />
 
     </Container>

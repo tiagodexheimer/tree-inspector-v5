@@ -14,7 +14,8 @@ export interface CampoOpcao {
 export type CampoTipo =
   | 'text'
   | 'textarea'
-  | 'checkbox'
+  | 'checkbox' // Checkbox único (sim/não)
+  | 'checkbox_group' // [NOVO] Múltipla escolha
   | 'select'
   | 'radio'
   | 'switch'
@@ -22,7 +23,10 @@ export type CampoTipo =
   | 'email'
   | 'number'
   | 'date'
-  | 'file'; // [NOVO] Adicionado tipo 'file' para suportar o Formulário Padrão
+  | 'file'
+  | 'header'    // [NOVO] Título de Seção
+  | 'separator' // [NOVO] Linha divisória
+  | 'tree_species'; // [NOVO] Autocomplete de Espécies
 
 // Propriedades comuns a todos os campos
 interface CampoBase {
@@ -42,29 +46,38 @@ interface CampoTexto extends CampoBase {
 
 interface CampoTextArea extends CampoBase {
   type: 'textarea';
-  rows?: number; // Específico de textarea
+  rows?: number;
 }
 
 interface CampoComOpcoes extends CampoBase {
-  type: 'select' | 'radio';
-  options: CampoOpcao[]; // Obrigatório para estes tipos
+  type: 'select' | 'radio' | 'checkbox_group'; // [UPDATE] Adicionado checkbox_group
+  options: CampoOpcao[];
 }
 
 interface CampoBooleano extends CampoBase {
   type: 'checkbox' | 'switch';
-  defaultValue?: boolean; // Específico para toggles
+  defaultValue?: boolean;
 }
 
-// [NOVO] Interface para Campo File (Fotos, Documentos, etc.)
 interface CampoFile extends CampoBase {
-    type: 'file';
-    max_files?: number;
-    accept?: string; // Ex: 'image/*', '.pdf'
+  type: 'file';
+  max_files?: number;
+  accept?: string;
+}
+
+// [NOVO] Campos de Layout (Visual)
+interface CampoLayout extends CampoBase {
+  type: 'header' | 'separator';
+  // Headers e Separators usam 'label' como texto, ou ignoram
+}
+
+interface CampoTreeSpecies extends CampoBase {
+  type: 'tree_species';
 }
 
 
 // União Discriminada: O tipo final é uma união destas interfaces
-export type CampoDef = CampoTexto | CampoTextArea | CampoComOpcoes | CampoBooleano | CampoFile;
+export type CampoDef = CampoTexto | CampoTextArea | CampoComOpcoes | CampoBooleano | CampoFile | CampoLayout | CampoTreeSpecies;
 
 
 // Trazendo os tipos que estavam perdidos em demanda.ts para cá (Contexto correto)
@@ -93,32 +106,32 @@ export type LaudoForm = {
  * Interface de Persistência: Representa a linha da tabela 'formularios'.
  */
 export interface FormulariosPersistence {
-    id: number;
-    organization_id: number;
-    nome: string;
-    descricao: string | null;
-    // Armazenado como string JSON no DB
-    definicao_campos: string; 
-    created_at: Date;
-    updated_at: Date;
+  id: number;
+  organization_id: number;
+  nome: string;
+  descricao: string | null;
+  // Armazenado como string JSON no DB
+  definicao_campos: string;
+  created_at: Date;
+  updated_at: Date;
 }
 
 /**
  * DTO para Criação de Formulário (Usado pelo Service).
  */
 export interface CreateFormularioDTO {
-    organization_id: number;
-    nome: string;
-    descricao?: string | null;
-    // Deve ser uma string JSON válida de CampoDef[]
-    definicao_campos: string; 
+  organization_id: number;
+  nome: string;
+  descricao?: string | null;
+  // Deve ser uma string JSON válida de CampoDef[]
+  definicao_campos: string;
 }
 
 /**
  * DTO para Atualização de Formulário.
  */
 export interface UpdateFormularioDTO {
-    nome?: string;
-    descricao?: string | null;
-    definicao_campos?: string;
+  nome?: string;
+  descricao?: string | null;
+  definicao_campos?: string;
 }

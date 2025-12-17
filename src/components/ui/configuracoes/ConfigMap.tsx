@@ -55,7 +55,7 @@ const MapController = ({ inicio, fim }: { inicio: LatLngTuple, fim: LatLngTuple 
             // Só fim, centraliza lá
             map.setView(fim, 14);
         }
-        
+
         // Força redesenho para evitar bugs visuais de tamanho
         map.invalidateSize();
     }, [map, inicio, fim]);
@@ -67,10 +67,15 @@ const MapController = ({ inicio, fim }: { inicio: LatLngTuple, fim: LatLngTuple 
 interface Coord { lat: number; lng: number }
 interface Props { inicio: Coord; fim: Coord; }
 
+import { useGeolocation } from '@/hooks/use-geolocation';
+
 // --- COMPONENTE PRINCIPAL ---
 export default function ConfigMap({ inicio, fim }: Props) {
-    // Coordenadas padrão (Esteio/RS) para inicialização se tudo for 0
-    const defaultCenter: LatLngTuple = [-29.8533, -51.1789];
+    // Busca localização do usuário (SP se falhar)
+    const { latitude, longitude } = useGeolocation();
+
+    // Coordenadas dinâmicas
+    const defaultCenter: LatLngTuple = [latitude, longitude];
 
     // Converte objeto {lat, lng} para tupla [lat, lng] que o Leaflet prefere
     const posInicio: LatLngTuple = [inicio.lat, inicio.lng];
@@ -81,9 +86,9 @@ export default function ConfigMap({ inicio, fim }: Props) {
 
     return (
         <Box sx={{ height: '480px', width: '640px', minHeight: '400px', border: '1px solid #ddd', borderRadius: 2, overflow: 'hidden' }}>
-            <MapContainer 
-                center={hasInicio ? posInicio : defaultCenter} 
-                zoom={13} 
+            <MapContainer
+                center={hasInicio ? posInicio : defaultCenter}
+                zoom={13}
                 style={{ height: '100%', width: '100%' }}
             >
                 <TileLayer

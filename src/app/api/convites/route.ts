@@ -20,7 +20,7 @@ async function checkInvitePermission(isPost: boolean) {
   const organizationId = Number(session.user.organizationId);
 
   // Para POST (Criação de convite): O usuário Free não pode enviar convites.
-  if (isPost && userRole === "free") {
+  if (isPost && (userRole === "free" || userRole === "free_user")) {
     return {
       authorized: false,
       status: 403,
@@ -42,7 +42,11 @@ export async function GET() {
   }
 
   try {
-    const activeInvites = await inviteService.listActiveInvites(
+    if (!permission.organizationId) {
+      return NextResponse.json({ message: "Organização não definida." }, { status: 400 });
+    }
+
+    const activeInvites = await inviteService.listPendingInvites(
       permission.organizationId
     );
 
@@ -70,6 +74,10 @@ export async function POST(request: NextRequest) {
     );
   }
 
+  if (!permission.organizationId) {
+    return NextResponse.json({ message: "Organização não definida." }, { status: 400 });
+  }
+
   const organizationId = permission.organizationId;
   const inviterRole = permission.userRole;
 
@@ -84,12 +92,12 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const newInvite = await inviteService.createInvite({
+    const newInvite = await inviteService.createInvite(
       organizationId,
-      inviterRole,
       email,
       role,
-    });
+      inviterRole
+    );
 
     const baseUrl = request.nextUrl.origin;
     const acceptanceLink = `${baseUrl}/convite/${newInvite.token}`;
@@ -98,7 +106,7 @@ export async function POST(request: NextRequest) {
       {
         message: "Convite criado com sucesso. (LINK GERADO ABAIXO)",
         invite: newInvite,
-        acceptanceLink: acceptanceLink, 
+        acceptanceLink: acceptanceLink,
       },
       { status: 201 }
     );
