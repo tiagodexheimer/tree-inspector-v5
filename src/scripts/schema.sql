@@ -320,7 +320,23 @@ FOR EACH ROW
 EXECUTE FUNCTION trigger_sync_org_owner_member();
 
 
--- 9. SEEDING INICIAL DE DADOS GLOBAIS
+
+-- 9. CATÁLOGO DE ESPÉCIES
+-- ==========================================
+CREATE TABLE IF NOT EXISTS especies (
+    id SERIAL PRIMARY KEY,
+    nome_comum VARCHAR(255) NOT NULL,
+    nome_cientifico VARCHAR(255) NOT NULL,
+    familia VARCHAR(255),
+    origem VARCHAR(255),
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_especies_nome_comum ON especies(nome_comum);
+CREATE INDEX IF NOT EXISTS idx_especies_nome_cientifico ON especies(nome_cientifico);
+
+
+-- 10. SEEDING INICIAL DE DADOS GLOBAIS
 -- ==========================================
 
 DO $$
