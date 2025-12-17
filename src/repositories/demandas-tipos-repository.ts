@@ -64,6 +64,31 @@ export const DemandasTiposRepository = {
   },
 
   /**
+   * [NOVO] Retorna APENAS Tipos Customizados da Organização.
+   */
+  async findCustomOnly(
+    organizationId: number
+  ): Promise<TipoDemandaPersistence[]> {
+    try {
+      const query = `
+        SELECT ${BASE_FIELDS}
+        FROM demandas_tipos dt
+        ${JOIN_FORMULARIO}
+        WHERE dt.organization_id = $1
+        ORDER BY dt.nome
+      `;
+      const result = await pool.query(query, [organizationId]);
+      return result.rows as TipoDemandaPersistence[];
+    } catch (error) {
+      console.error(
+        "Erro no DemandasTiposRepository.findCustomOnly:",
+        error
+      );
+      throw new Error("Falha ao buscar tipos de demanda customizados.");
+    }
+  },
+
+  /**
    * [NOVO] Lista Tipos Globais (Padrão) e não-customizados da Organização. Usado por planos Free/Basic.
    */
   async findGlobalAndDefault(
@@ -97,11 +122,12 @@ export const DemandasTiposRepository = {
   ): Promise<TipoDemandaPersistence | null> {
     try {
       const query = `
-        SELECT id, nome, organization_id, is_custom, id_formulario
-        FROM demandas_tipos
-        WHERE nome = $1
-        AND (organization_id = $2 OR organization_id IS NULL)
-        ORDER BY organization_id DESC
+        SELECT dt.id, dt.nome, dt.organization_id, dt.is_custom, dtf.id_formulario
+        FROM demandas_tipos dt
+        LEFT JOIN demandas_tipos_formularios dtf ON dt.id = dtf.id_tipo_demanda
+        WHERE dt.nome = $1
+        AND (dt.organization_id = $2 OR dt.organization_id IS NULL)
+        ORDER BY dt.organization_id DESC NULLS LAST
         LIMIT 1
       `;
       // A cláusula ORDER BY DESC garante que, se houver um customizado E um global com o mesmo nome,
@@ -275,4 +301,33 @@ export const DemandasTiposRepository = {
       throw new Error("Falha ao deletar tipo.");
     }
   },
+
+  /**
+   * [NOVO] Configura o vínculo entre um Tipo de Demanda e um Formulário diretamente.
+   * Usado pelo FormulariosService ao criar/editar um formulário.
+   */
+  async setFormularioLink(
+    tipoId: number,
+    formId: number | null
+  ): Promise<void> {
+    try {
+      if (formId) {
+        // Upsert do vínculo
+        const query = `
+                INSERT INTO demandas_tipos_formularios (id_tipo_demanda, id_formulario)
+                VALUES ($1, $2)
+                ON CONFLICT (id_tipo_demanda) 
+                DO UPDATE SET id_formulario = $2
+            `;
+        await pool.query(query, [tipoId, formId]);
+      } else {
+        // Remover vínculo
+        const query = `DELETE FROM demandas_tipos_formularios WHERE id_tipo_demanda = $1`;
+        await pool.query(query, [tipoId]);
+      }
+    } catch (error) {
+      console.error("Erro no DemandasTiposRepository.setFormularioLink:", error);
+      throw new Error("Falha ao vincular formulário ao tipo.");
+    }
+  }
 };

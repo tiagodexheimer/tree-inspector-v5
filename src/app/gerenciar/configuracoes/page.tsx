@@ -2,8 +2,8 @@
 'use client';
 
 import React, { useEffect, useState } from 'react';
-import { 
-    Box, Typography, Paper, TextField, Button, Divider, Alert, CircularProgress, Stack, IconButton, InputAdornment, Chip 
+import {
+    Box, Typography, Paper, TextField, Button, Divider, Alert, CircularProgress, Stack, IconButton, InputAdornment, Chip
 } from '@mui/material';
 import SaveIcon from '@mui/icons-material/Save';
 import SearchIcon from '@mui/icons-material/Search';
@@ -53,14 +53,17 @@ export default function ConfiguracoesPage() {
             .then(res => res.json())
             .then(data => {
                 const safeData = data || {};
-                
+                const rota = safeData.configuracaoRota || {}; // [FIX] Extract from nested object
+
                 setConfig({
-                    inicio: safeData.inicio || { lat: 0, lng: 0 },
-                    fim: safeData.fim || { lat: 0, lng: 0 }
+                    inicio: rota.inicio || { lat: 0, lng: 0 },
+                    fim: rota.fim || { lat: 0, lng: 0 }
                 });
 
-                setOrgName(safeData.orgName || 'Minha Organização');
-                setPlanType(safeData.planType || 'Free');
+                // Organization data comes from safeData.organization
+                const orgData = safeData.organization || {};
+                setOrgName(orgData.name || 'Minha Organização');
+                setPlanType(orgData.plan_type || 'Free');
             })
             .catch(() => setMessage({ type: 'error', text: 'Erro ao carregar configurações.' }))
             .finally(() => setLoading(false));
@@ -165,13 +168,13 @@ export default function ConfiguracoesPage() {
                 method: 'PUT',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
-                    ...config,
-                    orgName 
+                    configuracaoRota: config, // [FIX] Wraps in expected property
+                    orgName // Sent but currently unused by backend
                 })
             });
 
             if (!res.ok) throw new Error('Falha ao salvar');
-            
+
             setMessage({ type: 'success', text: 'Configurações salvas com sucesso!' });
         } catch (error) {
             setMessage({ type: 'error', text: 'Erro ao salvar.' });
@@ -181,7 +184,7 @@ export default function ConfiguracoesPage() {
     };
 
     if (loading) return <Box p={4} display="flex" justifyContent="center"><CircularProgress /></Box>;
-    
+
     const isFreePlan = planType === 'Free';
 
     return (
@@ -203,7 +206,7 @@ export default function ConfiguracoesPage() {
                         <GroupIcon /> Gerenciamento de Membros
                     </Typography>
                 </Box>
-                
+
                 <Typography variant="body2" color="text.secondary" paragraph>
                     Gerencie os membros da sua organização e envie convites por e-mail, de acordo com o seu plano atual ({planType}).
                 </Typography>
@@ -214,7 +217,7 @@ export default function ConfiguracoesPage() {
                     </Button>
                 </Link>
             </Paper>
-            
+
             {/* SEÇÃO DA ORGANIZAÇÃO (MANTIDA) */}
             <Paper elevation={3} sx={{ p: 4, mb: 4, borderLeft: '6px solid #1976d2' }}>
                 {/* ... (Conteúdo da Organização) ... */}
@@ -222,15 +225,15 @@ export default function ConfiguracoesPage() {
                     <Typography variant="h6" color="primary" sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                         <BusinessIcon /> Dados da Organização
                     </Typography>
-                    <Chip 
-                        label={planType} 
-                        color={isFreePlan ? 'default' : 'success'} 
+                    <Chip
+                        label={planType}
+                        color={isFreePlan ? 'default' : 'success'}
                         variant={isFreePlan ? 'outlined' : 'filled'}
                         size="small"
                         sx={{ fontWeight: 'bold' }}
                     />
                 </Box>
-                
+
                 <Typography variant="body2" color="text.secondary" paragraph>
                     Identificação da sua empresa nos relatórios e sistema.
                 </Typography>
@@ -262,7 +265,7 @@ export default function ConfiguracoesPage() {
 
                 <Divider sx={{ my: 3 }} />
 
-                <Box 
+                <Box
                     sx={{
                         display: 'flex',
                         flexDirection: { xs: 'column', md: 'row' },
@@ -272,21 +275,21 @@ export default function ConfiguracoesPage() {
                     {/* COLUNA DA ESQUERDA: Formulários */}
                     <Box sx={{ flex: { xs: '1 1 100%', md: '0 0 40%' } }}>
                         <Stack spacing={5}>
-                            
+
                             {/* BLOCO INÍCIO */}
                             <Box sx={{ p: 2, bgcolor: '#f9f9f9', borderRadius: 2, border: '1px solid #eee' }}>
                                 <Typography variant="subtitle1" fontWeight="bold" gutterBottom sx={{ display: 'flex', alignItems: 'center', color: 'success.main', mb: 2 }}>
                                     📍 Ponto de Início (Garagem)
                                 </Typography>
                                 <Stack direction="row" spacing={1} mb={1}>
-                                    <TextField 
+                                    <TextField
                                         label="CEP" size="small" sx={{ width: '130px' }}
                                         value={endInicio.cep}
                                         onChange={(e) => handleChangeAddress('inicio', 'cep', e.target.value)}
                                         onBlur={() => buscarCep('inicio')}
                                         placeholder="00000-000"
                                     />
-                                    <TextField 
+                                    <TextField
                                         label="Número" size="small" fullWidth
                                         value={endInicio.numero}
                                         onChange={(e) => handleChangeAddress('inicio', 'numero', e.target.value)}
@@ -322,14 +325,14 @@ export default function ConfiguracoesPage() {
                                     🏁 Ponto de Chegada (Retorno)
                                 </Typography>
                                 <Stack direction="row" spacing={1} mb={1}>
-                                    <TextField 
+                                    <TextField
                                         label="CEP" size="small" sx={{ width: '130px' }}
                                         value={endFim.cep}
                                         onChange={(e) => handleChangeAddress('fim', 'cep', e.target.value)}
                                         onBlur={() => buscarCep('fim')}
                                         placeholder="00000-000"
                                     />
-                                    <TextField 
+                                    <TextField
                                         label="Número" size="small" fullWidth
                                         value={endFim.numero}
                                         onChange={(e) => handleChangeAddress('fim', 'numero', e.target.value)}
@@ -368,10 +371,10 @@ export default function ConfiguracoesPage() {
                 </Box>
 
                 <Box mt={4} display="flex" justifyContent="flex-start">
-                    <Button 
-                        variant="contained" 
+                    <Button
+                        variant="contained"
                         size="large"
-                        startIcon={saving ? <CircularProgress size={20} color="inherit"/> : <SaveIcon />}
+                        startIcon={saving ? <CircularProgress size={20} color="inherit" /> : <SaveIcon />}
                         onClick={handleSave}
                         disabled={saving}
                         sx={{ minWidth: 200 }}

@@ -8,17 +8,23 @@ import Sidebar from "@/components/ui/layout/Sidebar";
 import Header from "@/components/ui/layout/Header";
 import Body from "@/components/ui/layout/Body";
 import { SessionProvider } from "next-auth/react";
+import { usePathname } from "next/navigation";
 import { useState, useCallback } from "react";
 import { Box } from "@mui/material";
 
 const inter = Inter({ subsets: ["latin"] });
+
+// ...
 
 export default function RootLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
+  const pathname = usePathname();
   const [mobileOpen, setMobileOpen] = useState(false);
+
+  const isPublicPage = pathname === '/login' || pathname === '/signup' || pathname.startsWith('/convite');
 
   const handleDrawerToggle = useCallback(() => {
     setMobileOpen((prev) => !prev);
@@ -26,22 +32,10 @@ export default function RootLayout({
 
   return (
     <html lang="pt-BR">
-      <head>
-        {/* Mobile-first necessário */}
-        <meta
-          name="viewport"
-          content="width=device-width, initial-scale=1, maximum-scale=1"
-        />
-      </head>
-
+      {/* ... */}
       <body className={inter.className}>
         <SessionProvider>
           <ThemeRegistry>
-            {/*
-              MOBILE-FIRST:
-              - display flex, coluna no mobile
-              - linha no desktop
-            */}
             <Box
               sx={{
                 display: "flex",
@@ -51,14 +45,16 @@ export default function RootLayout({
                 overflowX: "hidden",
               }}
             >
-              {/* HEADER FIXO MOBILE */}
-              <Header onMenuClick={handleDrawerToggle} />
+              {/* HEADER FIXO MOBILE - Só exibe se não for página pública */}
+              {!isPublicPage && <Header onMenuClick={handleDrawerToggle} />}
 
-              {/* SIDEBAR MOBILE/DESKTOP */}
-              <Sidebar
-                mobileOpen={mobileOpen}
-                handleDrawerToggle={handleDrawerToggle}
-              />
+              {/* SIDEBAR MOBILE/DESKTOP - Só exibe se não for página pública */}
+              {!isPublicPage && (
+                <Sidebar
+                  mobileOpen={mobileOpen}
+                  handleDrawerToggle={handleDrawerToggle}
+                />
+              )}
 
               {/* CONTEÚDO PRINCIPAL */}
               <Body>{children}</Body>
@@ -69,3 +65,4 @@ export default function RootLayout({
     </html>
   );
 }
+

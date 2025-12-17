@@ -23,7 +23,7 @@ export const RelatoriosRepository = {
       -- Ordena pelo ID para o DISTINCT funcionar, depois pela data
       ORDER BY v.id, v.data_realizacao DESC
     `;
-    
+
     try {
       const result = await pool.query(query);
       return result.rows;
@@ -44,12 +44,27 @@ export const RelatoriosRepository = {
         d.tipo_demanda,
         d.logradouro, d.numero, d.bairro, d.cidade, d.uf, d.cep,
         d.descricao as descricao_demanda,
-        d.nome_solicitante
+        d.nome_solicitante,
+        d.organization_id
       FROM vistorias_realizadas v
       JOIN demandas d ON v.demanda_id = d.id
       WHERE v.id = $1
     `;
     const result = await pool.query(query, [id]);
     return result.rows[0] || null;
+  },
+
+  async delete(id: number, organizationId: number) {
+    // Verifica ownership através da demanda associada
+    const query = `
+      DELETE FROM vistorias_realizadas v
+      USING demandas d
+      WHERE v.demanda_id = d.id
+      AND v.id = $1
+      AND d.organization_id = $2
+      RETURNING v.id
+    `;
+    const result = await pool.query(query, [id, organizationId]);
+    return (result.rowCount ?? 0) > 0;
   }
 };

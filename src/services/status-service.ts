@@ -1,18 +1,35 @@
 // src/services/status-service.ts
 
 import { StatusRepository, StatusPersistence, CreateStatusDTO, UpdateStatusDTO } from '@/repositories/status-repository';
-import { UserRole, getLimitsByRole } from '@/types/auth-types'; 
+import { UserRole, getLimitsByRole } from '@/types/auth-types';
+
+import { CustomizationService } from './customization-service';
 
 export class StatusService {
 
     async listStatus(organizationId: number, organizationPlanType: UserRole): Promise<StatusPersistence[]> {
         const limits = getLimitsByRole(organizationPlanType);
-        
+
+        // NOVO: Verificar se a organização usa esquema customizado (flag no banco ou via service)
+        // A estratégia de 'Fork' isola os dados.
+        // Se o usuário é Pro, precisamos saber se ele JÁ ATIVOU o custom schema.
+
+        const { usesCustomSchema } = await CustomizationService.getCustomizationStatus(organizationId);
+
+
+        if (usesCustomSchema) {
+            // Se ativou personalização, ele vê APENAS os seus (que incluem as cópias dos globais)
+            return await StatusRepository.findCustomOnly(organizationId);
+        }
+
         if (!limits.ALLOW_CUSTOM_STATUS) {
             // Free/Basic: Vê apenas Globais/Padrão
             return await StatusRepository.findGlobalAndDefault(organizationId);
         }
-        // Pro/Premium: Vê Globais/Padrão E Customizados
+
+        // Pro/Premium (Mas NÃO ativou personalização ainda):
+        // Vê Globais + Customizados (Mix, comportamento antigo)
+        // OU forçamos ele a ver o padrão até ativar. Vamos manter o mix por compatibilidade ou coerência.
         return await StatusRepository.findGlobalAndCustom(organizationId);
     }
 
@@ -25,28 +42,28 @@ export class StatusService {
         organizationId: number,
         organizationPlanType: UserRole // O Plano é a única fonte de permissão
     ): Promise<StatusPersistence> {
-        
+
         if (!input.nome || !input.cor) {
             throw new Error("Nome e cor do Status são obrigatórios.");
         }
-        
+
         const limits = getLimitsByRole(organizationPlanType);
-        
+
         // 1. REGRA DE NEGÓCIO: Checa se o Plano da Organização permite customização
         if (!limits.ALLOW_CUSTOM_STATUS) {
             throw new Error("O Plano atual da organização não permite criar Status personalizados.");
         }
-        
+
         // 2. Criação: Status criado via API é sempre customizado e pertence à ORG
         const payload = {
             ...input,
             organization_id: organizationId,
-            is_custom: true, 
-            is_default_global: false, 
+            is_custom: true,
+            is_default_global: false,
         };
-        
+
         // ... (Verificação de duplicidade por nome - esta lógica precisa ser implementada no repositório com o organizationId)
-        
+
         return await StatusRepository.create(payload);
     }
 
@@ -60,7 +77,7 @@ export class StatusService {
         organizationId: number,
         organizationPlanType: UserRole // O Plano é a única fonte de permissão
     ): Promise<StatusPersistence> {
-        
+
         if (!input.nome && !input.cor) {
             const existing = await StatusRepository.findById(id);
             if (!existing) throw new Error("Status não encontrado.");
@@ -76,28 +93,28 @@ export class StatusService {
         const limits = getLimitsByRole(organizationPlanType);
 
         // 1. REGRA DE NEGÓCIO: Checagem de Edição (Hierarquia)
-        
+
         // A) Status Padrão Global NUNCA pode ser editado
         if (existingStatus.is_default_global) {
-             throw new Error("Status padrão global do sistema não podem ser editados.");
+            throw new Error("Status padrão global do sistema não podem ser editados.");
         }
-        
+
         // B) Status Customizado: Requer Plano Pro/Premium
         if (existingStatus.is_custom) {
             if (!limits.ALLOW_CUSTOM_STATUS) {
                 throw new Error("O Plano atual não permite editar Status personalizados.");
             }
         }
-        
+
         // 2. Checagem de propriedade: Permite editar APENAS o que pertence à ORG
         if (existingStatus.organization_id !== organizationId) {
-             // Esta checagem é fundamental para a segurança multi-tenant em customizados
-             throw new Error("Você não tem permissão para editar este status (Não pertence à sua organização).");
+            // Esta checagem é fundamental para a segurança multi-tenant em customizados
+            throw new Error("Você não tem permissão para editar este status (Não pertence à sua organização).");
         }
-        
+
         // 3. Atualização (o repositório finaliza a operação)
-        const updated = await StatusRepository.update(id, organizationId, input); 
-        
+        const updated = await StatusRepository.update(id, organizationId, input);
+
         if (!updated) throw new Error("Erro ao atualizar o status. Status não encontrado ou não pertence à organização.");
         return updated;
     }
@@ -111,36 +128,36 @@ export class StatusService {
         organizationId: number,
         organizationPlanType: UserRole // O Plano é a única fonte de permissão
     ): Promise<void> {
-        
+
         const existingStatus = await StatusRepository.findById(id);
         if (!existingStatus) {
             throw new Error("Status não encontrado.");
         }
-        
+
         const limits = getLimitsByRole(organizationPlanType);
 
         // 1. REGRA DE NEGÓCIO: Permissão para Exclusão
 
         // A) Status Padrão Global NUNCA pode ser excluído
         if (existingStatus.is_default_global) {
-             throw new Error("Status padrão global do sistema não podem ser excluídos.");
+            throw new Error("Status padrão global do sistema não podem ser excluídos.");
         }
-        
+
         // B) Status Customizado: Requer Plano Pro/Premium
         if (existingStatus.is_custom) {
-             if (!limits.ALLOW_CUSTOM_STATUS) {
-                 throw new Error("O Plano atual não permite excluir Status personalizados.");
-             }
+            if (!limits.ALLOW_CUSTOM_STATUS) {
+                throw new Error("O Plano atual não permite excluir Status personalizados.");
+            }
         }
-        
+
         // 2. Checagem de propriedade: Permite deletar APENAS o que pertence à ORG
         if (existingStatus.organization_id !== organizationId) {
-             throw new Error("Você não tem permissão para excluir este status (Não pertence à sua organização).");
+            throw new Error("Você não tem permissão para excluir este status (Não pertence à sua organização).");
         }
-        
+
         // 3. Checagem de uso
-        await StatusRepository.countUsageById(id); 
-        
+        await StatusRepository.countUsageById(id);
+
         // 4. Deleção (o Repositório finaliza a operação)
         await StatusRepository.delete(id, organizationId);
     }
