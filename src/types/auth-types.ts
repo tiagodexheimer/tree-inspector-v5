@@ -1,7 +1,7 @@
 // src/types/auth-types.ts
 
 // [MANTIDO] Tipos existentes
-export type UserRole = "admin" | "free" | "basic" | "pro" | "premium";
+export type UserRole = "admin" | "free" | "basic" | "pro" | "premium" | "paid_user" | "free_user" | "pro_user" | "premium_user";
 export type PlanType = "free" | "basic" | "pro" | "premium";
 
 // [NOVO] Papéis dentro da organização
@@ -32,24 +32,24 @@ export const PLAN_LIMITS = {
         MAX_ROTAS: 1,
         MAX_USERS: 1,
         MAX_FORMULARIOS: 1,
-        ALLOW_CUSTOM_STATUS: false, 
+        ALLOW_CUSTOM_STATUS: false,
         ALLOW_CUSTOM_TYPES: false,
     },
     BASIC: {
-        MAX_DEMANDS: 500, 
+        MAX_DEMANDS: 500,
         MAX_ROTAS: 5,
         MAX_USERS: 5,
-        MAX_FORMULARIOS: 2, 
-        ALLOW_CUSTOM_STATUS: false, 
+        MAX_FORMULARIOS: 2,
+        ALLOW_CUSTOM_STATUS: false,
         ALLOW_CUSTOM_TYPES: false,
     },
     UNLIMITED: {
-        MAX_DEMANDS: 99999, 
+        MAX_DEMANDS: 99999,
         MAX_ROTAS: 99999,
         MAX_USERS: 99999,
         MAX_FORMULARIOS: 99999,
-        ALLOW_CUSTOM_STATUS: true, 
-        ALLOW_CUSTOM_TYPES: true,  
+        ALLOW_CUSTOM_STATUS: true,
+        ALLOW_CUSTOM_TYPES: true,
     }
 };
 

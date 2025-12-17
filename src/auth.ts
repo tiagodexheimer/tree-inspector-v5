@@ -9,7 +9,7 @@ import { UserRepository } from "@/repositories/user-repository";
 // ... (definições de adminRoutes e publicRoutes permanecem iguais) ...
 const adminRoutes = [
   "/api/admin",
-  "/api/admin/users", 
+  "/api/admin/users",
 ];
 
 const publicRoutes = [
@@ -17,7 +17,7 @@ const publicRoutes = [
   "/signup",
   "/api/auth/signup",
   "/api/mobile-login",
-  "/convite", 
+  "/convite",
 ];
 
 export const authConfig: NextAuthConfig = {
@@ -52,7 +52,7 @@ export const authConfig: NextAuthConfig = {
 
   callbacks: {
     async jwt({ token, user, trigger, session }) {
-      
+
       // 1. Login Inicial
       if (user) {
         token.id = user.id;
@@ -74,21 +74,21 @@ export const authConfig: NextAuthConfig = {
       // Sempre que o token for acessado e tivermos um ID, buscamos os dados frescos do banco.
       // Isso garante que se o user for removido da org, o token reflita isso na próxima navegação.
       if (token.id) {
-          try {
-              // Busca rápida apenas para atualizar contexto da organização
-              const freshUser = await UserRepository.findById(token.id as string);
-              
-              if (freshUser) {
-                  // Atualiza o token com o que está REALMENTE no banco
-                  token.organizationId = freshUser.organizationId; // Se foi removido, virá null
-                  token.organizationName = freshUser.organizationName;
-                  token.organizationRole = freshUser.organizationRole;
-                  token.planType = freshUser.plan_type;
-              }
-          } catch (error) {
-              console.error("Erro ao revalidar token:", error);
-              // Em caso de erro de DB, mantemos o token antigo ou forçamos logout (opcional)
+        try {
+          // Busca rápida apenas para atualizar contexto da organização
+          const freshUser = await UserRepository.findById(token.id as string);
+
+          if (freshUser) {
+            // Atualiza o token com o que está REALMENTE no banco
+            token.organizationId = freshUser.organizationId ? String(freshUser.organizationId) : "0"; // Se foi removido, virá null
+            token.organizationName = freshUser.organizationName;
+            token.organizationRole = freshUser.organizationRole;
+            token.planType = freshUser.plan_type;
           }
+        } catch (error) {
+          console.error("Erro ao revalidar token:", error);
+          // Em caso de erro de DB, mantemos o token antigo ou forçamos logout (opcional)
+        }
       }
 
       return token;
@@ -98,7 +98,7 @@ export const authConfig: NextAuthConfig = {
       if (token && session.user) {
         session.user.id = token.id as string;
         session.user.role = token.role as any;
-        session.user.organizationId = Number(token.organizationId); // Será 0 ou null se removido
+        session.user.organizationId = token.organizationId as string; // Será 0 ou null se removido
         session.user.organizationName = token.organizationName as string;
         (session.user as any).organizationRole = token.organizationRole as any;
         (session.user as any).planType = token.planType as string;

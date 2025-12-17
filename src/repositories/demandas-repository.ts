@@ -398,13 +398,13 @@ export const DemandasRepository = {
   },
 
   async countByOrganization(organizationId: number): Promise<number> {
-        const query = `
+    const query = `
             SELECT COUNT(*) 
             FROM demandas 
             WHERE organization_id = $1
         `;
-        const result = await pool.query(query, [organizationId]);
-        // Garante que o count é retornado como número
-        return parseInt(result.rows[0].count, 10);
-    },
+    const result = await pool.query(query, [organizationId]);
+    // Garante que o count é retornado como número
+    return parseInt(result.rows[0].count, 10);
+  },
 };

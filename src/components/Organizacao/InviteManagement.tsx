@@ -1,7 +1,7 @@
 // src/components/Organizacao/InviteManagement.tsx
 import React, { useState, useEffect } from 'react';
-import { 
-    Box, Paper, Typography, TextField, Button, Grid, 
+import {
+    Box, Paper, Typography, TextField, Button, Grid,
     Table, TableBody, TableCell, TableContainer, TableHead, TableRow,
     IconButton, Tooltip, CircularProgress, Chip, Alert
 } from '@mui/material';
@@ -19,7 +19,7 @@ interface InviteManagementProps {
     setError: (msg: string) => void;
 }
 
-export const InviteManagement: React.FC<InviteManagementProps> = ({ 
+export const InviteManagement: React.FC<InviteManagementProps> = ({
     organizationId,
     invitesList = [], // Valor padrão para evitar crash
     userPlanType,
@@ -51,7 +51,7 @@ export const InviteManagement: React.FC<InviteManagementProps> = ({
             });
 
             const data = await res.json();
-            
+
             if (!res.ok) {
                 throw new Error(data.message || 'Erro ao enviar convite');
             }
@@ -69,15 +69,15 @@ export const InviteManagement: React.FC<InviteManagementProps> = ({
 
     const handleRevoke = async (inviteId: number) => {
         if (!confirm("Deseja cancelar este convite?")) return;
-        
+
         setRevokeLoading(inviteId);
         try {
             const res = await fetch(`/api/gerenciar/convites?id=${inviteId}`, {
                 method: 'DELETE',
             });
-            
+
             if (!res.ok) throw new Error("Falha ao revogar convite");
-            
+
             await fetchData(); // Recarrega a lista
         } catch (err: any) {
             setError(err.message);
@@ -91,25 +91,25 @@ export const InviteManagement: React.FC<InviteManagementProps> = ({
             <Typography variant="h6" gutterBottom sx={{ fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: 1 }}>
                 <EmailIcon color="action" /> Convidar Membros
             </Typography>
-            
+
             <Box sx={{ mb: 3 }}>
                 <Grid container spacing={2} alignItems="center">
-                    <Grid item xs={12} sm={8}>
-                        <TextField 
-                            fullWidth 
-                            label="E-mail do novo membro" 
-                            variant="outlined" 
+                    <Grid size={{ xs: 12, sm: 8 }}>
+                        <TextField
+                            fullWidth
+                            label="E-mail do novo membro"
+                            variant="outlined"
                             size="small"
                             value={email}
                             onChange={(e) => setEmail(e.target.value)}
                             disabled={loading}
                         />
                     </Grid>
-                    <Grid item xs={12} sm={4}>
-                        <Button 
-                            variant="contained" 
-                            fullWidth 
-                            startIcon={loading ? <CircularProgress size={20} color="inherit"/> : <SendIcon />}
+                    <Grid size={{ xs: 12, sm: 4 }}>
+                        <Button
+                            variant="contained"
+                            fullWidth
+                            startIcon={loading ? <CircularProgress size={20} color="inherit" /> : <SendIcon />}
                             onClick={handleInvite}
                             disabled={loading || !email}
                         >
@@ -154,14 +154,14 @@ export const InviteManagement: React.FC<InviteManagementProps> = ({
                                     </TableCell>
                                     <TableCell align="right">
                                         <Tooltip title="Cancelar convite">
-                                            <IconButton 
-                                                size="small" 
+                                            <IconButton
+                                                size="small"
                                                 color="error"
                                                 onClick={() => handleRevoke(invite.id)}
                                                 disabled={revokeLoading === invite.id}
                                             >
-                                                {revokeLoading === invite.id ? 
-                                                    <CircularProgress size={16} /> : 
+                                                {revokeLoading === invite.id ?
+                                                    <CircularProgress size={16} /> :
                                                     <DeleteIcon fontSize="small" />
                                                 }
                                             </IconButton>

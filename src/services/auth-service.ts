@@ -2,7 +2,7 @@
 import { userManagementService } from "@/services/user-management-service";
 import { compare } from "bcrypt";
 import { UserPersistence } from "@/repositories/user-repository";
-import { User } from "next-auth"; 
+import { User } from "next-auth";
 
 export const AuthService = {
   async authenticate(
@@ -29,9 +29,9 @@ export const AuthService = {
       email: user.email,
       role: user.role, // Role do sistema (basic, pro...)
       image: null,
-      organizationId: user.organizationId,
+      organizationId: String(user.organizationId),
       organizationName: user.organizationName,
-      plan_type: user.plan_type,
+      planType: user.plan_type,
       organizationRole: user.organizationRole, // <--- O PULO DO GATO: Agora é 'owner'
     } as User;
   },
