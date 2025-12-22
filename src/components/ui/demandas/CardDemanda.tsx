@@ -12,7 +12,8 @@ import LocationOnIcon from '@mui/icons-material/LocationOn';
 import PersonIcon from '@mui/icons-material/Person';
 import DescriptionIcon from '@mui/icons-material/Description';
 import ArrowDropDownIcon from '@mui/icons-material/ArrowDropDown';
-import { DemandaType, DemandaComIdStatus } from '@/types/demanda'; 
+import VisibilityIcon from '@mui/icons-material/Visibility';
+import { DemandaType, DemandaComIdStatus } from '@/types/demanda';
 import { format } from 'date-fns';
 
 interface CardDemandaProps {
@@ -22,12 +23,13 @@ interface CardDemandaProps {
     onDelete: (id: number) => void;
     onEdit: (demanda: DemandaComIdStatus) => void;
     onStatusChange: (id: number, newStatus: number) => void;
+    onView: (demanda: DemandaComIdStatus) => void;
     availableStatus: any[];
 }
 
 export default function CardDemanda({
-    demanda, selected, onSelect, onDelete, onEdit, 
-    onStatusChange, availableStatus
+    demanda, selected, onSelect, onDelete, onEdit,
+    onStatusChange, onView, availableStatus
 }: CardDemandaProps) {
 
     const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
@@ -73,6 +75,11 @@ export default function CardDemanda({
         if (demanda.id) onDelete(demanda.id);
     };
 
+    const handleViewClick = (e: React.MouseEvent) => {
+        e.stopPropagation();
+        onView(demanda);
+    };
+
     const handleCheckboxClick = (e: React.MouseEvent) => {
         e.stopPropagation();
         onSelect();
@@ -94,7 +101,7 @@ export default function CardDemanda({
                 '&:hover': { boxShadow: 6, transform: 'translateY(-2px)' },
                 position: 'relative',
                 borderRadius: 3,
-                outline: selected ? '2px solid #1976d2' : 'none', 
+                outline: selected ? '2px solid #1976d2' : 'none',
             }}
         >
             <CardContent sx={{ p: 2.5, flexGrow: 1, display: 'flex', flexDirection: 'column' }}>
@@ -109,8 +116,8 @@ export default function CardDemanda({
                             {demanda.protocolo || 'Sem Protocolo'}
                         </Typography>
                     </Box>
-                    
-                    <Checkbox 
+
+                    <Checkbox
                         checked={selected}
                         onClick={handleCheckboxClick}
                         sx={{ mt: -1, mr: -1 }}
@@ -134,7 +141,7 @@ export default function CardDemanda({
                                 '&:hover': { opacity: 0.9 }
                             }}
                         />
-                        
+
                         <Menu
                             anchorEl={anchorEl}
                             open={openMenu}
@@ -142,8 +149,8 @@ export default function CardDemanda({
                             onClick={(e) => e.stopPropagation()}
                         >
                             {availableStatus.map((status) => (
-                                <MenuItem 
-                                    key={status.id} 
+                                <MenuItem
+                                    key={status.id}
                                     onClick={(e) => handleSelectStatus(e, status.id)}
                                     selected={status.nome === demanda.status_nome}
                                     sx={{ fontSize: '0.9rem' }}
@@ -157,6 +164,11 @@ export default function CardDemanda({
 
                     {/* BOTÕES (Com stopPropagation) */}
                     <Box>
+                        <Tooltip title="Ver Detalhes">
+                            <IconButton size="small" onClick={handleViewClick} sx={{ color: 'primary.main' }}>
+                                <VisibilityIcon fontSize="small" />
+                            </IconButton>
+                        </Tooltip>
                         <IconButton size="small" onClick={handleEditClick} sx={{ color: 'text.primary' }}>
                             <EditIcon fontSize="small" />
                         </IconButton>
@@ -171,11 +183,11 @@ export default function CardDemanda({
                 {/* CORPO */}
                 <Stack spacing={1.5} sx={{ flexGrow: 1 }}>
                     <Box>
-                        <Chip 
-                            label={demanda.tipo_demanda} 
-                            variant="outlined" 
+                        <Chip
+                            label={demanda.tipo_demanda}
+                            variant="outlined"
                             size="small"
-                            sx={{ mb: 0.5, height: 20, fontSize: '0.7rem', fontWeight: 600 }} 
+                            sx={{ mb: 0.5, height: 20, fontSize: '0.7rem', fontWeight: 600 }}
                         />
                         <Box display="flex" alignItems="flex-start" gap={1}>
                             <PersonIcon color="action" sx={{ fontSize: 20, mt: 0.2 }} />
@@ -203,8 +215,8 @@ export default function CardDemanda({
                         <Box display="flex" alignItems="flex-start" gap={1} sx={{ bgcolor: '#f5f5f5', p: 1, borderRadius: 2, mt: 'auto' }}>
                             <DescriptionIcon color="action" sx={{ fontSize: 18, mt: 0.2, flexShrink: 0 }} />
                             <Tooltip title={demanda.descricao}>
-                                <Typography 
-                                    variant="caption" 
+                                <Typography
+                                    variant="caption"
                                     color="text.secondary"
                                     sx={{
                                         display: '-webkit-box',

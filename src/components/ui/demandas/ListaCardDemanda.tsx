@@ -26,6 +26,7 @@ interface ListDemandaProps {
     onDelete: (id: number) => void;
     onEdit: (demanda: DemandaComIdStatus) => void;
     onStatusChange: (demandaId: number, newStatusId: number) => Promise<void>;
+    onView: (demanda: DemandaComIdStatus) => void;
     availableStatus: StatusOption[];
 }
 
@@ -36,6 +37,7 @@ export default function ListaCardDemanda({
     onDelete,
     onEdit,
     onStatusChange,
+    onView,
     availableStatus
 }: ListDemandaProps) {
 
@@ -67,16 +69,17 @@ export default function ListaCardDemanda({
                                 xl: 'calc(20% - 16px)'          // Monitor Grande: 5 por linha
                             },
                             // Removemos minWidth fixo grande para permitir que caibam mais
-                            minWidth: 250 
+                            minWidth: 250
                         }}
                     >
                         <CardDemanda
                             demanda={demanda}
-                            selected={isSelected} 
+                            selected={isSelected}
                             onSelect={() => demanda.id && onSelectDemanda(demanda.id)}
                             onDelete={onDelete}
                             onEdit={onEdit}
                             onStatusChange={onStatusChange}
+                            onView={onView}
                             availableStatus={availableStatus}
                         />
                     </Box>
