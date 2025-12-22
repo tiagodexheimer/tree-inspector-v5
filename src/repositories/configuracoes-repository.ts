@@ -16,16 +16,20 @@ export const ConfiguracoesRepository = {
             WHERE chave = 'padrao_rota' AND organization_id = $1
         `;
         const res = await pool.query(query, [organizationId]);
-        
+
         if (res.rows.length === 0 || !res.rows[0].valor) return null;
-        
-        try {
-            // Assumimos que o valor no banco é uma string JSON e precisa de parse
-            return JSON.parse(res.rows[0].valor) as RotaConfig;
-        } catch (e) {
-            console.error("Erro ao fazer parse do JSON da configuração:", e);
-            return null;
+
+        const valor = res.rows[0].valor;
+        if (typeof valor === 'string') {
+            try {
+                return JSON.parse(valor) as RotaConfig;
+            } catch (e) {
+                console.error("Erro ao fazer parse do JSON da configuração:", e);
+                return null;
+            }
         }
+
+        return valor as RotaConfig;
     },
 
     // ✅ CORREÇÃO 2: Aceita organizationId e garante que a atualização é por organização

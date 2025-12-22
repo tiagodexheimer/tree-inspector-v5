@@ -45,19 +45,22 @@ const MapController = ({ inicio, fim }: { inicio: LatLngTuple, fim: LatLngTuple 
         const hasFim = fim[0] !== 0 && fim[1] !== 0;
 
         if (hasInicio && hasFim) {
-            // Se tiver os dois, ajusta o zoom para mostrar ambos
-            const bounds = L.latLngBounds([inicio, fim]);
-            map.fitBounds(bounds, { padding: [50, 50] });
+            // Verifica se são o mesmo ponto
+            if (inicio[0] === fim[0] && inicio[1] === fim[1]) {
+                map.setView(inicio, 16);
+            } else {
+                const bounds = L.latLngBounds([inicio, fim]);
+                map.fitBounds(bounds, { padding: [50, 50] });
+            }
         } else if (hasInicio) {
-            // Só início, centraliza lá
-            map.setView(inicio, 14);
+            map.setView(inicio, 16);
         } else if (hasFim) {
-            // Só fim, centraliza lá
-            map.setView(fim, 14);
+            map.setView(fim, 16);
         }
 
-        // Força redesenho para evitar bugs visuais de tamanho
         map.invalidateSize();
+        // Pequeno timeout para garantir que o layout carregou
+        setTimeout(() => map.invalidateSize(), 150);
     }, [map, inicio, fim]);
 
     return null;
@@ -85,7 +88,7 @@ export default function ConfigMap({ inicio, fim }: Props) {
     const hasFim = fim.lat !== 0 || fim.lng !== 0;
 
     return (
-        <Box sx={{ height: '480px', width: '640px', minHeight: '400px', border: '1px solid #ddd', borderRadius: 2, overflow: 'hidden' }}>
+        <Box sx={{ height: '480px', width: '100%', minHeight: '400px', border: '1px solid #ddd', borderRadius: 2, overflow: 'hidden' }}>
             <MapContainer
                 center={hasInicio ? posInicio : defaultCenter}
                 zoom={13}
