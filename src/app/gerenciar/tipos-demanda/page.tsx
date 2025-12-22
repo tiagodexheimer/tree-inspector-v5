@@ -23,7 +23,7 @@ interface TipoDemandaType {
     id: number;
     nome: string;
     id_formulario: number | null;
-    formulario_nome: string | null;
+    nome_formulario: string | null;
     // [IMPORTANTE] Adicionado para que o frontend possa aplicar a lógica de negócio
     is_custom: boolean;
     is_default_global: boolean;
@@ -265,7 +265,7 @@ export default function GerenciarTiposDemandaPage() {
                                         <TableCell>{tipo.id}</TableCell>
                                         <TableCell>{tipo.nome}</TableCell>
                                         <TableCell>
-                                            {tipo.formulario_nome || 'Nenhum'}
+                                            {tipo.nome_formulario || 'Nenhum'}
                                         </TableCell>
                                         <TableCell>
                                             <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
