@@ -19,7 +19,7 @@ export function useRotasData() {
     const [isLoadingRouteMap, setIsLoadingRouteMap] = useState(false);
 
     // [NOVO] Estado para configuração global (Padrão)
-    const [globalConfig, setGlobalConfig] = useState<{ inicio: {lat:number, lng:number}, fim: {lat:number, lng:number} } | null>(null);
+    const [globalConfig, setGlobalConfig] = useState<{ inicio: { lat: number, lng: number }, fim: { lat: number, lng: number } } | null>(null);
 
     const fetchRotas = useCallback(async () => {
         setIsLoading(true);
@@ -33,8 +33,8 @@ export function useRotasData() {
             const configRes = await fetch('/api/gerenciar/configuracoes');
             if (configRes.ok) {
                 const configData = await configRes.json();
-                if (configData && configData.inicio) {
-                    setGlobalConfig(configData);
+                if (configData && configData.configuracaoRota) {
+                    setGlobalConfig(configData.configuracaoRota);
                 }
             }
 
@@ -53,7 +53,7 @@ export function useRotasData() {
         setIsLoadingRouteMap(true);
         try {
             const data = await RotasClient.getRouteDetails(id);
-            
+
             let path: [number, number][] = [];
             if (data.encodedPolyline) {
                 try {

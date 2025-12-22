@@ -41,6 +41,11 @@ const FitBounds: React.FC<{ bounds: LatLngBoundsExpression }> = ({ bounds }) => 
     useEffect(() => {
         if (Array.isArray(bounds) && bounds.length > 0) {
             map.fitBounds(bounds, { padding: [50, 50] });
+            // Força um segundo ajuste rápido para garantir que o Leaflet não "pule"
+            const timer = setTimeout(() => {
+                map.fitBounds(bounds, { padding: [50, 50] });
+            }, 100);
+            return () => clearTimeout(timer);
         }
     }, [map, bounds]);
     return null;
