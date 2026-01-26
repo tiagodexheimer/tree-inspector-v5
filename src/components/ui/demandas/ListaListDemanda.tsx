@@ -8,6 +8,7 @@ import {
 import StatusDemanda from "./StatusDemanda";
 import DeleteIcon from '@mui/icons-material/Delete';
 import EditIcon from '@mui/icons-material/Edit';
+import VisibilityIcon from '@mui/icons-material/Visibility';
 
 interface StatusOption {
     id: number;
@@ -29,6 +30,7 @@ interface ListDemandaProps {
     onSelectDemanda: (id: number) => void;
     onDelete: (id: number) => void;
     onEdit: (demanda: DemandaComIdStatus) => void;
+    onView: (demanda: DemandaComIdStatus) => void;
     onStatusChange: (demandaId: number, newStatusId: number) => Promise<void>;
     availableStatus: StatusOption[];
 }
@@ -39,6 +41,7 @@ export default function ListaListDemanda({
     onSelectDemanda,
     onDelete,
     onEdit,
+    onView,
     onStatusChange,
     availableStatus
 }: ListDemandaProps) {
@@ -121,6 +124,9 @@ export default function ListaListDemanda({
                             </Box>
 
                             <Box sx={{ display: "flex", justifyContent: "flex-end", gap: 1 }}>
+                                <IconButton color="info" onClick={(e) => { e.stopPropagation(); onView(demanda); }}>
+                                    <VisibilityIcon />
+                                </IconButton>
                                 <IconButton color="primary" onClick={(e) => { e.stopPropagation(); onEdit(demanda); }}>
                                     <EditIcon />
                                 </IconButton>
@@ -165,9 +171,9 @@ export default function ListaListDemanda({
                                 hover
                                 selected={isSelected}
                                 onClick={() => onSelectDemanda(demandaId)} // Seleciona ao clicar na linha
-                                sx={{ 
+                                sx={{
                                     cursor: 'pointer',
-                                    '& td': { borderColor: 'rgba(224, 224, 224, 1)' } 
+                                    '& td': { borderColor: 'rgba(224, 224, 224, 1)' }
                                 }}
                             >
                                 {/* [ALTERADO] Exibe Protocolo (ou ID se não tiver protocolo) */}
@@ -197,6 +203,9 @@ export default function ListaListDemanda({
                                 </TableCell>
 
                                 <TableCell align="right" onClick={(e) => e.stopPropagation()}> {/* Evita selecionar ao clicar ações */}
+                                    <IconButton color="info" onClick={() => onView(demanda)}>
+                                        <VisibilityIcon />
+                                    </IconButton>
                                     <IconButton color="primary" onClick={() => onEdit(demanda)}>
                                         <EditIcon />
                                     </IconButton>

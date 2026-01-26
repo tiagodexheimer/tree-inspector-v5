@@ -16,7 +16,7 @@ import { DemandaType } from "@/types/demanda";
 const cepCache = new Map<string, CepResponse>();
 const geocodeCache = new Map<string, [number, number]>(); // Chave: "Rua, Numero, Cidade, UF" -> Valor: [lat, lng]
 // --- FIM CACHE ---
-
+import { upload } from '@vercel/blob/client';
 
 // ... (Interfaces CepResponse, GeocodeApiResponse, TipoDemandaOption, AddDemandaModalProps, FormData permanecem iguais) ...
 interface CepResponse {
@@ -38,6 +38,7 @@ interface TipoDemandaOption {
 interface DemandaEditType extends DemandaType {
     lat?: number | null;
     lng?: number | null;
+    anexos?: any[]; // [NOVO]
 }
 
 interface AddDemandaModalProps {
@@ -51,6 +52,7 @@ interface FormData {
     nome_solicitante: string; telefone_solicitante: string; email_solicitante: string;
     cep: string; logradouro: string; numero: string; complemento: string; bairro: string; cidade: string; uf: string;
     tipo_demanda: string; descricao: string; prazo: string; protocolo: string;
+    anexos?: { url: string; nome: string; type: string }[]; // [NOVO]
 }
 
 
@@ -158,6 +160,7 @@ export default function AddDemandaModal({ open, onClose, demandaInicial = null, 
                     descricao: demandaInicial.descricao || '',
                     prazo: prazoFormatado,
                     protocolo: demandaInicial.protocolo || '', // [NOVO]
+                    anexos: demandaInicial.anexos || [], // [NOVO]
                 });
 
                 // [MODIFICADO]: Inicializa coordenadas com lat/lng do objeto demandaInicial
@@ -176,6 +179,7 @@ export default function AddDemandaModal({ open, onClose, demandaInicial = null, 
                     nome_solicitante: '', telefone_solicitante: '', email_solicitante: '',
                     cep: '', logradouro: '', numero: '', complemento: '', bairro: '', cidade: '', uf: '',
                     tipo_demanda: '', descricao: '', prazo: '', protocolo: '', // [NOVO]
+                    anexos: [], // [NOVO]
                 });
                 setAddressFieldsDisabled(true);
                 setCoordinates(null);
@@ -474,12 +478,86 @@ export default function AddDemandaModal({ open, onClose, demandaInicial = null, 
                             />
                             <TextField label="Prazo (Opcional)" name="prazo" type="date" variant="outlined" fullWidth value={formData.prazo} onChange={handleChange} InputLabelProps={{ shrink: true }} />
 
-                            {/* Anexos (ainda desabilitado) */}
+                            {/* Anexos */}
                             <Typography variant="subtitle1" gutterBottom sx={{ fontWeight: 'bold', mt: 2 }}>Anexos (Opcional)</Typography>
-                            <Button component="label" variant="outlined" startIcon={<CloudUploadIcon />} disabled>
-                                Carregar Arquivos
-                                <input type="file" hidden multiple />
-                            </Button>
+
+                            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                                <Button
+                                    component="label"
+                                    variant="outlined"
+                                    startIcon={<CloudUploadIcon />}
+                                    disabled={isLoading}
+                                >
+                                    Carregar Arquivos
+                                    <input
+                                        type="file"
+                                        hidden
+                                        multiple
+                                        onChange={async (e) => {
+                                            if (!e.target.files || e.target.files.length === 0) return;
+
+                                            setIsLoading(true);
+                                            const newAnexos: any[] = [...(formData.anexos || [])];
+
+                                            try {
+                                                for (const file of Array.from(e.target.files)) {
+                                                    const blob = await upload(file.name, file, {
+                                                        access: 'public',
+                                                        handleUploadUrl: '/api/upload',
+                                                    });
+                                                    newAnexos.push({
+                                                        url: blob.url,
+                                                        nome: file.name,
+                                                        type: file.type
+                                                    });
+                                                }
+                                                setFormData(prev => ({ ...prev, anexos: newAnexos }));
+                                                console.log("Upload concluído:", newAnexos);
+                                            } catch (error) {
+                                                console.error("Erro no upload:", error);
+                                                setApiError("Erro ao enviar arquivos. Tente novamente.");
+                                            } finally {
+                                                setIsLoading(false);
+                                            }
+                                        }}
+                                    />
+                                </Button>
+
+                                {/* Lista de Arquivos Carregados */}
+                                {formData.anexos && formData.anexos.length > 0 && (
+                                    <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
+                                        {formData.anexos.map((anexo: any, index: number) => (
+                                            <Box
+                                                key={index}
+                                                sx={{
+                                                    border: '1px solid #ddd',
+                                                    borderRadius: 1,
+                                                    p: 1,
+                                                    display: 'flex',
+                                                    alignItems: 'center',
+                                                    gap: 1,
+                                                    bgcolor: '#f9f9f9'
+                                                }}
+                                            >
+                                                <Typography variant="caption" sx={{ maxWidth: 150, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                                    {anexo.nome}
+                                                </Typography>
+                                                <Button
+                                                    size="small"
+                                                    color="error"
+                                                    sx={{ minWidth: 30, p: 0 }}
+                                                    onClick={() => {
+                                                        const newAnexos = formData.anexos?.filter((_, i) => i !== index);
+                                                        setFormData(prev => ({ ...prev, anexos: newAnexos }));
+                                                    }}
+                                                >
+                                                    X
+                                                </Button>
+                                            </Box>
+                                        ))}
+                                    </Box>
+                                )}
+                            </Box>
                         </Box>
                     </DialogContent>
                     <DialogActions>

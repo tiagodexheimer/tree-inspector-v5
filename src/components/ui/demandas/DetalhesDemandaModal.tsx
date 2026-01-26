@@ -1,7 +1,7 @@
 // src/components/ui/demandas/DetalhesDemandaModal.tsx
-import { Dialog, DialogTitle, DialogContent, Typography, DialogActions, Button, List, ListItem, ListItemText, Divider, Box } from "@mui/material"; 
+import { Dialog, DialogTitle, DialogContent, Typography, DialogActions, Button, List, ListItem, ListItemText, Divider, Box } from "@mui/material";
 // [CORREÇÃO] Importamos o tipo completo
-import { DemandaType, DemandaComIdStatus } from "@/types/demanda"; 
+import { DemandaType, DemandaComIdStatus } from "@/types/demanda";
 
 // A interface local foi removida. Usamos DemandaComIdStatus diretamente.
 
@@ -9,7 +9,7 @@ interface DetalhesDemandaModalProps {
   open: boolean;
   onClose: () => void;
   // [CORREÇÃO] Usamos o tipo que garante a propriedade status_nome
-  demanda: DemandaComIdStatus | null; 
+  demanda: DemandaComIdStatus | null;
 }
 
 export default function DetalhesDemandaModal({ open, onClose, demanda }: DetalhesDemandaModalProps) {
@@ -18,29 +18,29 @@ export default function DetalhesDemandaModal({ open, onClose, demanda }: Detalhe
   }
 
   // Função para formatar o endereço completo
-   const formatEnderecoCompleto = (d: DemandaType): string => {
-        const parts = [
-            d.logradouro,
-            d.numero ? `, ${d.numero}` : '',
-            d.complemento ? ` - ${d.complemento}` : '',
-            d.bairro ? `\nBairro: ${d.bairro}` : '', 
-            d.cidade && d.uf ? `\n${d.cidade}/${d.uf}` : (d.cidade || d.uf || ''),
-            d.cep ? `\nCEP: ${d.cep}` : ''
-        ];
-        return parts.filter(Boolean).join('').trim();
-    };
+  const formatEnderecoCompleto = (d: DemandaType): string => {
+    const parts = [
+      d.logradouro,
+      d.numero ? `, ${d.numero}` : '',
+      d.complemento ? ` - ${d.complemento}` : '',
+      d.bairro ? `\nBairro: ${d.bairro}` : '',
+      d.cidade && d.uf ? `\n${d.cidade}/${d.uf}` : (d.cidade || d.uf || ''),
+      d.cep ? `\nCEP: ${d.cep}` : ''
+    ];
+    return parts.filter(Boolean).join('').trim();
+  };
 
-    // Função para formatar o prazo
-     const formatPrazo = (date: Date | string | null | undefined): string => {
-        if (!date) return 'Não definido';
-        const d = new Date(date);
-        return !isNaN(d.getTime()) ? d.toLocaleDateString('pt-BR') : 'Data inválida';
-    };
+  // Função para formatar o prazo
+  const formatPrazo = (date: Date | string | null | undefined): string => {
+    if (!date) return 'Não definido';
+    const d = new Date(date);
+    return !isNaN(d.getTime()) ? d.toLocaleDateString('pt-BR') : 'Data inválida';
+  };
 
-    // Variáveis de coordenadas
-    const lat = demanda.lat;
-    const lng = demanda.lng;
-    const hasCoordinates = typeof lat === 'number' && typeof lng === 'number' && lat !== null && lng !== null;
+  // Variáveis de coordenadas
+  const lat = demanda.lat;
+  const lng = demanda.lng;
+  const hasCoordinates = typeof lat === 'number' && typeof lng === 'number' && lat !== null && lng !== null;
 
 
   return (
@@ -52,11 +52,11 @@ export default function DetalhesDemandaModal({ open, onClose, demanda }: Detalhe
         <Typography paragraph>{demanda.descricao || 'N/A'}</Typography>
         <Divider sx={{ my: 2 }} />
 
-         {/* Endereço Detalhado */}
-         <Typography gutterBottom variant="h6">Endereço</Typography>
-         <Typography sx={{ whiteSpace: 'pre-line', mb: 2 }}>
-             {formatEnderecoCompleto(demanda)}
-         </Typography>
+        {/* Endereço Detalhado */}
+        <Typography gutterBottom variant="h6">Endereço</Typography>
+        <Typography sx={{ whiteSpace: 'pre-line', mb: 2 }}>
+          {formatEnderecoCompleto(demanda)}
+        </Typography>
         <Divider sx={{ my: 2 }} />
 
 
@@ -75,37 +75,62 @@ export default function DetalhesDemandaModal({ open, onClose, demanda }: Detalhe
         </List>
         <Divider sx={{ my: 2 }} />
 
-         {/* Outras Informações */}
-         <Typography gutterBottom variant="h6">Outras Informações</Typography>
-         <List dense>
-            <ListItem>
-                <ListItemText primary="Tipo de Demanda" secondary={demanda.tipo_demanda || 'N/A'} />
-            </ListItem>
-            <ListItem>
-                {/* O acesso a status_nome agora está garantido pelo tipo DemandaComIdStatus */}
-                <ListItemText primary="Status" secondary={demanda.status_nome || 'N/A'} /> 
-            </ListItem>
-             <ListItem>
-                 <ListItemText primary="Prazo" secondary={formatPrazo(demanda.prazo)} />
-            </ListItem>
-            <ListItem>
-                <ListItemText primary="Responsável Técnico" secondary={demanda.responsavel || 'N/A'} />
-            </ListItem>
-            {demanda.protocolo && <ListItem><ListItemText primary="Protocolo" secondary={demanda.protocolo} /></ListItem> }
-         </List>
+        {/* Outras Informações */}
+        <Typography gutterBottom variant="h6">Outras Informações</Typography>
+        <List dense>
+          <ListItem>
+            <ListItemText primary="Tipo de Demanda" secondary={demanda.tipo_demanda || 'N/A'} />
+          </ListItem>
+          <ListItem>
+            {/* O acesso a status_nome agora está garantido pelo tipo DemandaComIdStatus */}
+            <ListItemText primary="Status" secondary={demanda.status_nome || 'N/A'} />
+          </ListItem>
+          <ListItem>
+            <ListItemText primary="Prazo" secondary={formatPrazo(demanda.prazo)} />
+          </ListItem>
+          <ListItem>
+            <ListItemText primary="Responsável Técnico" secondary={demanda.responsavel || 'N/A'} />
+          </ListItem>
+          {demanda.protocolo && <ListItem><ListItemText primary="Protocolo" secondary={demanda.protocolo} /></ListItem>}
+        </List>
 
-         {/* Localização */}
-         {hasCoordinates && (
-             <>
-                 <Divider sx={{ my: 2 }} />
-                 <Typography gutterBottom variant="h6">Localização (Aproximada)</Typography>
-                 <Box sx={{ height: 200, backgroundColor: '#eee', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'text.secondary', borderRadius: 1 }}>
-                     <Typography variant="caption">
-                         Lat: {lat!.toFixed(6)}, Lon: {lng!.toFixed(6)}
-                     </Typography>
-                 </Box>
-             </>
-         )}
+        {/* Anexos */}
+        {demanda.anexos && demanda.anexos.length > 0 && (
+          <>
+            <Divider sx={{ my: 2 }} />
+            <Typography gutterBottom variant="h6">Anexos</Typography>
+            <List dense>
+              {demanda.anexos.map((anexo, index) => (
+                <ListItem key={index}>
+                  <Button
+                    component="a"
+                    href={anexo.url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    variant="outlined"
+                    size="small"
+                    sx={{ textTransform: 'none', justifyContent: 'flex-start', width: '100%' }}
+                  >
+                    {anexo.nome} ({anexo.type && anexo.type.split('/')[1]?.toUpperCase() || 'ARQUIVO'})
+                  </Button>
+                </ListItem>
+              ))}
+            </List>
+          </>
+        )}
+
+        {/* Localização */}
+        {hasCoordinates && (
+          <>
+            <Divider sx={{ my: 2 }} />
+            <Typography gutterBottom variant="h6">Localização (Aproximada)</Typography>
+            <Box sx={{ height: 200, backgroundColor: '#eee', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'text.secondary', borderRadius: 1 }}>
+              <Typography variant="caption">
+                Lat: {lat!.toFixed(6)}, Lon: {lng!.toFixed(6)}
+              </Typography>
+            </Box>
+          </>
+        )}
 
       </DialogContent>
       <DialogActions>

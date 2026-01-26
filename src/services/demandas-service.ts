@@ -28,6 +28,7 @@ interface CreateDemandaInput {
   descricao: string;
   prazo?: string | null;
   coordinates?: [number, number] | null;
+  anexos?: any[]; // [NOVO]
 }
 
 interface UpdateDemandaInput extends Partial<CreateDemandaInput> { }
@@ -144,6 +145,7 @@ export class DemandasService {
       lng,
       prazo: prazoDate,
       organization_id: organizationId, // ID da organização garantido aqui
+      anexos: input.anexos || [] // [NOVO]
     };
 
     return await DemandasRepository.create(payload);
@@ -178,6 +180,7 @@ export class DemandasService {
       lng,
       prazo: prazoDate,
       cep: input.cep ? input.cep.replace(/\D/g, "") : undefined,
+      anexos: input.anexos, // [NOVO] Atualiza se enviado
     } as RepoUpdateDemandaInput);
 
     if (!updated) {

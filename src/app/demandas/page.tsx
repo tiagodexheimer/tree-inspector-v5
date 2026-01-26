@@ -1,7 +1,7 @@
 'use client';
 import React, { useState, useEffect } from "react";
-import { 
-    Box, Alert, Pagination, Typography, 
+import {
+    Box, Alert, Pagination, Typography,
     Dialog, DialogTitle, DialogContent, DialogContentText, DialogActions, Button,
     Paper, CircularProgress
 } from "@mui/material";
@@ -15,15 +15,15 @@ import DetalhesDemandaModal from "@/components/ui/demandas/DetalhesDemandaModal"
 
 import { useDemandasData } from "@/hooks/useDemandasData";
 import { useDemandasOperations } from "@/hooks/useDemandasOperations";
-import { useDemandasMapData } from "@/hooks/useDemandasMapData"; 
+import { useDemandasMapData } from "@/hooks/useDemandasMapData";
 import { DemandasClient } from "@/services/client/demandas-client";
 import { OptimizedRouteData, DemandaComIdStatus } from "@/types/demanda";
 
 const AddDemandaModal = dynamic(() => import("@/components/ui/demandas/AddDemandaModal"), { ssr: false });
 const CriarRotaModal = dynamic(() => import("@/components/ui/demandas/CriarRotaModal"), { ssr: false });
-const RouteMap = dynamic(() => import("@/components/ui/demandas/RouteMap"), { 
-    loading: () => <Box sx={{height: 600, bgcolor: '#eee'}} />, 
-    ssr: false 
+const RouteMap = dynamic(() => import("@/components/ui/demandas/RouteMap"), {
+    loading: () => <Box sx={{ height: 600, bgcolor: '#eee' }} />,
+    ssr: false
 });
 
 export default function DemandasPage() {
@@ -43,7 +43,7 @@ export default function DemandasPage() {
     const [editModalOpen, setEditModalOpen] = useState(false);
     const [demandaParaEditar, setDemandaParaEditar] = useState<any>(null);
     const [selectedDemandas, setSelectedDemandas] = useState<number[]>([]);
-    
+
     // [NOVO] Estados para Visualização de Detalhes (via Mapa)
     const [viewDemandaModalOpen, setViewDemandaModalOpen] = useState(false);
     const [selectedDemandaForView, setSelectedDemandaForView] = useState<DemandaComIdStatus | null>(null);
@@ -70,7 +70,7 @@ export default function DemandasPage() {
 
     // Handlers
     const handleSelectDemanda = (id: number) => {
-         setSelectedDemandas(prev => prev.includes(id) ? prev.filter(i => i !== id) : [...prev, id]);
+        setSelectedDemandas(prev => prev.includes(id) ? prev.filter(i => i !== id) : [...prev, id]);
     };
 
     // [NOVO] Handler para clique no mapa
@@ -106,7 +106,7 @@ export default function DemandasPage() {
             const data = await DemandasClient.optimizeRoute(selectedDemandas);
             setOptimizedRouteData(data);
             setCriarRotaModalOpen(true);
-        } catch (err) { console.error(err); } 
+        } catch (err) { console.error(err); }
         finally { setIsOptimizing(false); }
     };
 
@@ -166,6 +166,7 @@ export default function DemandasPage() {
                                 onSelectDemanda={handleSelectDemanda}
                                 onDelete={handleRequestDeleteSingle}
                                 onEdit={(d) => { setDemandaParaEditar(d); setEditModalOpen(true); }}
+                                onView={handleMapMarkerClick}
                                 onStatusChange={handleStatusUpdateLocal}
                                 availableStatus={availableStatus}
                             />
@@ -186,6 +187,7 @@ export default function DemandasPage() {
                                 onSelectDemanda={handleSelectDemanda}
                                 onDelete={handleRequestDeleteSingle}
                                 onEdit={(d) => { setDemandaParaEditar(d); setEditModalOpen(true); }}
+                                onView={handleMapMarkerClick}
                                 onStatusChange={handleStatusUpdateLocal}
                                 availableStatus={availableStatus}
                             />
@@ -205,15 +207,15 @@ export default function DemandasPage() {
                                 <Typography sx={{ mt: 2 }} color="text.secondary">Carregando todas as demandas no mapa...</Typography>
                             </Box>
                         ) : (
-                            <RouteMap 
+                            <RouteMap
                                 // [CORREÇÃO DE BUILD]
                                 // Adicionamos ': any' para o TypeScript aceitar 'd.lat' e 'd.lng'
-                                demandas={demandasMap.map((d: any) => ({ 
-                                    ...d, 
-                                    lat: d.lat || null, 
-                                    lng: d.lng || null 
+                                demandas={demandasMap.map((d: any) => ({
+                                    ...d,
+                                    lat: d.lat || null,
+                                    lng: d.lng || null
                                 }))}
-                                path={[]} 
+                                path={[]}
                                 modalIsOpen={true}
                                 viewMode="points"
                                 onMarkerClick={handleMapMarkerClick}
@@ -240,7 +242,7 @@ export default function DemandasPage() {
             {addModalOpen && (
                 <AddDemandaModal open={addModalOpen} onClose={() => { setAddModalOpen(false); refresh(); }} availableTipos={availableTipos} />
             )}
-            
+
             {editModalOpen && demandaParaEditar && (
                 <AddDemandaModal key={demandaParaEditar.id} open={editModalOpen} onClose={() => setEditModalOpen(false)} demandaInicial={demandaParaEditar} onSuccess={() => { setEditModalOpen(false); refresh(); }} availableTipos={availableTipos} />
             )}
@@ -251,10 +253,10 @@ export default function DemandasPage() {
 
             {/* [NOVO] Modal de Detalhes (acionado pelo Mapa) */}
             {viewDemandaModalOpen && selectedDemandaForView && (
-                <DetalhesDemandaModal 
-                    open={viewDemandaModalOpen} 
-                    onClose={() => setViewDemandaModalOpen(false)} 
-                    demanda={selectedDemandaForView} 
+                <DetalhesDemandaModal
+                    open={viewDemandaModalOpen}
+                    onClose={() => setViewDemandaModalOpen(false)}
+                    demanda={selectedDemandaForView}
                 />
             )}
         </Box>

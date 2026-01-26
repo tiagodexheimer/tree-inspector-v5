@@ -22,6 +22,7 @@ export interface CreateDemandaDTO {
   lat: number | null;
   lng: number | null;
   prazo: Date | null;
+  anexos: any[]; // [NOVO] Array de { url, nome, type }
 }
 
 export interface DemandaPersistence {
@@ -49,6 +50,7 @@ export interface DemandaPersistence {
   updated_at: Date;
   prazo: Date | null;
   geom: any;
+  anexos?: any[]; // [NOVO]
 }
 
 export interface FindDemandasParams {
@@ -76,6 +78,7 @@ export interface UpdateDemandaDTO {
   lat: number | null;
   lng: number | null;
   prazo: Date | null;
+  anexos?: any[]; // [NOVO]
 }
 
 // --- REPOSITÓRIO ---
@@ -158,7 +161,8 @@ export const DemandasRepository = {
         s.cor as status_cor,   
         ST_AsGeoJSON(d.geom) as geom,
         ST_Y(d.geom::geometry) as lat, 
-        ST_X(d.geom::geometry) as lng
+        ST_X(d.geom::geometry) as lng,
+        d.anexos
       FROM demandas d
       LEFT JOIN demandas_status s ON d.id_status = s.id
       ${whereSql}
@@ -173,10 +177,9 @@ export const DemandasRepository = {
   // 3. Criar Demanda (CORRIGIDO SEM RETICÊNCIAS)
   async create(data: CreateDemandaDTO): Promise<any> {
     const query = `
-        INSERT INTO demandas (
             protocolo, organization_id, nome_solicitante, telefone_solicitante, email_solicitante,
             cep, logradouro, numero, complemento, bairro, cidade, uf,
-            tipo_demanda, descricao, id_status, geom, prazo, created_by_user_id
+            tipo_demanda, descricao, id_status, geom, prazo, created_by_user_id, anexos
         ) VALUES (
             $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, 
             CASE 
@@ -184,7 +187,7 @@ export const DemandasRepository = {
               THEN ST_SetSRID(ST_MakePoint($17, $16), 4326) 
               ELSE NULL 
             END, 
-            $18, $19
+            $18, $19, $20::jsonb
         )
         RETURNING *, ST_AsGeoJSON(geom) as geom, ST_Y(geom::geometry) as lat, ST_X(geom::geometry) as lng;
       `;
@@ -209,6 +212,7 @@ export const DemandasRepository = {
       data.lng, // Longitude
       data.prazo,
       data.created_by_user_id,
+      JSON.stringify(data.anexos || []) // $20
     ];
 
     try {
@@ -256,6 +260,7 @@ export const DemandasRepository = {
             tipo_demanda = $11,
             descricao = $12,
             prazo = $13,
+            anexos = COALESCE($17::jsonb, anexos), -- Atualiza apenas se passado
             geom = CASE 
               WHEN $15::float IS NOT NULL AND $16::float IS NOT NULL 
               THEN ST_SetSRID(ST_MakePoint($16, $15), 4326)
@@ -283,6 +288,7 @@ export const DemandasRepository = {
         id,
         data.lat,
         data.lng,
+        data.anexos ? JSON.stringify(data.anexos) : null // $17
       ];
 
       const result = await pool.query(query, values);
@@ -359,7 +365,8 @@ export const DemandasRepository = {
                 s.nome as status_nome, 
                 s.cor as status_cor,   
                 ST_Y(d.geom) as lat, 
-                ST_X(d.geom) as lng
+                ST_X(d.geom) as lng,
+                d.anexos
             FROM demandas d
             LEFT JOIN rotas_demandas rd ON d.id = rd.demanda_id
             LEFT JOIN demandas_status s ON d.id_status = s.id
