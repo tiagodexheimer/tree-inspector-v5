@@ -32,7 +32,11 @@ export default function RootLayout({
 
   return (
     <html lang="pt-BR">
-      {/* ... */}
+      <head>
+        <title>TreeInspector</title>
+        <link rel="icon" href="/icone.svg" type="image/svg+xml" />
+        <meta name="viewport" content="width=device-width, initial-scale=1" />
+      </head>
       <body className={inter.className}>
         <SessionProvider>
           <ThemeRegistry>
