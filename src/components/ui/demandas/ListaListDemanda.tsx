@@ -119,6 +119,8 @@ export default function ListaListDemanda({
                                         currentStatusId={demanda.id_status}
                                         availableStatus={availableStatus}
                                         onStatusChange={onStatusChange}
+                                        fallbackName={demanda.status_nome}
+                                        fallbackColor={demanda.status_cor}
                                     />
                                 </Box>
                             </Box>
@@ -199,6 +201,8 @@ export default function ListaListDemanda({
                                         currentStatusId={demanda.id_status}
                                         availableStatus={availableStatus}
                                         onStatusChange={onStatusChange}
+                                        fallbackName={demanda.status_nome}
+                                        fallbackColor={demanda.status_cor}
                                     />
                                 </TableCell>
 

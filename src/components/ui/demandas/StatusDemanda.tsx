@@ -18,16 +18,27 @@ interface StatusDemandaProps {
     currentStatusId: number | null | undefined; // Recebe o ID do status atual
     availableStatus: StatusOption[]; // Recebe a lista de status disponíveis
     onStatusChange: (demandaId: number, newStatusId: number) => Promise<void>; // Atualizado para ID
+    fallbackName?: string; // [NOVO] Nome vindo do JOIN do banco
+    fallbackColor?: string; // [NOVO] Cor vinda do JOIN do banco
 }
 
-export default function StatusDemanda({ demandaId, currentStatusId, availableStatus, onStatusChange }: StatusDemandaProps) {
+export default function StatusDemanda({
+    demandaId,
+    currentStatusId,
+    availableStatus,
+    onStatusChange,
+    fallbackName,
+    fallbackColor
+}: StatusDemandaProps) {
     const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
     const open = Boolean(anchorEl);
     const [isUpdating, setIsUpdating] = useState(false);
     const [updateError, setUpdateError] = useState<string | null>(null);
 
     // Encontra o objeto do status atual com base no ID
-    const currentStatusObject = availableStatus.find(s => s.id === currentStatusId);
+    // Encontra o objeto do status atual com base no ID
+    // [FIX] Usa Number() para garantir comparação numérica correta
+    const currentStatusObject = availableStatus.find(s => Number(s.id) === Number(currentStatusId));
 
     const handleClick = (event: React.MouseEvent<HTMLButtonElement>) => {
         if (isUpdating) return;
@@ -40,7 +51,7 @@ export default function StatusDemanda({ demandaId, currentStatusId, availableSta
 
     const handleSelectStatus = async (newStatus: StatusOption) => {
         handleClose();
-        if (!newStatus || newStatus.id === currentStatusId) return;
+        if (!newStatus || Number(newStatus.id) === Number(currentStatusId)) return;
 
         setIsUpdating(true);
         setUpdateError(null);
@@ -56,10 +67,11 @@ export default function StatusDemanda({ demandaId, currentStatusId, availableSta
     };
 
     // Estilo padrão caso o status atual não seja encontrado ou não tenha cor
-    const defaultStyle = { backgroundColor: '#808080', color: '#fff' };
-    const style = currentStatusObject ? { backgroundColor: currentStatusObject.cor, color: '#fff' } : defaultStyle; // Assume texto branco para todas as cores por simplicidade
+    // [FIX] Aplica fallbacks se o objeto do status não for encontrado na lista carregada
+    const bgColor = currentStatusObject?.cor || fallbackColor || '#808080';
+    const style = { backgroundColor: bgColor, color: '#fff' };
 
-    const currentStatusName = currentStatusObject ? currentStatusObject.nome : 'Indefinido';
+    const currentStatusName = currentStatusObject?.nome || fallbackName || 'Indefinido';
 
     return (
         <div>
