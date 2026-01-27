@@ -8,23 +8,12 @@ import PictureAsPdfIcon from '@mui/icons-material/PictureAsPdf';
 import DeleteForeverIcon from '@mui/icons-material/DeleteForever';
 import { useRouter } from 'next/navigation';
 
+// Hooks e Tipos
+import { useRelatoriosData } from '@/hooks/useRelatoriosData';
+
 export default function RelatoriosPage() {
     const router = useRouter();
-    const [rows, setRows] = useState([]);
-    const [loading, setLoading] = useState(true);
-
-    useEffect(() => {
-        fetch('/api/relatorios')
-            .then(res => res.json())
-            .then(data => {
-                setRows(data);
-                setLoading(false);
-            })
-            .catch(err => {
-                console.error(err);
-                setLoading(false);
-            });
-    }, []);
+    const { relatorios, isLoading, error, deleteRelatorio } = useRelatoriosData();
 
     const columns: GridColDef[] = [
         { field: 'id', headerName: 'ID', width: 70 },
@@ -67,9 +56,7 @@ export default function RelatoriosPage() {
     const handleDelete = async (id: number) => {
         if (!confirm("Tem certeza que deseja deletar este relatório?")) return;
         try {
-            const res = await fetch(`/api/relatorios/${id}`, { method: 'DELETE' });
-            if (!res.ok) throw new Error("Erro ao deletar");
-            setRows(prev => prev.filter((r: any) => r.id !== id));
+            await deleteRelatorio(id);
         } catch (error) {
             console.error(error);
             alert("Erro ao deletar relatório.");
@@ -84,9 +71,9 @@ export default function RelatoriosPage() {
 
             <Paper elevation={2} sx={{ height: 600, width: '100%' }}>
                 <DataGrid
-                    rows={rows}
+                    rows={relatorios}
                     columns={columns}
-                    loading={loading}
+                    loading={isLoading}
                     initialState={{
                         pagination: { paginationModel: { pageSize: 10 } },
                     }}

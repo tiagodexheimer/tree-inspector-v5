@@ -16,12 +16,18 @@ export const ConfiguracoesRepository = {
             WHERE chave = 'padrao_rota' AND organization_id = $1
         `;
         const res = await pool.query(query, [organizationId]);
-        
+
         if (res.rows.length === 0 || !res.rows[0].valor) return null;
-        
+
+        const valor = res.rows[0].valor;
+
         try {
-            // Assumimos que o valor no banco é uma string JSON e precisa de parse
-            return JSON.parse(res.rows[0].valor) as RotaConfig;
+            // ✅ Se já for um objeto (coluna json/jsonb no Postgres), retorna direto.
+            // Se for string, faz o parse.
+            if (typeof valor === 'object' && valor !== null) {
+                return valor as RotaConfig;
+            }
+            return JSON.parse(valor) as RotaConfig;
         } catch (e) {
             console.error("Erro ao fazer parse do JSON da configuração:", e);
             return null;

@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback, useEffect, useRef } from 'react';
 import { RotasClient, RotaComContagem, DemandaComOrdem } from '@/services/client/rotas-client';
 import { decode } from '@googlemaps/polyline-codec';
 
@@ -19,22 +19,28 @@ export function useRotasData() {
     const [isLoadingRouteMap, setIsLoadingRouteMap] = useState(false);
 
     // [NOVO] Estado para configuração global (Padrão)
-    const [globalConfig, setGlobalConfig] = useState<{ inicio: {lat:number, lng:number}, fim: {lat:number, lng:number} } | null>(null);
+    const [globalConfig, setGlobalConfig] = useState<{ inicio: { lat: number, lng: number }, fim: { lat: number, lng: number } } | null>(null);
+
+    // Ref para evitar buscas duplicadas no mount (Strict Mode)
+    const isInitialFetched = useRef(false);
 
     const fetchRotas = useCallback(async () => {
         setIsLoading(true);
         setError(null);
         try {
-            // 1. Busca Rotas
-            const data = await RotasClient.getAll();
-            setRotas(data);
+            // 1. Busca Rotas e Configuração Global em Paralelo
+            const [rotasData, configRes] = await Promise.all([
+                RotasClient.getAll(),
+                fetch('/api/gerenciar/configuracoes')
+            ]);
 
-            // 2. [NOVO] Busca Configuração Global
-            const configRes = await fetch('/api/gerenciar/configuracoes');
+            setRotas(rotasData);
+
             if (configRes.ok) {
                 const configData = await configRes.json();
-                if (configData && configData.inicio) {
-                    setGlobalConfig(configData);
+                // ✅ CORREÇÃO: O campo correto é configuracaoRota
+                if (configData && configData.configuracaoRota) {
+                    setGlobalConfig(configData.configuracaoRota);
                 }
             }
 
@@ -46,6 +52,9 @@ export function useRotasData() {
     }, []);
 
     useEffect(() => {
+        if (isInitialFetched.current) return;
+        isInitialFetched.current = true;
+
         fetchRotas();
     }, [fetchRotas]);
 
@@ -53,7 +62,7 @@ export function useRotasData() {
         setIsLoadingRouteMap(true);
         try {
             const data = await RotasClient.getRouteDetails(id);
-            
+
             let path: [number, number][] = [];
             if (data.encodedPolyline) {
                 try {

@@ -34,7 +34,10 @@ export default function DemandasPage() {
         if (mode === 'map') fetchMapData();
     };
 
-    const { demandas, setDemandas, totalCount, isLoading, error, page, limit, setPage, filters, refresh } = useDemandasData();
+    const {
+        demandas, setDemandas, totalCount, isLoading, error, page, limit, setPage,
+        filters, refresh, availableStatus, availableTipos
+    } = useDemandasData();
     const { demandasMap, isLoadingMap, fetchMapData } = useDemandasMapData();
     const { deleteDemandas, isProcessing: isDeleting, opError, clearError } = useDemandasOperations(refresh);
 
@@ -54,19 +57,6 @@ export default function DemandasPage() {
 
     const [deleteConfirmationOpen, setDeleteConfirmationOpen] = useState(false);
     const [itemToDelete, setItemToDelete] = useState<number | null>(null);
-
-    const [availableStatus, setAvailableStatus] = useState<any[]>([]);
-    const [availableTipos, setAvailableTipos] = useState<any[]>([]);
-
-    useEffect(() => {
-        Promise.all([
-            fetch('/api/demandas-status').then(r => r.json()),
-            fetch('/api/demandas-tipos').then(r => r.json())
-        ]).then(([status, tipos]) => {
-            setAvailableStatus(status);
-            setAvailableTipos(tipos);
-        }).catch(console.error);
-    }, []);
 
     // Handlers
     const handleSelectDemanda = (id: number) => {
