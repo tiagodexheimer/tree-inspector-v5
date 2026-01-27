@@ -2,16 +2,17 @@
 'use client';
 
 import React, { useEffect, useState } from 'react';
-import { 
-    Box, Paper, Typography, CircularProgress, Card, CardContent, 
+import {
+    Box, Paper, Typography, CircularProgress, Card, CardContent,
     Divider, Button, Alert, Link as MuiLink // [NOVO] Alert, Link e Button importados
 } from '@mui/material';
-import { 
-    Assignment, CheckCircle, PendingActions, Route 
+import {
+    Assignment, CheckCircle, PendingActions, Route
 } from '@mui/icons-material';
-import { 
-    PieChart, Pie, Cell, Tooltip, Legend, ResponsiveContainer 
+import {
+    PieChart, Pie, Cell, Tooltip, Legend, ResponsiveContainer
 } from 'recharts';
+import DashboardSkeleton from "@/components/ui/dashboard/DashboardSkeleton";
 import Link from 'next/link';
 import { DashboardData } from '@/types/dashboard';
 import { useSession } from 'next-auth/react'; // [NOVO] Importar useSession
@@ -53,9 +54,9 @@ export default function DashboardPage() {
     // [NOVO] Função para buscar convites pendentes
     const fetchInvites = async () => {
         if (status !== 'authenticated') return;
-        
+
         try {
-            const response = await fetch('/api/convites/pendentes'); 
+            const response = await fetch('/api/convites/pendentes');
             const resData = await response.json();
 
             if (response.ok) {
@@ -67,7 +68,7 @@ export default function DashboardPage() {
             console.error("Erro de rede ao buscar convites:", error);
         }
     };
-    
+
     // Função para buscar dados do Dashboard original
     const fetchData = () => {
         fetch('/api/dashboard')
@@ -85,27 +86,27 @@ export default function DashboardPage() {
             fetchData();
         } else if (status !== 'loading') {
             // Se não está logado, paramos o loading para evitar loop e evitar chamada de API
-            setLoading(false); 
+            setLoading(false);
         }
     }, [status]);
-    
-    
+
+
     // Lógica de Redirecionamento e Loading
     if (status === 'loading' || loading) {
-        return <Box sx={{ display: 'flex', justifyContent: 'center', mt: 10 }}><CircularProgress /></Box>;
+        return <DashboardSkeleton />;
     }
-    
+
     if (status === 'unauthenticated') {
         // O middleware deve redirecionar, mas este é um bom fallback de UX
         return <Typography>Você precisa estar logado para acessar o Dashboard.</Typography>;
     }
 
     if (!data) return <Typography>Erro ao carregar dados do Dashboard.</Typography>;
-    
-    
+
+
     // [NOVO] Notificação de Convite
     const InviteNotification = invites.length > 0 && (
-        <Alert 
+        <Alert
             severity="success" // <-- CORRIGIDO PARA VERDE (success)
             sx={{ mb: 4 }}
             variant="filled"
@@ -116,13 +117,13 @@ export default function DashboardPage() {
                     <Typography variant="body2" sx={{ mr: 2 }}>
                         Convidado para ser **{invite.role.toUpperCase()}** em **{invite.organization_name}**.
                     </Typography>
-                    <Button 
-                        variant="contained" 
+                    <Button
+                        variant="contained"
                         // O Button padrão usa a cor 'primary' do tema, que deve contrastar com o verde do Alert.
-                        color="secondary" 
-                        size="small" 
+                        color="secondary"
+                        size="small"
                         // Linka para a rota de aceite, passando o token
-                        component={MuiLink} 
+                        component={MuiLink}
                         href={`/convite/${invite.token}`}
                         sx={{ whiteSpace: 'nowrap' }}
                     >
@@ -136,7 +137,7 @@ export default function DashboardPage() {
 
     return (
         <Box sx={{ p: 3 }}>
-            
+
             {/* 0. NOTIFICAÇÃO DE CONVITE (Aparece no topo) */}
             {InviteNotification}
 
@@ -145,38 +146,38 @@ export default function DashboardPage() {
             </Typography>
 
             {/* 1. KPIs (Indicadores) */}
-            <Box sx={{ mb: 4 }}> 
+            <Box sx={{ mb: 4 }}>
                 <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-6">
-                    <KPICard 
-                        title="Total de Demandas" 
-                        value={data.kpis.totalDemandas} 
-                        icon={<Assignment fontSize="large" />} 
-                        color="#1976d2" 
+                    <KPICard
+                        title="Total de Demandas"
+                        value={data.kpis.totalDemandas}
+                        icon={<Assignment fontSize="large" />}
+                        color="#1976d2"
                     />
-                    <KPICard 
-                        title="Pendentes" 
-                        value={data.kpis.totalPendentes} 
-                        icon={<PendingActions fontSize="large" />} 
-                        color="#ed6c02" 
+                    <KPICard
+                        title="Pendentes"
+                        value={data.kpis.totalPendentes}
+                        icon={<PendingActions fontSize="large" />}
+                        color="#ed6c02"
                     />
-                    <KPICard 
-                        title="Concluídas" 
-                        value={data.kpis.totalConcluidas} 
-                        icon={<CheckCircle fontSize="large" />} 
-                        color="#2e7d32" 
+                    <KPICard
+                        title="Concluídas"
+                        value={data.kpis.totalConcluidas}
+                        icon={<CheckCircle fontSize="large" />}
+                        color="#2e7d32"
                     />
-                    <KPICard 
-                        title="Rotas Ativas" 
-                        value={data.kpis.totalRotas} 
-                        icon={<Route fontSize="large" />} 
-                        color="#9c27b0" 
+                    <KPICard
+                        title="Rotas Ativas"
+                        value={data.kpis.totalRotas}
+                        icon={<Route fontSize="large" />}
+                        color="#9c27b0"
                     />
                 </div>
             </Box>
-            
+
             {/* 2. Gráficos e Ações */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                
+
                 {/* Gráfico de Distribuição de Status */}
                 <div className="md:col-span-2">
                     <Paper elevation={2} sx={{ p: 3, height: 400, display: 'flex', flexDirection: 'column' }}>
@@ -202,7 +203,7 @@ export default function DashboardPage() {
                                         ))}
                                     </Pie>
                                     <Tooltip />
-                                    <Legend verticalAlign="bottom" height={36}/>
+                                    <Legend verticalAlign="bottom" height={36} />
                                 </PieChart>
                             </ResponsiveContainer>
                         </Box>
@@ -216,7 +217,7 @@ export default function DashboardPage() {
                             Ações Rápidas
                         </Typography>
                         <Divider sx={{ mb: 3 }} />
-                        
+
                         <div className="flex flex-col gap-4">
                             <Button component={Link} href="/demandas" variant="outlined" size="large" startIcon={<Assignment />}>
                                 Gerenciar Demandas
