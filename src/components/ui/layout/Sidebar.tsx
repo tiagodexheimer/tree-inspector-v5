@@ -2,8 +2,8 @@
 'use client';
 
 import React from 'react';
-import { 
-    Box, Divider, List, ListItem, ListItemButton, 
+import {
+    Box, Divider, List, ListItem, ListItemButton,
     ListItemIcon, ListItemText, Toolbar, useTheme, useMediaQuery, Drawer
 } from '@mui/material';
 import Link from 'next/link';
@@ -14,6 +14,7 @@ import PinDropIcon from '@mui/icons-material/PinDrop';
 import AltRouteIcon from '@mui/icons-material/AltRoute';
 import SettingsIcon from '@mui/icons-material/Settings';
 import BarChartIcon from '@mui/icons-material/BarChart';
+import VersionDisplay from '../common/VersionDisplay';
 
 const SIDEBAR_WIDTH = 240;
 
@@ -38,7 +39,10 @@ export default function Sidebar({ mobileOpen, handleDrawerToggle }: SidebarProps
     const isMobile = useMediaQuery(theme.breakpoints.down('md'));
 
     const drawerContent = (
-        <Box onClick={isMobile ? handleDrawerToggle : undefined}>
+        <Box
+            onClick={isMobile ? handleDrawerToggle : undefined}
+            sx={{ height: '100%', display: 'flex', flexDirection: 'column' }}
+        >
             <Toolbar />
             <Divider />
             <List>
@@ -49,7 +53,7 @@ export default function Sidebar({ mobileOpen, handleDrawerToggle }: SidebarProps
                             href={item.href}
                             selected={pathname === item.href}
                             sx={{
-                                '&.Mui-selected': { 
+                                '&.Mui-selected': {
                                     backgroundColor: 'rgba(255, 255, 255, 0.2)',
                                 },
                                 '&:hover': {
@@ -65,6 +69,8 @@ export default function Sidebar({ mobileOpen, handleDrawerToggle }: SidebarProps
                     </ListItem>
                 ))}
             </List>
+            <Box sx={{ flexGrow: 1 }} />
+            <VersionDisplay />
         </Box>
     );
 
@@ -75,9 +81,9 @@ export default function Sidebar({ mobileOpen, handleDrawerToggle }: SidebarProps
                 variant="temporary"
                 open={mobileOpen}
                 onClose={handleDrawerToggle}
-                ModalProps={{ keepMounted: true }} 
+                ModalProps={{ keepMounted: true }}
                 sx={{
-                    '& .MuiDrawer-paper': { 
+                    '& .MuiDrawer-paper': {
                         boxSizing: 'border-box',
                         width: SIDEBAR_WIDTH,
                         backgroundColor: theme.palette.secondary.main,
