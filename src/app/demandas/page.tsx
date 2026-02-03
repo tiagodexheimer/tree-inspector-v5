@@ -155,8 +155,8 @@ export default function DemandasPage() {
                                 selectedDemandas={selectedDemandas}
                                 onSelectDemanda={handleSelectDemanda}
                                 onDelete={handleRequestDeleteSingle}
-                                onEdit={(d) => { setDemandaParaEditar(d); setEditModalOpen(true); }}
-                                onView={handleMapMarkerClick}
+                                onEdit={(d: DemandaComIdStatus) => { setDemandaParaEditar(d); setEditModalOpen(true); }}
+                                onView={handleViewDemanda}
                                 onStatusChange={handleStatusUpdateLocal}
                                 availableStatus={availableStatus}
                             />
@@ -176,8 +176,8 @@ export default function DemandasPage() {
                                 selectedDemandas={selectedDemandas}
                                 onSelectDemanda={handleSelectDemanda}
                                 onDelete={handleRequestDeleteSingle}
-                                onEdit={(d) => { setDemandaParaEditar(d); setEditModalOpen(true); }}
-                                onView={handleMapMarkerClick}
+                                onEdit={(d: DemandaComIdStatus) => { setDemandaParaEditar(d); setEditModalOpen(true); }}
+                                onView={handleViewDemanda}
                                 onStatusChange={handleStatusUpdateLocal}
                                 availableStatus={availableStatus}
                             />
