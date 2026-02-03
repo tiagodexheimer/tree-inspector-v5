@@ -17,19 +17,22 @@ export const ConfiguracoesRepository = {
         `;
         const res = await pool.query(query, [organizationId]);
 
+
         if (res.rows.length === 0 || !res.rows[0].valor) return null;
 
         const valor = res.rows[0].valor;
-        if (typeof valor === 'string') {
-            try {
-                return JSON.parse(valor) as RotaConfig;
-            } catch (e) {
-                console.error("Erro ao fazer parse do JSON da configuração:", e);
-                return null;
-            }
-        }
 
-        return valor as RotaConfig;
+        try {
+            // ✅ Se já for um objeto (coluna json/jsonb no Postgres), retorna direto.
+            // Se for string, faz o parse.
+            if (typeof valor === 'object' && valor !== null) {
+                return valor as RotaConfig;
+            }
+            return JSON.parse(valor) as RotaConfig;
+        } catch (e) {
+            console.error("Erro ao fazer parse do JSON da configuração:", e);
+            return null;
+        }
     },
 
     // ✅ CORREÇÃO 2: Aceita organizationId e garante que a atualização é por organização

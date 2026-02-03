@@ -1,0 +1,46 @@
+<svg
+  width="512"
+  height="512"
+  viewBox="0 0 512 512"
+  xmlns="http://www.w3.org/2000/svg"
+  fill="none">
+
+  <!-- Círculo base -->
+  <circle cx="256" cy="256" r="240" stroke="#2E7D32" stroke-width="24"/>
+
+  <!-- Árvore -->
+  <path
+    d="M256 110
+       C210 160, 190 200, 190 240
+       C190 290, 230 320, 256 320
+       C282 320, 322 290, 322 240
+       C322 200, 302 160, 256 110Z"
+    fill="#43A047"/>
+
+  <!-- Tronco -->
+  <rect x="242" y="320" width="28" height="70" rx="6" fill="#6D4C41"/>
+
+  <!-- Folha esquerda -->
+  <path
+    d="M150 280
+       C110 260, 110 210, 150 200
+       C180 195, 210 225, 210 245
+       C210 270, 180 295, 150 280Z"
+    fill="#66BB6A"/>
+
+  <!-- Folha direita -->
+  <path
+    d="M362 280
+       C402 260, 402 210, 362 200
+       C332 195, 302 225, 302 245
+       C302 270, 332 295, 362 280Z"
+    fill="#66BB6A"/>
+
+  <!-- Check (fiscalização / gestão) -->
+  <path
+    d="M200 260 L240 300 L320 220"
+    stroke="#1B5E20"
+    stroke-width="20"
+    stroke-linecap="round"
+    stroke-linejoin="round"/>
+</svg>

@@ -1,12 +1,7 @@
-import dynamic from 'next/dynamic';
+// src/components/ui/demandas/DetalhesDemandaModal.tsx
 import { Dialog, DialogTitle, DialogContent, Typography, DialogActions, Button, List, ListItem, ListItemText, Divider, Box } from "@mui/material";
 // [CORREÇÃO] Importamos o tipo completo
 import { DemandaType, DemandaComIdStatus } from "@/types/demanda";
-
-const RouteMap = dynamic(() => import("./RouteMap"), {
-  loading: () => <Box sx={{ height: 200, bgcolor: '#eee' }} />,
-  ssr: false
-});
 
 // A interface local foi removida. Usamos DemandaComIdStatus diretamente.
 
@@ -14,6 +9,7 @@ interface DetalhesDemandaModalProps {
   open: boolean;
   onClose: () => void;
   // [CORREÇÃO] Usamos o tipo que garante a propriedade status_nome
+  demanda: DemandaComIdStatus | null;
   demanda: DemandaComIdStatus | null;
 }
 
@@ -34,6 +30,17 @@ export default function DetalhesDemandaModal({ open, onClose, demanda }: Detalhe
     ];
     return parts.filter(Boolean).join('').trim();
   };
+  const formatEnderecoCompleto = (d: DemandaType): string => {
+    const parts = [
+      d.logradouro,
+      d.numero ? `, ${d.numero}` : '',
+      d.complemento ? ` - ${d.complemento}` : '',
+      d.bairro ? `\nBairro: ${d.bairro}` : '',
+      d.cidade && d.uf ? `\n${d.cidade}/${d.uf}` : (d.cidade || d.uf || ''),
+      d.cep ? `\nCEP: ${d.cep}` : ''
+    ];
+    return parts.filter(Boolean).join('').trim();
+  };
 
   // Função para formatar o prazo
   const formatPrazo = (date: Date | string | null | undefined): string => {
@@ -41,7 +48,17 @@ export default function DetalhesDemandaModal({ open, onClose, demanda }: Detalhe
     const d = new Date(date);
     return !isNaN(d.getTime()) ? d.toLocaleDateString('pt-BR') : 'Data inválida';
   };
+  // Função para formatar o prazo
+  const formatPrazo = (date: Date | string | null | undefined): string => {
+    if (!date) return 'Não definido';
+    const d = new Date(date);
+    return !isNaN(d.getTime()) ? d.toLocaleDateString('pt-BR') : 'Data inválida';
+  };
 
+  // Variáveis de coordenadas
+  const lat = demanda.lat;
+  const lng = demanda.lng;
+  const hasCoordinates = typeof lat === 'number' && typeof lng === 'number' && lat !== null && lng !== null;
   // Variáveis de coordenadas
   const lat = demanda.lat;
   const lng = demanda.lng;
@@ -57,6 +74,11 @@ export default function DetalhesDemandaModal({ open, onClose, demanda }: Detalhe
         <Typography paragraph>{demanda.descricao || 'N/A'}</Typography>
         <Divider sx={{ my: 2 }} />
 
+        {/* Endereço Detalhado */}
+        <Typography gutterBottom variant="h6">Endereço</Typography>
+        <Typography sx={{ whiteSpace: 'pre-line', mb: 2 }}>
+          {formatEnderecoCompleto(demanda)}
+        </Typography>
         {/* Endereço Detalhado */}
         <Typography gutterBottom variant="h6">Endereço</Typography>
         <Typography sx={{ whiteSpace: 'pre-line', mb: 2 }}>
@@ -99,21 +121,41 @@ export default function DetalhesDemandaModal({ open, onClose, demanda }: Detalhe
           {demanda.protocolo && <ListItem><ListItemText primary="Protocolo" secondary={demanda.protocolo} /></ListItem>}
         </List>
 
+        {/* Anexos */}
+        {demanda.anexos && demanda.anexos.length > 0 && (
+          <>
+            <Divider sx={{ my: 2 }} />
+            <Typography gutterBottom variant="h6">Anexos</Typography>
+            <List dense>
+              {demanda.anexos.map((anexo, index) => (
+                <ListItem key={index}>
+                  <Button
+                    component="a"
+                    href={anexo.url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    variant="outlined"
+                    size="small"
+                    sx={{ textTransform: 'none', justifyContent: 'flex-start', width: '100%' }}
+                  >
+                    {anexo.nome} ({anexo.type && anexo.type.split('/')[1]?.toUpperCase() || 'ARQUIVO'})
+                  </Button>
+                </ListItem>
+              ))}
+            </List>
+          </>
+        )}
+
         {/* Localização */}
         {hasCoordinates && (
           <>
             <Divider sx={{ my: 2 }} />
             <Typography gutterBottom variant="h6">Localização (Aproximada)</Typography>
-            <Box sx={{ height: 300, width: '100%', borderRadius: 1, overflow: 'hidden', mb: 1 }}>
-              <RouteMap
-                demandas={[demanda]}
-                viewMode="points"
-                modalIsOpen={open}
-              />
+            <Box sx={{ height: 200, backgroundColor: '#eee', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'text.secondary', borderRadius: 1 }}>
+              <Typography variant="caption">
+                Lat: {lat!.toFixed(6)}, Lon: {lng!.toFixed(6)}
+              </Typography>
             </Box>
-            <Typography variant="caption" color="text.secondary">
-              Lat: {lat!.toFixed(6)}, Lon: {lng!.toFixed(6)}
-            </Typography>
           </>
         )}
 

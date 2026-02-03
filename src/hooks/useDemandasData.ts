@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback, useEffect, useRef } from 'react';
 import { DemandasClient } from '@/services/client/demandas-client';
 import { DemandaComIdStatus } from '@/types/demanda';
 
@@ -8,6 +8,10 @@ export function useDemandasData() {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+  // Metadados
+  const [availableStatus, setAvailableStatus] = useState<any[]>([]);
+  const [availableTipos, setAvailableTipos] = useState<any[]>([]);
+
   // Filtros e Paginação
   const [page, setPage] = useState(1);
   const [limit] = useState(20);
@@ -16,11 +20,15 @@ export function useDemandasData() {
   const [filtroTipos, setFiltroTipos] = useState<string[]>([]);
   const [debouncedFiltro, setDebouncedFiltro] = useState('');
 
-  // Debounce do texto
+  // Ref para evitar buscas duplicadas com os mesmos parâmetros
+  const lastFetchParams = useRef<string>("");
+  const isMetadataFetched = useRef<boolean>(false);
+
+  // Debounce do texto - Só altera debouncedFiltro se houver mudança real
   useEffect(() => {
     const handler = setTimeout(() => {
-        setDebouncedFiltro(filtroTexto);
-        setPage(1); // Reseta página ao filtrar
+      setDebouncedFiltro(filtroTexto);
+      setPage(1); // Reseta página ao filtrar
     }, 300);
     return () => clearTimeout(handler);
   }, [filtroTexto]);
@@ -36,13 +44,11 @@ export function useDemandasData() {
         statusIds: filtroStatus,
         tipoNomes: filtroTipos
       });
-      
-      // Tratamento de datas (pode ser movido para um utilitário)
-      const formatted = data.demandas.map(d => ({
-          ...d,
-          prazo: d.prazo ? new Date(d.prazo) : null
-      }));
 
+      const formatted = data.demandas.map(d => ({
+        ...d,
+        prazo: d.prazo ? new Date(d.prazo) : null
+      }));
       setDemandas(formatted);
       setTotalCount(data.totalCount);
     } catch (err) {
@@ -52,10 +58,36 @@ export function useDemandasData() {
     }
   }, [page, limit, debouncedFiltro, filtroStatus, filtroTipos]);
 
-  // Carrega inicial e quando filtros mudam
+  // Efeito para carregar metadados APENAS UMA VEZ no mount
   useEffect(() => {
+    if (isMetadataFetched.current) return;
+    isMetadataFetched.current = true;
+
+    const loadMetadata = async () => {
+      try {
+        const [statusData, tiposData] = await Promise.all([
+          fetch('/api/demandas-status').then(r => r.json()),
+          fetch('/api/demandas-tipos').then(r => r.json())
+        ]);
+        setAvailableStatus(statusData);
+        setAvailableTipos(tiposData);
+      } catch (e) {
+        console.error("Erro ao carregar metadados:", e);
+      }
+    };
+    loadMetadata();
+  }, []);
+
+  // Efeito principal para carregar dados - Monitora mudanças nos filtros e paginação
+  useEffect(() => {
+    const currentParams = JSON.stringify({ page, limit, debouncedFiltro, filtroStatus, filtroTipos });
+
+    // Se os parâmetros forem idênticos ao da última busca, não faz nada
+    if (lastFetchParams.current === currentParams) return;
+
+    lastFetchParams.current = currentParams;
     fetchDemandas();
-  }, [fetchDemandas]);
+  }, [page, limit, debouncedFiltro, filtroStatus, filtroTipos, fetchDemandas]);
 
   return {
     demandas,
@@ -65,15 +97,21 @@ export function useDemandasData() {
     page,
     limit,
     setPage,
+    availableStatus,
+    availableTipos,
     filters: {
-        texto: filtroTexto,
-        setTexto: setFiltroTexto,
-        status: filtroStatus,
-        setStatus: setFiltroStatus,
-        tipos: filtroTipos,
-        setTipos: setFiltroTipos
+      texto: filtroTexto,
+      setTexto: setFiltroTexto,
+      status: filtroStatus,
+      setStatus: setFiltroStatus,
+      tipos: filtroTipos,
+      setTipos: setFiltroTipos
     },
-    refresh: fetchDemandas,
+    refresh: () => {
+      // Força a limpeza do cache de parâmetros para permitir a atualização manual
+      lastFetchParams.current = "";
+      fetchDemandas();
+    },
     setDemandas // Exposto para atualizações otimistas
   };
 }

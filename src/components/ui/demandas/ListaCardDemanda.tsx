@@ -25,6 +25,7 @@ interface ListDemandaProps {
     onSelectDemanda: (id: number) => void;
     onDelete: (id: number) => void;
     onEdit: (demanda: DemandaComIdStatus) => void;
+    onView: (demanda: DemandaComIdStatus) => void;
     onStatusChange: (demandaId: number, newStatusId: number) => Promise<void>;
     onView: (demanda: DemandaComIdStatus) => void;
     availableStatus: StatusOption[];
@@ -36,6 +37,7 @@ export default function ListaCardDemanda({
     onSelectDemanda,
     onDelete,
     onEdit,
+    onView,
     onStatusChange,
     onView,
     availableStatus
@@ -78,6 +80,7 @@ export default function ListaCardDemanda({
                             onSelect={() => demanda.id && onSelectDemanda(demanda.id)}
                             onDelete={onDelete}
                             onEdit={onEdit}
+                            onView={onView}
                             onStatusChange={onStatusChange}
                             onView={onView}
                             availableStatus={availableStatus}

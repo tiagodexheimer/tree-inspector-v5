@@ -9,10 +9,11 @@ import {
 } from "@/repositories/demandas-repository";
 import { StatusRepository } from "@/repositories/status-repository";
 import { geocodingService } from "@/services/geocoding-service";
-import { UserRole, getLimitsByRole } from "@/types/auth-types"; 
+import { UserRole, getLimitsByRole } from "@/types/auth-types";
 
 // [ATUALIZADO] Interface de criação de demanda (dados puros, sem contexto de autenticação/sessão)
 interface CreateDemandaInput {
+  protocolo?: string; // [NOVO] Opcional, para permitir ID personalizado
   nome_solicitante: string;
   telefone_solicitante?: string | null;
   email_solicitante?: string | null;
@@ -27,27 +28,28 @@ interface CreateDemandaInput {
   descricao: string;
   prazo?: string | null;
   coordinates?: [number, number] | null;
+  anexos?: any[]; // [NOVO]
 }
 
-interface UpdateDemandaInput extends Partial<CreateDemandaInput> {}
+interface UpdateDemandaInput extends Partial<CreateDemandaInput> { }
 
 export class DemandasService {
-  
+
   // [CORRIGIDO] listDemandas usa getLimitsByRole para aplicar limite de listagem (visão)
   async listDemandas(
-    params: FindDemandasParams & { organizationId?: number }, 
-    userRole?: UserRole, 
+    params: FindDemandasParams & { organizationId?: number },
+    userRole?: UserRole,
     organizationId?: number
   ) {
-    if (userRole === "free") { 
+    if (userRole === "free") {
       const limits = getLimitsByRole(userRole);
       params.limit = limits.MAX_DEMANDS; // Usa o limite centralizado
       params.page = 1; // Força para a primeira página ao limitar
     }
-    
+
     // Filtro de segurança multi-tenant
     if (organizationId) {
-        params.organizationId = organizationId;
+      params.organizationId = organizationId;
     }
 
     const { demandas, totalCount } = await DemandasRepository.findAll(params);
@@ -69,54 +71,63 @@ export class DemandasService {
     if (!input.cep || !input.numero || !input.tipo_demanda || !input.descricao) {
       throw new Error("Campos obrigatórios ausentes: CEP, Número, Tipo e Descrição.");
     }
-    
+
     // 1. REGRA DE NEGÓCIO: Limite de Demandas (Aplica-se APENAS ao Plano Free)
-    const limits = getLimitsByRole(userRole); 
-    
-    if (userRole === 'free') { 
-        const currentCount = await DemandasRepository.countByOrganization(organizationId);
-        
-        if (currentCount >= limits.MAX_DEMANDS) {
-            throw new Error(`Limite de ${limits.MAX_DEMANDS} demandas ativas atingido para o Plano Free. Considere atualizar seu plano.`);
-        }
+    const limits = getLimitsByRole(userRole);
+
+    if (userRole === 'free') {
+      const currentCount = await DemandasRepository.countByOrganization(organizationId);
+
+      if (currentCount >= limits.MAX_DEMANDS) {
+        throw new Error(`Limite de ${limits.MAX_DEMANDS} demandas ativas atingido para o Plano Free. Considere atualizar seu plano.`);
+      }
     }
     // Planos pagos ('basic', 'pro', 'premium') prosseguem sem restrição.
 
-    const nextId = await DemandasRepository.getNextProtocoloSequence();
-    const protocolo = `${nextId}`; 
+    let protocolo: string;
+
+    // Se o usuário forneceu um protocolo personalizado, usamos ele.
+    // Caso contrário, geramos o próximo da sequência.
+    if (input.protocolo && input.protocolo.trim() !== '') {
+      protocolo = input.protocolo.trim();
+      // Nota: A unicidade será garantida pelo banco de dados (Unique Constraint).
+    } else {
+      const nextId = await DemandasRepository.getNextProtocoloSequence();
+      protocolo = `${nextId}`;
+    }
 
     // Tenta obter coordenadas
     let lat: number | null = null;
     let lng: number | null = null;
-    
+
     try {
-        if (input.coordinates) {
-            lat = input.coordinates[0];
-            lng = input.coordinates[1];
-        } else {
-            const coords = await geocodingService.getCoordinates({
-                logradouro: input.logradouro,
-                numero: input.numero,
-                cidade: input.cidade,
-                uf: input.uf
-            });
-            if (coords) {
-                lat = coords[0];
-                lng = coords[1];
-            }
+      if (input.coordinates) {
+        lat = input.coordinates[0];
+        lng = input.coordinates[1];
+      } else {
+        const coords = await geocodingService.getCoordinates({
+          logradouro: input.logradouro,
+          numero: input.numero,
+          cidade: input.cidade,
+          uf: input.uf
+        });
+        if (coords) {
+          lat = coords[0];
+          lng = coords[1];
         }
+      }
     } catch (e) {
-        console.warn("Erro ao geocodificar no createDemanda:", e);
+      console.warn("Erro ao geocodificar no createDemanda:", e);
     }
 
     const statusPendente = await StatusRepository.findByName("Pendente");
     const initialStatusId = statusPendente?.id || null;
-    
+
     const prazoDate = input.prazo && input.prazo.trim() !== "" ? new Date(input.prazo) : null;
-    
+
     // organization_id é garantido e passado para o payload do repositório
     const payload: RepoCreateDemandaInput = {
-      protocolo, 
+      protocolo,
       nome_solicitante: input.nome_solicitante,
       telefone_solicitante: input.telefone_solicitante || null,
       email_solicitante: input.email_solicitante || null,
@@ -134,8 +145,9 @@ export class DemandasService {
       lng,
       prazo: prazoDate,
       organization_id: organizationId, // ID da organização garantido aqui
+      anexos: input.anexos || [] // [NOVO]
     };
-    
+
     return await DemandasRepository.create(payload);
   }
 
@@ -144,30 +156,31 @@ export class DemandasService {
     let lng: number | null = input.coordinates ? input.coordinates[1] : null;
 
     if (!input.coordinates && input.logradouro && input.numero) {
-        try {
-            const coords = await geocodingService.getCoordinates({
-                logradouro: input.logradouro,
-                numero: input.numero,
-                cidade: input.cidade,
-                uf: input.uf
-            });
-            if (coords) {
-                lat = coords[0];
-                lng = coords[1];
-            }
-        } catch (e) {
-            console.warn("Erro ao geocodificar no updateDemanda:", e);
+      try {
+        const coords = await geocodingService.getCoordinates({
+          logradouro: input.logradouro,
+          numero: input.numero,
+          cidade: input.cidade,
+          uf: input.uf
+        });
+        if (coords) {
+          lat = coords[0];
+          lng = coords[1];
         }
+      } catch (e) {
+        console.warn("Erro ao geocodificar no updateDemanda:", e);
+      }
     }
-    
+
     const prazoDate = input.prazo && input.prazo.trim() !== "" ? new Date(input.prazo) : null;
 
     const updated = await DemandasRepository.update(id, {
-        ...input,
-        lat,
-        lng,
-        prazo: prazoDate,
-        cep: input.cep ? input.cep.replace(/\D/g, "") : undefined,
+      ...input,
+      lat,
+      lng,
+      prazo: prazoDate,
+      cep: input.cep ? input.cep.replace(/\D/g, "") : undefined,
+      anexos: input.anexos, // [NOVO] Atualiza se enviado
     } as RepoUpdateDemandaInput);
 
     if (!updated) {

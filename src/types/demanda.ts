@@ -10,7 +10,7 @@ export interface DemandaType {
   protocolo?: string;
 
   created_at?: string;
-  
+
   // Dados do Solicitante
   nome_solicitante: string;
   telefone_solicitante?: string | null;
@@ -31,7 +31,8 @@ export interface DemandaType {
   prazo?: Date | null;
   status?: Status;
   responsavel?: string | null;
-  
+  anexos?: { url: string; nome: string; type: string }[]; // [NOVO]
+
   // Geografia
   geom?: GeoJsonPoint | null;
 
@@ -40,7 +41,7 @@ export interface DemandaType {
     nome: string;
     telefone: string;
     email: string;
-    endereco: string; 
+    endereco: string;
   };
 }
 
@@ -48,16 +49,16 @@ export interface DemandaType {
 // Usados para comunicação com API e Componentes UI
 
 export interface DemandaComIdStatus extends DemandaType {
-    id_status?: number | null;
-    status_nome?: string;
-    status_cor?: string;
-    // Atalhos de coordenadas para facilitar uso em mapas (Leaflet/Google)
-    lat: number | null; 
-    lng: number | null;
+  id_status?: number | null;
+  status_nome?: string;
+  status_cor?: string;
+  // Atalhos de coordenadas para facilitar uso em mapas (Leaflet/Google)
+  lat: number | null;
+  lng: number | null;
 }
 
 export interface OptimizedRouteData {
-    optimizedDemands: DemandaComIdStatus[];
-    routePath: string | [number, number][];
-    startPoint: { lat: number, lng: number };
+  optimizedDemands: DemandaComIdStatus[];
+  routePath: string | [number, number][];
+  startPoint: { lat: number, lng: number };
 }
