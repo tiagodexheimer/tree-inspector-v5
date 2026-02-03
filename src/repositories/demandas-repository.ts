@@ -177,6 +177,7 @@ export const DemandasRepository = {
   // 3. Criar Demanda (CORRIGIDO SEM RETICÊNCIAS)
   async create(data: CreateDemandaDTO): Promise<any> {
     const query = `
+        INSERT INTO demandas (
             protocolo, organization_id, nome_solicitante, telefone_solicitante, email_solicitante,
             cep, logradouro, numero, complemento, bairro, cidade, uf,
             tipo_demanda, descricao, id_status, geom, prazo, created_by_user_id, anexos
