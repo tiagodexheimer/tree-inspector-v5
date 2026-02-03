@@ -1,6 +1,6 @@
 import pool from "@/lib/db";
 
-// --- INTERFACES ---
+// --- INTERFACES atualizada---
 
 export interface CreateDemandaDTO {
   protocolo: string;
