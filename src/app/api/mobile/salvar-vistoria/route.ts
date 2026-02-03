@@ -11,12 +11,15 @@ export async function POST(request: NextRequest) {
     }
 
     const client = await db.connect();
-    
+
     try {
       await client.query('BEGIN');
 
       // 1. Salvar o JSON das respostas
       // O PostgreSQL converte automaticamente o objeto JS para JSONB
+      // [DEBUG]
+      console.log(`[API Mobile] Salvando vistoria para Demanda ${demandaId}`, JSON.stringify(respostas).substring(0, 100) + "...");
+
       const insertQuery = `
         INSERT INTO vistorias_realizadas (demanda_id, respostas)
         VALUES ($1, $2)
@@ -24,6 +27,7 @@ export async function POST(request: NextRequest) {
         DO UPDATE SET respostas = $2, data_realizacao = NOW();
       `;
       await client.query(insertQuery, [demandaId, JSON.stringify(respostas)]);
+      console.log(`[API Mobile] Vistoria salva/atualizada com sucesso.`);
 
       // 2. Atualizar o status da demanda para "Concluído"
       const updateStatusQuery = `
@@ -52,10 +56,10 @@ export async function POST(request: NextRequest) {
     // Código 23503 = Violação de chave estrangeira (foreign_key_violation)
     // Significa que o 'demanda_id' enviado não existe na tabela 'demandas'
     if (error.code === '23503') {
-        return NextResponse.json(
-            { message: "Demanda não encontrada ou já excluída no servidor." }, 
-            { status: 404 } // O Android vai ler este 404 e apagar a vistoria da fila
-        );
+      return NextResponse.json(
+        { message: "Demanda não encontrada ou já excluída no servidor." },
+        { status: 404 } // O Android vai ler este 404 e apagar a vistoria da fila
+      );
     }
     // --------------------------------
 

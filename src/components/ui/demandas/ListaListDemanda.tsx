@@ -32,6 +32,7 @@ interface ListDemandaProps {
     onEdit: (demanda: DemandaComIdStatus) => void;
     onView: (demanda: DemandaComIdStatus) => void;
     onStatusChange: (demandaId: number, newStatusId: number) => Promise<void>;
+    onView: (demanda: DemandaComIdStatus) => void;
     availableStatus: StatusOption[];
 }
 
@@ -43,6 +44,7 @@ export default function ListaListDemanda({
     onEdit,
     onView,
     onStatusChange,
+    onView,
     availableStatus
 }: ListDemandaProps) {
 
@@ -175,6 +177,7 @@ export default function ListaListDemanda({
                                 onClick={() => onSelectDemanda(demandaId)} // Seleciona ao clicar na linha
                                 sx={{
                                     cursor: 'pointer',
+                                    '& td': { borderColor: 'rgba(224, 224, 224, 1)' }
                                     '& td': { borderColor: 'rgba(224, 224, 224, 1)' }
                                 }}
                             >

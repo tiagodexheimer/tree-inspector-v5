@@ -151,23 +151,23 @@ export default function RotasPage() {
                     </Paper>
                 </Box>
 
-               {/* Coluna Direita: Mapa */}
+                {/* Coluna Direita: Mapa */}
                 <Box sx={{ flexBasis: { xs: '100%', md: '40%' }, flexGrow: 1, minWidth: { xs: '100%', md: 350 } }}>
                     <Paper elevation={2} sx={{ height: { xs: 400, md: '50vh' }, minHeight: 400, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
-                        
+
                         <Typography variant="h6" sx={{ p: 2, bgcolor: '#f5f5f5', borderBottom: '1px solid #ddd', flexShrink: 0 }}>
                             Visualização da Rota: {mapRota?.nome || (isLoadingRouteMap ? 'Carregando...' : 'Nenhuma Selecionada')}
                         </Typography>
-                        
+
                         <Box sx={{ flexGrow: 1, height: 'auto' }}>
-                            {isLoadingRouteMap ? (
+                            {isLoading || isLoadingRouteMap ? (
                                 <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100%' }}>
-                                     <CircularProgress />
+                                    <CircularProgress />
                                 </Box>
                             ) : (
-                                <RouteMap 
-                                    demandas={mapDemandas as any} 
-                                    path={selectedRouteMap?.path as any[]} 
+                                <RouteMap
+                                    demandas={mapDemandas as any}
+                                    path={selectedRouteMap?.path as any[]}
                                     // [CORREÇÃO] Passa os pontos calculados (Global ou da Rota)
                                     startPoint={startPointForMap}
                                     endPoint={endPointForMap}

@@ -63,6 +63,7 @@ export function useRotasData() {
         try {
             const data = await RotasClient.getRouteDetails(id);
 
+
             let path: [number, number][] = [];
             if (data.encodedPolyline) {
                 try {

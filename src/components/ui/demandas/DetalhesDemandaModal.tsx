@@ -10,6 +10,7 @@ interface DetalhesDemandaModalProps {
   onClose: () => void;
   // [CORREÇÃO] Usamos o tipo que garante a propriedade status_nome
   demanda: DemandaComIdStatus | null;
+  demanda: DemandaComIdStatus | null;
 }
 
 export default function DetalhesDemandaModal({ open, onClose, demanda }: DetalhesDemandaModalProps) {
@@ -29,6 +30,17 @@ export default function DetalhesDemandaModal({ open, onClose, demanda }: Detalhe
     ];
     return parts.filter(Boolean).join('').trim();
   };
+  const formatEnderecoCompleto = (d: DemandaType): string => {
+    const parts = [
+      d.logradouro,
+      d.numero ? `, ${d.numero}` : '',
+      d.complemento ? ` - ${d.complemento}` : '',
+      d.bairro ? `\nBairro: ${d.bairro}` : '',
+      d.cidade && d.uf ? `\n${d.cidade}/${d.uf}` : (d.cidade || d.uf || ''),
+      d.cep ? `\nCEP: ${d.cep}` : ''
+    ];
+    return parts.filter(Boolean).join('').trim();
+  };
 
   // Função para formatar o prazo
   const formatPrazo = (date: Date | string | null | undefined): string => {
@@ -36,7 +48,17 @@ export default function DetalhesDemandaModal({ open, onClose, demanda }: Detalhe
     const d = new Date(date);
     return !isNaN(d.getTime()) ? d.toLocaleDateString('pt-BR') : 'Data inválida';
   };
+  // Função para formatar o prazo
+  const formatPrazo = (date: Date | string | null | undefined): string => {
+    if (!date) return 'Não definido';
+    const d = new Date(date);
+    return !isNaN(d.getTime()) ? d.toLocaleDateString('pt-BR') : 'Data inválida';
+  };
 
+  // Variáveis de coordenadas
+  const lat = demanda.lat;
+  const lng = demanda.lng;
+  const hasCoordinates = typeof lat === 'number' && typeof lng === 'number' && lat !== null && lng !== null;
   // Variáveis de coordenadas
   const lat = demanda.lat;
   const lng = demanda.lng;
@@ -52,6 +74,11 @@ export default function DetalhesDemandaModal({ open, onClose, demanda }: Detalhe
         <Typography paragraph>{demanda.descricao || 'N/A'}</Typography>
         <Divider sx={{ my: 2 }} />
 
+        {/* Endereço Detalhado */}
+        <Typography gutterBottom variant="h6">Endereço</Typography>
+        <Typography sx={{ whiteSpace: 'pre-line', mb: 2 }}>
+          {formatEnderecoCompleto(demanda)}
+        </Typography>
         {/* Endereço Detalhado */}
         <Typography gutterBottom variant="h6">Endereço</Typography>
         <Typography sx={{ whiteSpace: 'pre-line', mb: 2 }}>

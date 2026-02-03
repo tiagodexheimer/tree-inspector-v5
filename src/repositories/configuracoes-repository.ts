@@ -17,6 +17,7 @@ export const ConfiguracoesRepository = {
         `;
         const res = await pool.query(query, [organizationId]);
 
+
         if (res.rows.length === 0 || !res.rows[0].valor) return null;
 
         const valor = res.rows[0].valor;

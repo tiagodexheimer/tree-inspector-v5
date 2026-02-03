@@ -218,41 +218,6 @@ export default function ConfiguracoesPage() {
                 </Link>
             </Paper>
 
-            {/* SEÇÃO DA ORGANIZAÇÃO (MANTIDA) */}
-            <Paper elevation={3} sx={{ p: 4, mb: 4, borderLeft: '6px solid #1976d2' }}>
-                {/* ... (Conteúdo da Organização) ... */}
-                <Box sx={{ display: 'flex', alignItems: 'center', mb: 2, gap: 2 }}>
-                    <Typography variant="h6" color="primary" sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                        <BusinessIcon /> Dados da Organização
-                    </Typography>
-                    <Chip
-                        label={planType}
-                        color={isFreePlan ? 'default' : 'success'}
-                        variant={isFreePlan ? 'outlined' : 'filled'}
-                        size="small"
-                        sx={{ fontWeight: 'bold' }}
-                    />
-                </Box>
-
-                <Typography variant="body2" color="text.secondary" paragraph>
-                    Identificação da sua empresa nos relatórios e sistema.
-                </Typography>
-
-                <Box sx={{ maxWidth: 600 }}>
-                    <TextField
-                        label="Nome da Organização"
-                        fullWidth
-                        value={orgName}
-                        onChange={(e) => setOrgName(e.target.value)}
-                        disabled={isFreePlan}
-                        helperText={isFreePlan ? "Usuários do plano Free não podem alterar o nome da organização." : "Este nome aparecerá nos relatórios."}
-                        InputProps={{
-                            endAdornment: isFreePlan ? <Typography variant="caption" color="text.disabled">Somente Leitura</Typography> : null
-                        }}
-                    />
-                </Box>
-            </Paper>
-
             {/* SEÇÃO DE ROTAS (MANTIDA) */}
             <Paper elevation={3} sx={{ p: 4 }}>
                 {/* ... (Conteúdo de Padrões de Rota e Mapa) ... */}

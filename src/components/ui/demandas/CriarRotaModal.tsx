@@ -59,17 +59,17 @@ export default function CriarRotaModal({ open, onClose, routeData, onRotaCriada 
     const [nomeRota, setNomeRota] = useState('');
     const [responsavel, setResponsavel] = useState('');
     const [orderedDemandas, setOrderedDemandas] = useState<DemandaComIdStatus[]>([]);
-    
+
     // [MODIFICADO] Apenas guardamos o path da API (se houver), não calculamos fallback aqui
     const [apiPolyline, setApiPolyline] = useState<[number, number][] | undefined>(undefined);
 
     const [usersList, setUsersList] = useState<UserOption[]>([]);
-    const [globalConfig, setGlobalConfig] = useState<{ inicio: {lat:number, lng:number}, fim: {lat:number, lng:number} } | null>(null);
-    
+    const [globalConfig, setGlobalConfig] = useState<{ inicio: { lat: number, lng: number }, fim: { lat: number, lng: number } } | null>(null);
+
     // Estados de Personalização
     const [personalizar, setPersonalizar] = useState(false);
-    const [coordsInicio, setCoordsInicio] = useState<{lat: number, lng: number} | null>(null);
-    const [coordsFim, setCoordsFim] = useState<{lat: number, lng: number} | null>(null);
+    const [coordsInicio, setCoordsInicio] = useState<{ lat: number, lng: number } | null>(null);
+    const [coordsFim, setCoordsFim] = useState<{ lat: number, lng: number } | null>(null);
     const [endInicio, setEndInicio] = useState<EnderecoState>({ cep: '', numero: '', logradouro: '', cidade: '', uf: '' });
     const [endFim, setEndFim] = useState<EnderecoState>({ cep: '', numero: '', logradouro: '', cidade: '', uf: '' });
 
@@ -86,7 +86,7 @@ export default function CriarRotaModal({ open, onClose, routeData, onRotaCriada 
     useEffect(() => {
         if (open) {
             setIsLoadingUsers(true);
-            
+
             // 1. Users
             fetch('/api/users/list')
                 .then(r => r.json()).then(setUsersList)
@@ -94,16 +94,22 @@ export default function CriarRotaModal({ open, onClose, routeData, onRotaCriada 
 
             // 2. Global Config
             fetch('/api/gerenciar/configuracoes')
-                .then(r => r.json()).then(data => { if(data?.inicio) setGlobalConfig(data); })
+                .then(r => r.json())
+                .then(data => {
+                    // CORREÇÃO: Acessar 'configuracaoRota' antes de verificar 'inicio'
+                    if (data?.configuracaoRota) {
+                        setGlobalConfig(data.configuracaoRota);
+                    }
+                })
                 .catch(console.error);
 
             // 3. Popula dados da Rota
             if (routeData) {
                 setOrderedDemandas((routeData.optimizedDemands || []).filter(Boolean) as DemandaComIdStatus[]);
-                
+
                 // Decodifica polyline da API para passar ao mapa
                 if (typeof routeData.routePath === 'string') {
-                    try { setApiPolyline(decode(routeData.routePath)); } catch (e) {}
+                    try { setApiPolyline(decode(routeData.routePath)); } catch (e) { }
                 } else if (Array.isArray(routeData.routePath)) {
                     setApiPolyline(routeData.routePath as [number, number][]);
                 }
@@ -111,15 +117,15 @@ export default function CriarRotaModal({ open, onClose, routeData, onRotaCriada 
 
             // Reset
             setNomeRota(''); setResponsavel(''); setPersonalizar(false);
-            setCoordsInicio(null); setCoordsFim(null); setEndInicio({cep:'',numero:'',logradouro:'',cidade:'',uf:''}); setEndFim({cep:'',numero:'',logradouro:'',cidade:'',uf:''});
+            setCoordsInicio(null); setCoordsFim(null); setEndInicio({ cep: '', numero: '', logradouro: '', cidade: '', uf: '' }); setEndFim({ cep: '', numero: '', logradouro: '', cidade: '', uf: '' });
         }
     }, [open, routeData]);
 
     // Helpers de Busca (Mantidos iguais)
-    const handleChangeAddress = (section: 'inicio'|'fim', field: keyof EnderecoState, value: string) => {
-        if(section==='inicio') setEndInicio(prev=>({...prev,[field]:value})); else setEndFim(prev=>({...prev,[field]:value}));
+    const handleChangeAddress = (section: 'inicio' | 'fim', field: keyof EnderecoState, value: string) => {
+        if (section === 'inicio') setEndInicio(prev => ({ ...prev, [field]: value })); else setEndFim(prev => ({ ...prev, [field]: value }));
     };
-    const buscarCep = async (section: 'inicio'|'fim') => {
+    const buscarCep = async (section: 'inicio' | 'fim') => {
         /* ... mesma lógica do ViaCEP ... */
         const cep = section === 'inicio' ? endInicio.cep : endFim.cep;
         const cleanCep = cep.replace(/\D/g, '');
@@ -128,23 +134,23 @@ export default function CriarRotaModal({ open, onClose, routeData, onRotaCriada 
             const res = await fetch(`https://viacep.com.br/ws/${cleanCep}/json/`);
             const data = await res.json();
             if (!data.erro) {
-                const novoEnd = { cep: data.cep, logradouro: data.logradouro, cidade: data.localidade, uf: data.uf, numero: section==='inicio'?endInicio.numero:endFim.numero };
-                if (section==='inicio') setEndInicio(novoEnd); else setEndFim(novoEnd);
+                const novoEnd = { cep: data.cep, logradouro: data.logradouro, cidade: data.localidade, uf: data.uf, numero: section === 'inicio' ? endInicio.numero : endFim.numero };
+                if (section === 'inicio') setEndInicio(novoEnd); else setEndFim(novoEnd);
             }
-        } catch (e) {}
+        } catch (e) { }
     };
-    const buscarCoordenadas = async (section: 'inicio'|'fim') => {
+    const buscarCoordenadas = async (section: 'inicio' | 'fim') => {
         /* ... mesma lógica do Geocode ... */
-        const dados = section==='inicio'?endInicio:endFim;
-        if(!dados.logradouro || !dados.numero) return;
+        const dados = section === 'inicio' ? endInicio : endFim;
+        if (!dados.logradouro || !dados.numero) return;
         try {
-            const res = await fetch('/api/geocode', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({logradouro:dados.logradouro,numero:dados.numero,cidade:dados.cidade,uf:dados.uf}) });
-            if(res.ok) {
+            const res = await fetch('/api/geocode', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ logradouro: dados.logradouro, numero: dados.numero, cidade: dados.cidade, uf: dados.uf }) });
+            if (res.ok) {
                 const data = await res.json();
-                const coords = {lat:data.coordinates[0], lng:data.coordinates[1]};
-                if(section==='inicio') setCoordsInicio(coords); else setCoordsFim(coords);
+                const coords = { lat: data.coordinates[0], lng: data.coordinates[1] };
+                if (section === 'inicio') setCoordsInicio(coords); else setCoordsFim(coords);
             }
-        } catch(e) {}
+        } catch (e) { }
     };
 
     function handleDragEnd(event: DragEndEvent) {
@@ -157,7 +163,7 @@ export default function CriarRotaModal({ open, onClose, routeData, onRotaCriada 
             });
             // [IMPORTANTE] Se o usuário mexeu na ordem, a polyline da API (otimizada) não serve mais.
             // Passamos undefined para o mapa calcular linhas retas.
-            setApiPolyline(undefined); 
+            setApiPolyline(undefined);
         }
     }
 
@@ -171,7 +177,7 @@ export default function CriarRotaModal({ open, onClose, routeData, onRotaCriada 
                 if (coordsFim) payload.fim_personalizado = coordsFim;
             }
             const res = await fetch('/api/rotas', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
-            
+
             // [FIX START] Parse backend error message
             if (!res.ok) {
                 const data = await res.json().catch(() => ({}));
@@ -184,11 +190,11 @@ export default function CriarRotaModal({ open, onClose, routeData, onRotaCriada 
     };
 
     // 1. Resolvemos os pontos finais AQUI para passar para o mapa
-    const resolvedStart = coordsInicio 
+    const resolvedStart = coordsInicio
         ? { latitude: coordsInicio.lat, longitude: coordsInicio.lng }
         : (globalConfig?.inicio ? { latitude: globalConfig.inicio.lat, longitude: globalConfig.inicio.lng } : null);
 
-    const resolvedEnd = coordsFim 
+    const resolvedEnd = coordsFim
         ? { latitude: coordsFim.lat, longitude: coordsFim.lng }
         : (globalConfig?.fim ? { latitude: globalConfig.fim.lat, longitude: globalConfig.fim.lng } : null);
 
@@ -201,7 +207,7 @@ export default function CriarRotaModal({ open, onClose, routeData, onRotaCriada 
             <DialogContent dividers>
                 {apiError && <Alert severity="error" sx={{ mb: 2 }}>{apiError}</Alert>}
                 <Box sx={{ display: 'flex', gap: 3, flexDirection: { xs: 'column', md: 'row' } }}>
-                    
+
                     {/* ESQUERDA */}
                     <Box sx={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 2 }}>
                         <TextField label="Nome da Rota" fullWidth value={nomeRota} onChange={e => setNomeRota(e.target.value)} disabled={isSaving} />
@@ -239,7 +245,7 @@ export default function CriarRotaModal({ open, onClose, routeData, onRotaCriada 
 
                         {/* Lista DnD */}
                         <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
-                            <SortableContext items={orderedDemandas.map(d=>d.id!)} strategy={verticalListSortingStrategy}>
+                            <SortableContext items={orderedDemandas.map(d => d.id!)} strategy={verticalListSortingStrategy}>
                                 <List dense sx={{ maxHeight: 200, overflow: 'auto', border: '1px solid #eee' }}>
                                     {orderedDemandas.map(d => d.id ? <SortableItem key={d.id} demanda={d} /> : null)}
                                 </List>
@@ -250,8 +256,8 @@ export default function CriarRotaModal({ open, onClose, routeData, onRotaCriada 
                     {/* DIREITA: Mapa */}
                     <Box sx={{ width: '60%', height: { xs: 300, md: 500 }, border: '1px solid #ccc', borderRadius: 1 }}>
                         {open && orderedDemandas.length > 0 ? (
-                            <RouteMapComponent 
-                                demandas={orderedDemandas} 
+                            <RouteMapComponent
+                                demandas={orderedDemandas}
                                 path={mapPath} // Passamos o path API ou undefined (para recalculo)
                                 modalIsOpen={open}
                                 startPoint={resolvedStart} // Passamos o ponto resolvido

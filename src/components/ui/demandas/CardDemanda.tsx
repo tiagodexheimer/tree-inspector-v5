@@ -13,6 +13,7 @@ import PersonIcon from '@mui/icons-material/Person';
 import DescriptionIcon from '@mui/icons-material/Description';
 import VisibilityIcon from '@mui/icons-material/Visibility';
 import ArrowDropDownIcon from '@mui/icons-material/ArrowDropDown';
+import VisibilityIcon from '@mui/icons-material/Visibility';
 import { DemandaType, DemandaComIdStatus } from '@/types/demanda';
 import { format } from 'date-fns';
 
@@ -24,12 +25,13 @@ interface CardDemandaProps {
     onEdit: (demanda: DemandaComIdStatus) => void;
     onView: (demanda: DemandaComIdStatus) => void;
     onStatusChange: (id: number, newStatus: number) => void;
+    onView: (demanda: DemandaComIdStatus) => void;
     availableStatus: any[];
 }
 
 export default function CardDemanda({
-    demanda, selected, onSelect, onDelete, onEdit, onView,
-    onStatusChange, availableStatus
+    demanda, selected, onSelect, onDelete, onEdit,
+    onStatusChange, onView, availableStatus
 }: CardDemandaProps) {
 
     const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
@@ -80,6 +82,11 @@ export default function CardDemanda({
         if (demanda.id) onDelete(demanda.id);
     };
 
+    const handleViewClick = (e: React.MouseEvent) => {
+        e.stopPropagation();
+        onView(demanda);
+    };
+
     const handleCheckboxClick = (e: React.MouseEvent) => {
         e.stopPropagation();
         onSelect();
@@ -102,6 +109,7 @@ export default function CardDemanda({
                 position: 'relative',
                 borderRadius: 3,
                 outline: selected ? '2px solid #1976d2' : 'none',
+                outline: selected ? '2px solid #1976d2' : 'none',
             }}
         >
             <CardContent sx={{ p: 2.5, flexGrow: 1, display: 'flex', flexDirection: 'column' }}>
@@ -118,6 +126,8 @@ export default function CardDemanda({
                     </Box>
 
                     <Checkbox
+
+                        <Checkbox
                         checked={selected}
                         onClick={handleCheckboxClick}
                         sx={{ mt: -1, mr: -1 }}
@@ -142,6 +152,7 @@ export default function CardDemanda({
                             }}
                         />
 
+
                         <Menu
                             anchorEl={anchorEl}
                             open={openMenu}
@@ -149,6 +160,8 @@ export default function CardDemanda({
                             onClick={(e) => e.stopPropagation()}
                         >
                             {availableStatus.map((status) => (
+                                <MenuItem
+                                    key={status.id}
                                 <MenuItem
                                     key={status.id}
                                     onClick={(e) => handleSelectStatus(e, status.id)}
@@ -184,6 +197,9 @@ export default function CardDemanda({
                         <Chip
                             label={demanda.tipo_demanda}
                             variant="outlined"
+                        <Chip
+                            label={demanda.tipo_demanda}
+                            variant="outlined"
                             size="small"
                             sx={{ mb: 0.5, height: 20, fontSize: '0.7rem', fontWeight: 600 }}
                         />
@@ -213,6 +229,8 @@ export default function CardDemanda({
                         <Box display="flex" alignItems="flex-start" gap={1} sx={{ bgcolor: '#f5f5f5', p: 1, borderRadius: 2, mt: 'auto' }}>
                             <DescriptionIcon color="action" sx={{ fontSize: 18, mt: 0.2, flexShrink: 0 }} />
                             <Tooltip title={demanda.descricao}>
+                                <Typography
+                                    variant="caption"
                                 <Typography
                                     variant="caption"
                                     color="text.secondary"
