@@ -1,5 +1,5 @@
 'use client';
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import {
     Box, Alert, Pagination, Typography,
     Dialog, DialogTitle, DialogContent, DialogContentText, DialogActions, Button,
@@ -31,15 +31,30 @@ export default function DemandasPage() {
 
     const handleViewModeChange = (mode: 'card' | 'list' | 'map') => {
         setViewMode(mode);
-        if (mode === 'map') fetchMapData();
+        if (mode === 'map') fetchMapData(filters);
     };
 
     const {
         demandas, setDemandas, totalCount, isLoading, error, page, limit, setPage,
-        filters, refresh, availableStatus, availableTipos
+        filters, refresh, availableStatus, availableTipos, availableBairros
     } = useDemandasData();
     const { demandasMap, isLoadingMap, fetchMapData } = useDemandasMapData();
+
+    // Sincroniza Mapa com Filtros
+    useEffect(() => {
+        if (viewMode === 'map') {
+            fetchMapData(filters);
+        }
+    }, [filters.texto, filters.status, filters.tipos, filters.bairros, viewMode, fetchMapData]);
+
     const { deleteDemandas, isProcessing: isDeleting, opError, clearError } = useDemandasOperations(refresh);
+
+    // Refresh map when data reaches backend
+    const originalRefresh = refresh;
+    const syncedRefresh = useCallback(() => {
+        originalRefresh();
+        if (viewMode === 'map') fetchMapData(filters);
+    }, [originalRefresh, viewMode, fetchMapData, filters]);
 
     // Estados Modais
     const [addModalOpen, setAddModalOpen] = useState(false);
@@ -135,6 +150,9 @@ export default function DemandasPage() {
                     onFiltroTipoChange={(e) => filters.setTipos(e.target.value as any)}
                     availableTipos={availableTipos}
                     tiposError={null}
+                    filtroBairros={filters.bairros}
+                    onFiltroBairrosChange={(e) => filters.setBairros(e.target.value as any)}
+                    availableBairros={availableBairros}
                     viewMode={viewMode}
                     onViewModeChange={handleViewModeChange}
                     onAddDemandaClick={() => setAddModalOpen(true)}
@@ -143,6 +161,7 @@ export default function DemandasPage() {
                     selectedDemandasCount={selectedDemandas.length}
                     onClearStatusFilter={() => filters.setStatus([])}
                     onClearTipoFilter={() => filters.setTipos([])}
+                    onClearBairroFilter={() => filters.setBairros([])}
                     isOptimizing={isOptimizing}
                 />
             </Box>

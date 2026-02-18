@@ -11,6 +11,7 @@ export function useDemandasData() {
   // Metadados
   const [availableStatus, setAvailableStatus] = useState<any[]>([]);
   const [availableTipos, setAvailableTipos] = useState<any[]>([]);
+  const [availableBairros, setAvailableBairros] = useState<string[]>([]);
 
   // Filtros e Paginação
   const [page, setPage] = useState(1);
@@ -18,6 +19,7 @@ export function useDemandasData() {
   const [filtroTexto, setFiltroTexto] = useState('');
   const [filtroStatus, setFiltroStatus] = useState<number[]>([]);
   const [filtroTipos, setFiltroTipos] = useState<string[]>([]);
+  const [filtroBairros, setFiltroBairros] = useState<string[]>([]);
   const [debouncedFiltro, setDebouncedFiltro] = useState('');
 
   // Ref para evitar buscas duplicadas com os mesmos parâmetros
@@ -42,7 +44,8 @@ export function useDemandasData() {
         limit,
         filtro: debouncedFiltro,
         statusIds: filtroStatus,
-        tipoNomes: filtroTipos
+        tipoNomes: filtroTipos,
+        bairros: filtroBairros
       });
 
       const formatted = data.demandas.map(d => ({
@@ -56,7 +59,7 @@ export function useDemandasData() {
     } finally {
       setIsLoading(false);
     }
-  }, [page, limit, debouncedFiltro, filtroStatus, filtroTipos]);
+  }, [page, limit, debouncedFiltro, filtroStatus, filtroTipos, filtroBairros]);
 
   // Efeito para carregar metadados APENAS UMA VEZ no mount
   useEffect(() => {
@@ -65,12 +68,14 @@ export function useDemandasData() {
 
     const loadMetadata = async () => {
       try {
-        const [statusData, tiposData] = await Promise.all([
+        const [statusData, tiposData, bairrosData] = await Promise.all([
           fetch('/api/demandas-status').then(r => r.json()),
-          fetch('/api/demandas-tipos').then(r => r.json())
+          fetch('/api/demandas-tipos').then(r => r.json()),
+          fetch('/api/demandas-bairros').then(r => r.json())
         ]);
         setAvailableStatus(statusData);
         setAvailableTipos(tiposData);
+        setAvailableBairros(bairrosData);
       } catch (e) {
         console.error("Erro ao carregar metadados:", e);
       }
@@ -80,14 +85,14 @@ export function useDemandasData() {
 
   // Efeito principal para carregar dados - Monitora mudanças nos filtros e paginação
   useEffect(() => {
-    const currentParams = JSON.stringify({ page, limit, debouncedFiltro, filtroStatus, filtroTipos });
+    const currentParams = JSON.stringify({ page, limit, debouncedFiltro, filtroStatus, filtroTipos, filtroBairros });
 
     // Se os parâmetros forem idênticos ao da última busca, não faz nada
     if (lastFetchParams.current === currentParams) return;
 
     lastFetchParams.current = currentParams;
     fetchDemandas();
-  }, [page, limit, debouncedFiltro, filtroStatus, filtroTipos, fetchDemandas]);
+  }, [page, limit, debouncedFiltro, filtroStatus, filtroTipos, filtroBairros, fetchDemandas]);
 
   return {
     demandas,
@@ -99,13 +104,16 @@ export function useDemandasData() {
     setPage,
     availableStatus,
     availableTipos,
+    availableBairros,
     filters: {
       texto: filtroTexto,
       setTexto: setFiltroTexto,
       status: filtroStatus,
       setStatus: setFiltroStatus,
       tipos: filtroTipos,
-      setTipos: setFiltroTipos
+      setTipos: setFiltroTipos,
+      bairros: filtroBairros,
+      setBairros: setFiltroBairros
     },
     refresh: () => {
       // Força a limpeza do cache de parâmetros para permitir a atualização manual

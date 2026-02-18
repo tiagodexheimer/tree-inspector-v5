@@ -37,7 +37,7 @@ export class DemandasService {
 
   // [CORRIGIDO] listDemandas usa getLimitsByRole para aplicar limite de listagem (visão)
   async listDemandas(
-    params: FindDemandasParams & { organizationId?: number },
+    params: FindDemandasParams & { organizationId?: number; bairros?: string[] },
     userRole?: UserRole,
     organizationId?: number
   ) {

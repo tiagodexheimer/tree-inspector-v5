@@ -1,21 +1,33 @@
 // src/app/api/dashboard/route.ts
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { auth } from "@/auth";
 import pool from "@/lib/db";
 
-export async function GET() {
+export async function GET(request: NextRequest) {
     const session = await auth();
     // Verifica organizationId
     if (!session || !session.user?.organizationId) {
         return NextResponse.json({ message: "Não autenticado ou sem organização" }, { status: 401 });
     }
 
-    const orgId = session.user.organizationId;
+    const orgId = (session.user as any).organizationId;
+    const { searchParams } = new URL(request.url);
+
+    // Processa bairros para o filtro do Dashboard
+    const bairrosList = searchParams.get("bairros") || searchParams.get("bairro");
+    const bairros = bairrosList ? bairrosList.split(',').filter(Boolean) : [];
+    const hasBairros = bairros.length > 0;
+
+    // Normalização para match seguro
+    const normalizedBairros = bairros.map(b => b.trim().toLowerCase());
 
     try {
         const client = await pool.connect();
         try {
-            // [ALTERADO] Filtrando por organization_id
+            // Cláusula para Bairro
+            const whereBairro = hasBairros ? `AND LOWER(TRIM(bairro)) = ANY($2)` : '';
+            const values = hasBairros ? [orgId, normalizedBairros] : [orgId];
+
             const kpiQuery = `
                 SELECT 
                     COUNT(*) as total,
@@ -30,9 +42,9 @@ export async function GET() {
                         AND (organization_id = $1 OR organization_id IS NULL)
                     )) as concluidas
                 FROM demandas
-                WHERE organization_id = $1;
+                WHERE organization_id = $1 ${whereBairro};
             `;
-            const kpiRes = await client.query(kpiQuery, [orgId]);
+            const kpiRes = await client.query(kpiQuery, values);
 
             const rotasRes = await client.query(
                 'SELECT COUNT(*) as total FROM rotas WHERE organization_id = $1',
@@ -47,11 +59,11 @@ export async function GET() {
                     COUNT(d.id) as value
                 FROM demandas d
                 JOIN demandas_status s ON d.id_status = s.id
-                WHERE d.organization_id = $1 
+                WHERE d.organization_id = $1 ${hasBairros ? 'AND LOWER(TRIM(d.bairro)) = ANY($2)' : ''}
                 GROUP BY s.nome, s.cor
                 ORDER BY value DESC
             `;
-            const chartRes = await client.query(chartQuery, [orgId]);
+            const chartRes = await client.query(chartQuery, values);
 
             const data = {
                 kpis: {

@@ -7,6 +7,7 @@ interface FetchDemandasParams {
   filtro?: string;
   statusIds?: number[];
   tipoNomes?: string[];
+  bairros?: string[];
 }
 
 interface FetchDemandasResponse {
@@ -16,26 +17,26 @@ interface FetchDemandasResponse {
 
 // Interface de retorno esperada para a criação de demanda
 interface CreateDemandaResponse {
-    protocolo: string;
-    demanda: any; // O objeto completo da demanda criada
-    message: string;
+  protocolo: string;
+  demanda: any; // O objeto completo da demanda criada
+  message: string;
 }
 
 export const DemandasClient = {
   async getAll(params: FetchDemandasParams): Promise<FetchDemandasResponse> {
-    const query = new URLSearchParams({
-      page: params.page.toString(),
-      limit: params.limit.toString(),
-      ...(params.filtro && { filtro: params.filtro }),
-      ...(params.statusIds?.length && { statusIds: params.statusIds.join(',') }),
-      ...(params.tipoNomes?.length && { tipoNomes: params.tipoNomes.join(',') }),
-    });
+    const query = new URLSearchParams();
+    query.append('page', params.page.toString());
+    query.append('limit', params.limit.toString());
+    if (params.filtro) query.append('filtro', params.filtro);
+    if (params.statusIds?.length) query.append('statusIds', params.statusIds.join(','));
+    if (params.tipoNomes?.length) query.append('tipoNomes', params.tipoNomes.join(','));
+    if (params.bairros?.length) query.append('bairros', params.bairros.join(','));
 
     const response = await fetch(`/api/demandas?${query}`);
     if (!response.ok) throw new Error("Erro ao buscar demandas.");
     return response.json();
   },
-  
+
   // [MÉTODO PARA CRIAR (POST)]
   async create(data: any): Promise<CreateDemandaResponse> {
     const response = await fetch('/api/demandas', {
@@ -44,11 +45,11 @@ export const DemandasClient = {
       body: JSON.stringify(data),
     });
     if (!response.ok) {
-        const errorBody = await response.json().catch(() => ({}));
-        throw new Error(errorBody.message || `Erro HTTP ${response.status} ao criar demanda.`);
+      const errorBody = await response.json().catch(() => ({}));
+      throw new Error(errorBody.message || `Erro HTTP ${response.status} ao criar demanda.`);
     }
     // Retorna o corpo da resposta, que contém o protocolo
-    return response.json(); 
+    return response.json();
   },
 
   // [MÉTODO PARA ATUALIZAR (PUT)]
@@ -59,8 +60,8 @@ export const DemandasClient = {
       body: JSON.stringify(data),
     });
     if (!response.ok) {
-        const errorBody = await response.json().catch(() => ({}));
-        throw new Error(errorBody.message || `Erro HTTP ${response.status} ao atualizar demanda.`);
+      const errorBody = await response.json().catch(() => ({}));
+      throw new Error(errorBody.message || `Erro HTTP ${response.status} ao atualizar demanda.`);
     }
   },
 

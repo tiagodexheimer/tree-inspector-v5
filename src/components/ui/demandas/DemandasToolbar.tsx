@@ -1,8 +1,8 @@
 'use client';
 
 import React from 'react';
-import { 
-    Box, TextField, MenuItem, Select, FormControl, InputLabel, 
+import {
+    Box, TextField, MenuItem, Select, FormControl, InputLabel,
     Button, Stack, IconButton, InputAdornment, Chip, ToggleButton, ToggleButtonGroup,
     Paper, Divider
 } from '@mui/material';
@@ -19,7 +19,7 @@ import { CircularProgress } from '@mui/material';
 interface DemandasToolbarProps {
     filtro: string;
     onFiltroChange: (val: string) => void;
-    
+
     filtroStatusIds: number[];
     onFiltroStatusChange: (e: any) => void;
     availableStatus: any[];
@@ -30,21 +30,26 @@ interface DemandasToolbarProps {
     availableTipos: any[];
     tiposError: any;
 
-    viewMode: 'card' | 'list' | 'map'; 
+    filtroBairros: string[];
+    onFiltroBairrosChange: (e: any) => void;
+    availableBairros: string[];
+
+    viewMode: 'card' | 'list' | 'map';
     onViewModeChange: (mode: 'card' | 'list' | 'map') => void;
 
     onAddDemandaClick: () => void;
     onCreateRotaClick: () => void;
     onDeleteSelectedClick: () => void;
-    
+
     selectedDemandasCount: number;
     onClearStatusFilter: () => void;
     onClearTipoFilter: () => void;
+    onClearBairroFilter: () => void;
     isOptimizing: boolean;
 }
 
 export default function DemandasToolbar(props: DemandasToolbarProps) {
-    
+
     const handleViewChange = (event: React.MouseEvent<HTMLElement>, newView: 'card' | 'list' | 'map' | null) => {
         if (newView !== null) {
             props.onViewModeChange(newView);
@@ -54,7 +59,7 @@ export default function DemandasToolbar(props: DemandasToolbarProps) {
     return (
         <Paper elevation={0} sx={{ p: 2, mb: 2, bgcolor: 'background.paper', border: '1px solid #eee' }}>
             <Stack direction={{ xs: 'column', lg: 'row' }} spacing={2} alignItems="center" justifyContent="space-between">
-                
+
                 {/* ESQUERDA: Busca e Filtros */}
                 <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2} sx={{ width: { xs: '100%', lg: 'auto' }, flexGrow: 1 }}>
                     <TextField
@@ -92,8 +97,36 @@ export default function DemandasToolbar(props: DemandasToolbarProps) {
                         </Select>
                     </FormControl>
 
-                    {(props.filtro || props.filtroStatusIds.length > 0 || props.filtroTipoNomes.length > 0) && (
-                        <IconButton onClick={() => { props.onFiltroChange(''); props.onClearStatusFilter(); props.onClearTipoFilter(); }} title="Limpar Filtros">
+                    <FormControl size="small" sx={{ minWidth: 160, flexGrow: { xs: 1, sm: 0 } }}>
+                        <InputLabel>Bairros</InputLabel>
+                        <Select
+                            multiple
+                            value={props.filtroBairros}
+                            onChange={props.onFiltroBairrosChange}
+                            label="Bairros"
+                            renderValue={(selected) => (
+                                <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
+                                    {(selected as string[]).map((b) => (
+                                        <Chip key={b} label={b} size="small" sx={{ height: 20 }} />
+                                    ))}
+                                </Box>
+                            )}
+                        >
+                            {props.availableBairros.map((bairro) => (
+                                <MenuItem key={bairro} value={bairro}>
+                                    {bairro}
+                                </MenuItem>
+                            ))}
+                        </Select>
+                    </FormControl>
+
+                    {(props.filtro || props.filtroStatusIds.length > 0 || props.filtroTipoNomes.length > 0 || props.filtroBairros.length > 0) && (
+                        <IconButton onClick={() => {
+                            props.onFiltroChange('');
+                            props.onClearStatusFilter();
+                            props.onClearTipoFilter();
+                            props.onClearBairroFilter();
+                        }} title="Limpar Filtros">
                             <FilterListOffIcon />
                         </IconButton>
                     )}
@@ -101,13 +134,13 @@ export default function DemandasToolbar(props: DemandasToolbarProps) {
 
                 {/* DIREITA: Ações e Visualização */}
                 <Stack direction="row" spacing={2} alignItems="center" sx={{ width: { xs: '100%', lg: 'auto' }, justifyContent: { xs: 'space-between', lg: 'flex-end' } }}>
-                    
+
                     {/* Botão EXCLUIR (Vermelho Destaque) */}
                     {props.selectedDemandasCount > 0 && (
-                        <Button 
+                        <Button
                             variant="contained" // [ALTERADO] Para destaque sólido
-                            color="error" 
-                            startIcon={<DeleteIcon />} 
+                            color="error"
+                            startIcon={<DeleteIcon />}
                             onClick={props.onDeleteSelectedClick}
                             size="small"
                             sx={{ fontWeight: 'bold' }}
@@ -118,10 +151,10 @@ export default function DemandasToolbar(props: DemandasToolbarProps) {
 
                     <Stack direction="row" spacing={1} alignItems="center">
                         {/* Botão CRIAR ROTA (Azul Destaque) */}
-                        <Button 
+                        <Button
                             variant="contained" // [ALTERADO] Para destaque sólido
                             color="info"        // [ALTERADO] 'info' geralmente é um azul agradável, ou use 'primary'
-                            startIcon={props.isOptimizing ? <CircularProgress size={20} color="inherit" /> : <RouteIcon />} 
+                            startIcon={props.isOptimizing ? <CircularProgress size={20} color="inherit" /> : <RouteIcon />}
                             onClick={props.onCreateRotaClick}
                             disabled={props.selectedDemandasCount === 0 || props.isOptimizing}
                             size="small"
@@ -130,10 +163,10 @@ export default function DemandasToolbar(props: DemandasToolbarProps) {
                             Criar Rota
                         </Button>
 
-                        <Button 
+                        <Button
                             variant="outlined" // [ALTERADO] Nova Demanda fica outlined para dar contraste com os de ação em lote
-                            color="primary" 
-                            startIcon={<AddCircleOutlineIcon />} 
+                            color="primary"
+                            startIcon={<AddCircleOutlineIcon />}
                             onClick={props.onAddDemandaClick}
                             size="small"
                         >

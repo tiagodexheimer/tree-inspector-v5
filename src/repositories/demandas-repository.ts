@@ -59,6 +59,7 @@ export interface FindDemandasParams {
   filtro?: string;
   statusIds?: number[];
   tipoNomes?: string[];
+  bairros?: string[];
   organizationId: number;
 }
 
@@ -102,8 +103,8 @@ export const DemandasRepository = {
   async findAll(
     params: FindDemandasParams
   ): Promise<{ demandas: any[]; totalCount: number }> {
-    const { page, limit, filtro, statusIds, tipoNomes, organizationId } =
-      params; // 👈organizationId
+    const { page, limit, filtro, statusIds, tipoNomes, organizationId, bairros } =
+      params;
     const offset = (page - 1) * limit;
 
     const whereClauses: string[] = [];
@@ -145,6 +146,15 @@ export const DemandasRepository = {
     if (tipoNomes && tipoNomes.length > 0) {
       whereClauses.push(`d.tipo_demanda = ANY($${counter}::text[])`);
       values.push(tipoNomes);
+      counter++;
+    }
+
+    // Filtro de Bairros
+    if (bairros && bairros.length > 0) {
+      // Normalizamos os bairros selecionados para garantir o match
+      const normalizedBairros = bairros.map(b => b.trim().toLowerCase());
+      whereClauses.push(`LOWER(TRIM(d.bairro)) = ANY($${counter}::text[])`);
+      values.push(normalizedBairros);
       counter++;
     }
 
@@ -421,5 +431,24 @@ export const DemandasRepository = {
     const result = await pool.query(query, [organizationId]);
     // Garante que o count é retornado como número
     return parseInt(result.rows[0].count, 10);
+  },
+
+  // 12. Obter Bairros Únicos da Organização
+  async getUniqueBairros(organizationId: number): Promise<string[]> {
+    try {
+      const query = `
+        SELECT DISTINCT bairro 
+        FROM demandas 
+        WHERE organization_id = $1 
+        AND bairro IS NOT NULL 
+        AND bairro != ''
+        ORDER BY bairro ASC
+      `;
+      const result = await pool.query(query, [organizationId]);
+      return result.rows.map((row) => row.bairro);
+    } catch (error) {
+      console.error("Erro no DemandasRepository.getUniqueBairros:", error);
+      throw new Error("Falha ao buscar bairros únicos.");
+    }
   },
 };
