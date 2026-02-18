@@ -20,6 +20,7 @@ export function useDemandasData() {
   const [filtroStatus, setFiltroStatus] = useState<number[]>([]);
   const [filtroTipos, setFiltroTipos] = useState<string[]>([]);
   const [filtroBairros, setFiltroBairros] = useState<string[]>([]);
+  const [notificacoesVencidas, setNotificacoesVencidas] = useState(false); // [NOVO]
   const [debouncedFiltro, setDebouncedFiltro] = useState('');
 
   // Ref para evitar buscas duplicadas com os mesmos parâmetros
@@ -45,10 +46,11 @@ export function useDemandasData() {
         filtro: debouncedFiltro,
         statusIds: filtroStatus,
         tipoNomes: filtroTipos,
-        bairros: filtroBairros
+        bairros: filtroBairros,
+        notificacoesVencidas // [NOVO]
       });
 
-      const formatted = data.demandas.map(d => ({
+      const formatted = data.demandas.map((d: any) => ({
         ...d,
         prazo: d.prazo ? new Date(d.prazo) : null
       }));
@@ -59,7 +61,7 @@ export function useDemandasData() {
     } finally {
       setIsLoading(false);
     }
-  }, [page, limit, debouncedFiltro, filtroStatus, filtroTipos, filtroBairros]);
+  }, [page, limit, debouncedFiltro, filtroStatus, filtroTipos, filtroBairros, notificacoesVencidas]);
 
   // Efeito para carregar metadados APENAS UMA VEZ no mount
   useEffect(() => {
@@ -85,14 +87,14 @@ export function useDemandasData() {
 
   // Efeito principal para carregar dados - Monitora mudanças nos filtros e paginação
   useEffect(() => {
-    const currentParams = JSON.stringify({ page, limit, debouncedFiltro, filtroStatus, filtroTipos, filtroBairros });
+    const currentParams = JSON.stringify({ page, limit, debouncedFiltro, filtroStatus, filtroTipos, filtroBairros, notificacoesVencidas });
 
     // Se os parâmetros forem idênticos ao da última busca, não faz nada
     if (lastFetchParams.current === currentParams) return;
 
     lastFetchParams.current = currentParams;
     fetchDemandas();
-  }, [page, limit, debouncedFiltro, filtroStatus, filtroTipos, filtroBairros, fetchDemandas]);
+  }, [page, limit, debouncedFiltro, filtroStatus, filtroTipos, filtroBairros, notificacoesVencidas, fetchDemandas]);
 
   return {
     demandas,
@@ -113,7 +115,9 @@ export function useDemandasData() {
       tipos: filtroTipos,
       setTipos: setFiltroTipos,
       bairros: filtroBairros,
-      setBairros: setFiltroBairros
+      setBairros: setFiltroBairros,
+      notificacoesVencidas, // [NOVO]
+      setNotificacoesVencidas // [NOVO]
     },
     refresh: () => {
       // Força a limpeza do cache de parâmetros para permitir a atualização manual

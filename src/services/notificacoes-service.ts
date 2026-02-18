@@ -1,0 +1,54 @@
+import { NotificacoesRepository, CreateNotificacaoDTO } from "@/repositories/notificacoes-repository";
+import { demandasService } from "./demandas-service";
+import { UserRole } from "@/types/auth-types";
+
+export const notificacoesService = {
+    async listByDemanda(demandaId: number) {
+        return await NotificacoesRepository.findByDemanda(demandaId);
+    },
+
+    async listExpired(organizationId: number) {
+        return await NotificacoesRepository.findExpired(organizationId);
+    },
+
+    async createNotificacao(data: CreateNotificacaoDTO, organizationId: number, userRole: UserRole = "admin") {
+        // Garante que a organização é a correta da sessão
+        let finalData = { ...data, organization_id: organizationId };
+
+        // [NOVO] Se for uma notificação avulsa (sem demanda vinculada), cria uma demanda de Fiscalização primeiro
+        if (!finalData.demanda_id) {
+            console.log("[NotificacoesService] Criando demanda de fiscalização automática...");
+            const novaDemanda = await demandasService.createDemanda({
+                nome_solicitante: "Fiscalização (Sistema)",
+                cep: finalData.cep || "00000000",
+                logradouro: finalData.logradouro,
+                numero: finalData.numero || "S/N",
+                bairro: finalData.bairro,
+                cidade: finalData.cidade,
+                uf: finalData.uf,
+                tipo_demanda: "Fiscalização",
+                descricao: `Fiscalização vinculada ao processo: ${finalData.numero_processo}. ${finalData.descricao || ""}`,
+                coordinates: (finalData.lat && finalData.lng) ? [finalData.lat, finalData.lng] : undefined
+            }, organizationId, userRole);
+
+            finalData.demanda_id = novaDemanda.id;
+        }
+
+        // Lógica de vencimento automática se não fornecida
+        if (!finalData.vencimento && finalData.data_emissao) {
+            const emission = new Date(finalData.data_emissao);
+            emission.setDate(emission.getDate() + (finalData.prazo_dias || 15));
+            finalData.vencimento = emission;
+        }
+
+        return await NotificacoesRepository.create(finalData);
+    },
+
+    async deleteNotificacao(id: number, organizationId: number) {
+        return await NotificacoesRepository.delete(id, organizationId);
+    },
+
+    async updateStatus(id: number, organizationId: number, status: string) {
+        return await NotificacoesRepository.updateStatus(id, organizationId, status);
+    }
+};

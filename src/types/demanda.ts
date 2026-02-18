@@ -55,6 +55,9 @@ export interface DemandaComIdStatus extends DemandaType {
   // Atalhos de coordenadas para facilitar uso em mapas (Leaflet/Google)
   lat: number | null;
   lng: number | null;
+  // Informações de Notificações vinculadas
+  notificacao_status?: string;
+  notificacao_vencimento?: string | Date;
 }
 
 export interface OptimizedRouteData {

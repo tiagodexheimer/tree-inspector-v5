@@ -8,6 +8,7 @@ interface FetchDemandasParams {
   statusIds?: number[];
   tipoNomes?: string[];
   bairros?: string[];
+  notificacoesVencidas?: boolean; // [NOVO]
 }
 
 interface FetchDemandasResponse {
@@ -31,6 +32,7 @@ export const DemandasClient = {
     if (params.statusIds?.length) query.append('statusIds', params.statusIds.join(','));
     if (params.tipoNomes?.length) query.append('tipoNomes', params.tipoNomes.join(','));
     if (params.bairros?.length) query.append('bairros', params.bairros.join(','));
+    if (params.notificacoesVencidas) query.append('notificacoesVencidas', 'true'); // [NOVO]
 
     const response = await fetch(`/api/demandas?${query}`);
     if (!response.ok) throw new Error("Erro ao buscar demandas.");

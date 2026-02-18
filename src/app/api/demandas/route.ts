@@ -66,6 +66,7 @@ export async function GET(request: NextRequest) {
 
   const tipoNomes = parseArray("tipoNomes") || parseArray("tipo");
   const bairros = parseArray("bairros") || parseArray("bairro");
+  const notificacoesVencidas = searchParams.get("notificacoesVencidas") === 'true'; // [NOVO]
 
   try {
     const result = await demandasService.listDemandas(
@@ -77,6 +78,7 @@ export async function GET(request: NextRequest) {
         tipoNomes,
         bairros,
         organizationId,
+        notificacoesVencidas, // [NOVO]
       },
       userRole,
       organizationId // Agora isso bate com o tipo 'number' do service

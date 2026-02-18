@@ -61,6 +61,7 @@ export interface FindDemandasParams {
   tipoNomes?: string[];
   bairros?: string[];
   organizationId: number;
+  notificacoesVencidas?: boolean; // [NOVO]
 }
 
 export interface UpdateDemandaDTO {
@@ -158,6 +159,16 @@ export const DemandasRepository = {
       counter++;
     }
 
+    // [NOVO] Filtro de Notificações Vencidas
+    if (params.notificacoesVencidas) {
+      whereClauses.push(`EXISTS (
+        SELECT 1 FROM notificacoes n 
+        WHERE n.demanda_id = d.id 
+        AND n.status = 'Pendente' 
+        AND n.vencimento < CURRENT_DATE
+      )`);
+    }
+
     const whereSql =
       whereClauses.length > 0 ? `WHERE ${whereClauses.join(" AND ")}` : "";
 
@@ -179,9 +190,19 @@ export const DemandasRepository = {
         ST_AsGeoJSON(d.geom) as geom,
         ST_Y(d.geom::geometry) as lat, 
         ST_X(d.geom::geometry) as lng,
-        d.anexos
+        d.anexos,
+        n.status as notificacao_status,
+        n.vencimento as notificacao_vencimento
       FROM demandas d
       LEFT JOIN demandas_status s ON d.id_status = s.id
+      LEFT JOIN LATERAL (
+        SELECT id, status, vencimento
+        FROM notificacoes
+        WHERE demanda_id = d.id
+        AND status = 'Pendente'
+        ORDER BY vencimento ASC
+        LIMIT 1
+      ) n ON true
       ${whereSql}
       ORDER BY d.created_at DESC
       LIMIT $${counter} OFFSET $${counter + 1}

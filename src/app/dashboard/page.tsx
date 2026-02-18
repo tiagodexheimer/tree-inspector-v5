@@ -15,12 +15,14 @@ import {
 import {
     FormControl, InputLabel, Select, MenuItem, Chip, IconButton, Stack, Paper as MuiPaper
 } from '@mui/material';
+import { ComponentType } from 'react';
 import DashboardSkeleton from "@/components/ui/dashboard/DashboardSkeleton";
 import Link from 'next/link';
 import { DashboardData } from '@/types/dashboard';
 import { useSession } from 'next-auth/react'; // [NOVO] Importar useSession
 import DashboardIcon from '@mui/icons-material/Dashboard';
 import { usePageTitle } from '@/contexts/PageTitleContext';
+import ExpiredNotificationsWidget from '@/components/ui/dashboard/ExpiredNotificationsWidget';
 
 // [NOVO] Interface para o Convite Pendente
 interface PendingInvite {
@@ -57,6 +59,8 @@ export default function DashboardPage() {
     const [invites, setInvites] = useState<PendingInvite[]>([]);
 
     // Filtros
+    // [NOVO] Estado para notificações vencidas
+    const [expiredNotifications, setExpiredNotifications] = useState<any[]>([]);
     const [availableBairros, setAvailableBairros] = useState<string[]>([]);
     const [filtroBairros, setFiltroBairros] = useState<string[]>([]);
 
@@ -76,6 +80,19 @@ export default function DashboardPage() {
             }
         } catch (error) {
             console.error("Erro de rede ao buscar convites:", error);
+        }
+    };
+
+    // [NOVO] Função para buscar notificações vencidas
+    const fetchExpiredNotifications = async () => {
+        try {
+            const response = await fetch('/api/notificacoes?vencidas=true');
+            if (response.ok) {
+                const data = await response.json();
+                setExpiredNotifications(data);
+            }
+        } catch (error) {
+            console.error("Erro ao buscar notificações vencidas:", error);
         }
     };
 
@@ -103,6 +120,7 @@ export default function DashboardPage() {
         // [MODIFICADO] Carrega os dados do dashboard E os convites
         if (status === 'authenticated') {
             fetchInvites();
+            fetchExpiredNotifications();
             loadBairros();
             fetchData(filtroBairros);
         } else if (status !== 'loading') {
@@ -159,8 +177,12 @@ export default function DashboardPage() {
     return (
         <Box sx={{ p: 3 }}>
 
-            {/* 0. NOTIFICAÇÃO DE CONVITE (Aparece no topo) */}
-            {InviteNotification}
+            {/* 0.1 NOTIFICAÇÃO DE PRAZOS VENCIDOS */}
+            {expiredNotifications.length > 0 && (
+                <Box sx={{ mb: 4 }}>
+                    <ExpiredNotificationsWidget notifications={expiredNotifications} />
+                </Box>
+            )}
 
             <Stack direction="row" alignItems="center" justifyContent="flex-end" sx={{ mb: 4 }}>
 

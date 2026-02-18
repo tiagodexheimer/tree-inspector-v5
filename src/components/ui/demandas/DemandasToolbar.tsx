@@ -14,6 +14,8 @@ import FilterListOffIcon from '@mui/icons-material/FilterListOff';
 import MapIcon from '@mui/icons-material/Map';
 import ViewModuleIcon from '@mui/icons-material/ViewModule';
 import ViewListIcon from '@mui/icons-material/ViewList';
+import AssignmentIcon from '@mui/icons-material/Assignment';
+import HistoryIcon from '@mui/icons-material/History';
 import { CircularProgress } from '@mui/material';
 
 interface DemandasToolbarProps {
@@ -38,6 +40,7 @@ interface DemandasToolbarProps {
     onViewModeChange: (mode: 'card' | 'list' | 'map') => void;
 
     onAddDemandaClick: () => void;
+    onAddNotificacaoClick: () => void; // [NOVO]
     onCreateRotaClick: () => void;
     onDeleteSelectedClick: () => void;
 
@@ -46,6 +49,8 @@ interface DemandasToolbarProps {
     onClearTipoFilter: () => void;
     onClearBairroFilter: () => void;
     isOptimizing: boolean;
+    notificacoesVencidas: boolean; // [NOVO]
+    onNotificacoesVencidasChange: (val: boolean) => void; // [NOVO]
 }
 
 export default function DemandasToolbar(props: DemandasToolbarProps) {
@@ -120,12 +125,25 @@ export default function DemandasToolbar(props: DemandasToolbarProps) {
                         </Select>
                     </FormControl>
 
-                    {(props.filtro || props.filtroStatusIds.length > 0 || props.filtroTipoNomes.length > 0 || props.filtroBairros.length > 0) && (
+                    <ToggleButton
+                        value="vencidas"
+                        selected={props.notificacoesVencidas}
+                        onChange={() => props.onNotificacoesVencidasChange(!props.notificacoesVencidas)}
+                        size="small"
+                        color="error"
+                        sx={{ height: 40, px: 2, fontWeight: 'bold' }}
+                    >
+                        <HistoryIcon sx={{ mr: 1 }} />
+                        Re-vistoria
+                    </ToggleButton>
+
+                    {(props.filtro || props.filtroStatusIds.length > 0 || props.filtroTipoNomes.length > 0 || props.filtroBairros.length > 0 || props.notificacoesVencidas) && (
                         <IconButton onClick={() => {
                             props.onFiltroChange('');
                             props.onClearStatusFilter();
                             props.onClearTipoFilter();
                             props.onClearBairroFilter();
+                            props.onNotificacoesVencidasChange(false);
                         }} title="Limpar Filtros">
                             <FilterListOffIcon />
                         </IconButton>
@@ -164,13 +182,23 @@ export default function DemandasToolbar(props: DemandasToolbarProps) {
                         </Button>
 
                         <Button
-                            variant="outlined" // [ALTERADO] Nova Demanda fica outlined para dar contraste com os de ação em lote
+                            variant="outlined"
                             color="primary"
                             startIcon={<AddCircleOutlineIcon />}
                             onClick={props.onAddDemandaClick}
                             size="small"
                         >
                             Nova Demanda
+                        </Button>
+
+                        <Button
+                            variant="outlined"
+                            color="secondary"
+                            startIcon={<AssignmentIcon />}
+                            onClick={props.onAddNotificacaoClick}
+                            size="small"
+                        >
+                            Nova Notificação
                         </Button>
 
                         <Divider orientation="vertical" flexItem sx={{ mx: 1 }} />

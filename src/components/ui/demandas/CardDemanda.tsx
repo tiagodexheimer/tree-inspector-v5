@@ -13,6 +13,7 @@ import PersonIcon from '@mui/icons-material/Person';
 import DescriptionIcon from '@mui/icons-material/Description';
 import VisibilityIcon from '@mui/icons-material/Visibility';
 import ArrowDropDownIcon from '@mui/icons-material/ArrowDropDown';
+import GavelIcon from '@mui/icons-material/Gavel';
 import { DemandaType, DemandaComIdStatus } from '@/types/demanda';
 import { format, differenceInCalendarDays } from 'date-fns';
 
@@ -229,11 +230,18 @@ export default function CardDemanda({
                             size="small"
                             sx={{ mb: 0.5, height: 20, fontSize: '0.7rem', fontWeight: 600 }}
                         />
-                        <Box display="flex" alignItems="flex-start" gap={1}>
-                            <PersonIcon color="action" sx={{ fontSize: 20, mt: 0.2 }} />
-                            <Typography variant="body2" sx={{ fontWeight: 600, wordBreak: 'break-word', fontSize: '0.9rem' }}>
-                                {demanda.nome_solicitante || 'Anônimo'}
-                            </Typography>
+                        <Box display="flex" alignItems="center" gap={1}>
+                            <GavelIcon color={demanda.notificacao_status ? "error" : "disabled"} sx={{ fontSize: 18 }} />
+                            <Box display="flex" alignItems="baseline" gap={1}>
+                                <Typography variant="body2" sx={{ fontWeight: 700, fontSize: '0.85rem', color: demanda.notificacao_status ? 'error.main' : 'text.disabled' }}>
+                                    {demanda.notificacao_status || 'Sem fiscalização'}
+                                </Typography>
+                                {demanda.notificacao_vencimento && (
+                                    <Typography variant="caption" sx={{ fontWeight: 600, color: 'error.main', bgcolor: '#ffebee', px: 0.5, borderRadius: 0.5 }}>
+                                        {format(new Date(demanda.notificacao_vencimento), 'dd/MM/yy')}
+                                    </Typography>
+                                )}
+                            </Box>
                         </Box>
                     </Box>
 

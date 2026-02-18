@@ -1,10 +1,14 @@
-import { Dialog, DialogTitle, DialogContent, Typography, DialogActions, Button, List, ListItem, ListItemText, Divider, Box, CircularProgress } from "@mui/material";
+import React, { useState } from "react";
+import {
+  Dialog, DialogTitle, DialogContent, Typography, DialogActions,
+  Button, List, ListItem, ListItemText, Divider, Box, CircularProgress,
+  Tabs, Tab
+} from "@mui/material";
 import dynamic from 'next/dynamic';
 
 // [CORREÇÃO] Importamos o tipo completo
 import { DemandaType, DemandaComIdStatus } from "@/types/demanda";
-
-// A interface local foi removida. Usamos DemandaComIdStatus diretamente.
+import NotificacoesTab from "./NotificacoesTab";
 
 interface DetalhesDemandaModalProps {
   open: boolean;
@@ -22,10 +26,42 @@ const MiniMap = dynamic(() => import("./MiniMap"), {
   )
 });
 
+interface TabPanelProps {
+  children?: React.ReactNode;
+  index: number;
+  value: number;
+}
+
+function CustomTabPanel(props: TabPanelProps) {
+  const { children, value, index, ...other } = props;
+
+  return (
+    <div
+      role="tabpanel"
+      hidden={value !== index}
+      id={`simple-tabpanel-${index}`}
+      aria-labelledby={`simple-tab-${index}`}
+      {...other}
+    >
+      {value === index && (
+        <Box sx={{ p: 2 }}>
+          {children}
+        </Box>
+      )}
+    </div>
+  );
+}
+
 export default function DetalhesDemandaModal({ open, onClose, demanda }: DetalhesDemandaModalProps) {
+  const [tabIndex, setTabIndex] = useState(0);
+
   if (!demanda) {
     return null;
   }
+
+  const handleTabChange = (event: React.SyntheticEvent, newValue: number) => {
+    setTabIndex(newValue);
+  };
 
   // Função para formatar o endereço completo
   const formatEnderecoCompleto = (d: DemandaType): string => {
@@ -54,98 +90,88 @@ export default function DetalhesDemandaModal({ open, onClose, demanda }: Detalhe
 
   return (
     <Dialog open={open} onClose={onClose} fullWidth maxWidth="sm">
-      <DialogTitle>Detalhes da Demanda #{demanda.id || 'N/A'}</DialogTitle>
-      <DialogContent dividers>
-        {/* Descrição */}
-        <Typography gutterBottom variant="h6">Descrição</Typography>
-        <Typography paragraph>{demanda.descricao || 'N/A'}</Typography>
-        <Divider sx={{ my: 2 }} />
+      <DialogTitle sx={{ pb: 0 }}>Detalhes da Demanda #{demanda.id || 'N/A'}</DialogTitle>
 
-        {/* Endereço Detalhado */}
-        <Typography gutterBottom variant="h6">Endereço</Typography>
-        <Typography sx={{ whiteSpace: 'pre-line', mb: 2 }}>
-          {formatEnderecoCompleto(demanda)}
-        </Typography>
-        <Divider sx={{ my: 2 }} />
+      <Box sx={{ borderBottom: 1, borderColor: 'divider', px: 3 }}>
+        <Tabs value={tabIndex} onChange={handleTabChange}>
+          <Tab label="Informações" />
+          <Tab label="Fiscalização / Prazos" />
+        </Tabs>
+      </Box>
 
-        {/* Informações do Solicitante */}
-        <Typography gutterBottom variant="h6">Informações do Solicitante</Typography>
-        <List dense>
-          <ListItem>
-            <ListItemText primary="Nome" secondary={demanda.nome_solicitante || 'N/A'} />
-          </ListItem>
-          <ListItem>
-            <ListItemText primary="Telefone" secondary={demanda.telefone_solicitante || 'N/A'} />
-          </ListItem>
-          <ListItem>
-            <ListItemText primary="Email" secondary={demanda.email_solicitante || 'N/A'} />
-          </ListItem>
-        </List>
-        <Divider sx={{ my: 2 }} />
+      <DialogContent sx={{ p: 0 }}>
+        {/* ABA 0: INFORMAÇÕES GERAIS */}
+        <CustomTabPanel value={tabIndex} index={0}>
+          {/* Descrição */}
+          <Typography gutterBottom variant="h6">Descrição</Typography>
+          <Typography paragraph>{demanda.descricao || 'N/A'}</Typography>
+          <Divider sx={{ my: 2 }} />
 
-        {/* Outras Informações */}
-        <Typography gutterBottom variant="h6">Outras Informações</Typography>
-        <List dense>
-          <ListItem>
-            <ListItemText primary="Tipo de Demanda" secondary={demanda.tipo_demanda || 'N/A'} />
-          </ListItem>
-          <ListItem>
-            {/* O acesso a status_nome agora está garantido pelo tipo DemandaComIdStatus */}
-            <ListItemText primary="Status" secondary={demanda.status_nome || 'N/A'} />
-          </ListItem>
-          <ListItem>
-            <ListItemText primary="Prazo" secondary={formatPrazo(demanda.prazo)} />
-          </ListItem>
-          <ListItem>
-            <ListItemText primary="Responsável Técnico" secondary={demanda.responsavel || 'N/A'} />
-          </ListItem>
-          {demanda.protocolo && <ListItem><ListItemText primary="Protocolo" secondary={demanda.protocolo} /></ListItem>}
-        </List>
+          {/* Endereço Detalhado */}
+          <Typography gutterBottom variant="h6">Endereço</Typography>
+          <Typography sx={{ whiteSpace: 'pre-line', mb: 2 }}>
+            {formatEnderecoCompleto(demanda)}
+          </Typography>
+          <Divider sx={{ my: 2 }} />
 
-        {/* Anexos */}
-        {demanda.anexos && demanda.anexos.length > 0 && (
-          <>
-            <Divider sx={{ my: 2 }} />
-            <Typography gutterBottom variant="h6">Anexos</Typography>
-            <List dense>
-              {demanda.anexos.map((anexo, index) => (
-                <ListItem key={index}>
-                  <Button
-                    component="a"
-                    href={anexo.url}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    variant="outlined"
-                    size="small"
-                    sx={{ textTransform: 'none', justifyContent: 'flex-start', width: '100%' }}
-                  >
-                    {anexo.nome} ({anexo.type && anexo.type.split('/')[1]?.toUpperCase() || 'ARQUIVO'})
-                  </Button>
-                </ListItem>
-              ))}
-            </List>
-          </>
-        )}
+          {/* Informações do Solicitante */}
+          <Typography gutterBottom variant="h6">Informações do Solicitante</Typography>
+          <List dense>
+            <ListItem><ListItemText primary="Nome" secondary={demanda.nome_solicitante || 'N/A'} /></ListItem>
+            <ListItem><ListItemText primary="Telefone" secondary={demanda.telefone_solicitante || 'N/A'} /></ListItem>
+            <ListItem><ListItemText primary="Email" secondary={demanda.email_solicitante || 'N/A'} /></ListItem>
+          </List>
+          <Divider sx={{ my: 2 }} />
 
-        {/* Localização */}
-        {hasCoordinates && (
-          <>
-            <Divider sx={{ my: 2 }} />
-            <Typography gutterBottom variant="h6">Localização (Aproximada)</Typography>
-            <Box sx={{ height: 250, borderRadius: 1, overflow: 'hidden', border: '1px solid #eee' }}>
-              <MiniMap
-                latitude={lat!}
-                longitude={lng!}
-                popupText={demanda.descricao || 'Local da Demanda'}
-              />
-            </Box>
-            <Typography variant="caption" color="text.secondary" sx={{ mt: 1, display: 'block', textAlign: 'center' }}>
-              Coordenadas: {lat!.toFixed(6)}, {lng!.toFixed(6)}
-            </Typography>
-          </>
-        )}
+          {/* Outras Informações */}
+          <Typography gutterBottom variant="h6">Outras Informações</Typography>
+          <List dense>
+            <ListItem><ListItemText primary="Tipo de Demanda" secondary={demanda.tipo_demanda || 'N/A'} /></ListItem>
+            <ListItem><ListItemText primary="Status" secondary={demanda.status_nome || 'N/A'} /></ListItem>
+            <ListItem><ListItemText primary="Prazo" secondary={formatPrazo(demanda.prazo)} /></ListItem>
+            <ListItem><ListItemText primary="Responsável Técnico" secondary={demanda.responsavel || 'N/A'} /></ListItem>
+            {demanda.protocolo && <ListItem><ListItemText primary="Protocolo" secondary={demanda.protocolo} /></ListItem>}
+          </List>
 
+          {/* Anexos */}
+          {demanda.anexos && demanda.anexos.length > 0 && (
+            <>
+              <Divider sx={{ my: 2 }} />
+              <Typography gutterBottom variant="h6">Anexos</Typography>
+              <List dense>
+                {demanda.anexos.map((anexo, index) => (
+                  <ListItem key={index}>
+                    <Button
+                      component="a" href={anexo.url} target="_blank" rel="noopener noreferrer"
+                      variant="outlined" size="small"
+                      sx={{ textTransform: 'none', justifyContent: 'flex-start', width: '100%' }}
+                    >
+                      {anexo.nome} ({anexo.type && anexo.type.split('/')[1]?.toUpperCase() || 'ARQUIVO'})
+                    </Button>
+                  </ListItem>
+                ))}
+              </List>
+            </>
+          )}
+
+          {/* Localização */}
+          {hasCoordinates && (
+            <>
+              <Divider sx={{ my: 2 }} />
+              <Typography gutterBottom variant="h6">Localização (Aproximada)</Typography>
+              <Box sx={{ height: 250, borderRadius: 1, overflow: 'hidden', border: '1px solid #eee' }}>
+                <MiniMap latitude={lat!} longitude={lng!} popupText={demanda.descricao || 'Local da Demanda'} />
+              </Box>
+            </>
+          )}
+        </CustomTabPanel>
+
+        {/* ABA 1: FISCALIZAÇÃO */}
+        <CustomTabPanel value={tabIndex} index={1}>
+          <NotificacoesTab demanda={demanda} />
+        </CustomTabPanel>
       </DialogContent>
+
       <DialogActions>
         <Button onClick={onClose}>Fechar</Button>
       </DialogActions>
