@@ -19,15 +19,23 @@ export async function GET() {
             const kpiQuery = `
                 SELECT 
                     COUNT(*) as total,
-                    COUNT(*) FILTER (WHERE id_status = (SELECT id FROM demandas_status WHERE nome = 'Pendente' AND organization_id = $1 LIMIT 1)) as pendentes,
-                    COUNT(*) FILTER (WHERE id_status = (SELECT id FROM demandas_status WHERE nome = 'Concluído' AND organization_id = $1 LIMIT 1)) as concluidas
+                    COUNT(*) FILTER (WHERE id_status IN (
+                        SELECT id FROM demandas_status 
+                        WHERE (nome ILIKE 'Pendente' OR nome ILIKE 'Pendentes') 
+                        AND (organization_id = $1 OR organization_id IS NULL)
+                    )) as pendentes,
+                    COUNT(*) FILTER (WHERE id_status IN (
+                        SELECT id FROM demandas_status 
+                        WHERE (nome ILIKE 'Concluído' OR nome ILIKE 'Concluída' OR nome ILIKE 'Concluídas' OR nome ILIKE 'Concluido' OR nome ILIKE 'Finalizado') 
+                        AND (organization_id = $1 OR organization_id IS NULL)
+                    )) as concluidas
                 FROM demandas
                 WHERE organization_id = $1;
             `;
             const kpiRes = await client.query(kpiQuery, [orgId]);
-            
+
             const rotasRes = await client.query(
-                'SELECT COUNT(*) as total FROM rotas WHERE organization_id = $1', 
+                'SELECT COUNT(*) as total FROM rotas WHERE organization_id = $1',
                 [orgId]
             );
 
