@@ -14,7 +14,7 @@ import DescriptionIcon from '@mui/icons-material/Description';
 import VisibilityIcon from '@mui/icons-material/Visibility';
 import ArrowDropDownIcon from '@mui/icons-material/ArrowDropDown';
 import { DemandaType, DemandaComIdStatus } from '@/types/demanda';
-import { format } from 'date-fns';
+import { format, differenceInCalendarDays } from 'date-fns';
 
 interface CardDemandaProps {
     demanda: DemandaComIdStatus;
@@ -40,6 +40,24 @@ export default function CardDemanda({
         : '-';
 
     const statusColor = demanda.status_cor || '#ccc';
+
+    // --- PRAZO E URGÊNCIA ---
+    const isConcluida = ['Concluído', 'Concluída', 'Concluídas', 'Concluido', 'Finalizado'].includes(demanda.status_nome || '');
+    const prazoDate = demanda.prazo ? new Date(demanda.prazo) : null;
+    const daysRemaining = prazoDate ? differenceInCalendarDays(prazoDate, new Date()) : null;
+
+    let urgencyBorder = 'none';
+    let urgencyColor = 'transparent';
+
+    if (!isConcluida && daysRemaining !== null) {
+        if (daysRemaining < 4) {
+            urgencyBorder = '3px solid #d32f2f'; // Vermelho
+            urgencyColor = '#d32f2f';
+        } else if (daysRemaining < 7) {
+            urgencyBorder = '3px solid #fbc02d'; // Amarelo
+            urgencyColor = '#fbc02d';
+        }
+    }
 
     // --- HANDLERS ---
 
@@ -101,7 +119,8 @@ export default function CardDemanda({
                 '&:hover': { boxShadow: 6, transform: 'translateY(-2px)' },
                 position: 'relative',
                 borderRadius: 3,
-                outline: selected ? '2px solid #1976d2' : 'none',
+                outline: selected ? '2px solid #1976d2' : urgencyBorder,
+                outlineOffset: urgencyBorder !== 'none' ? '-3px' : '0px'
             }}
         >
             <CardContent sx={{ p: 2.5, flexGrow: 1, display: 'flex', flexDirection: 'column' }}>
@@ -123,6 +142,29 @@ export default function CardDemanda({
                         sx={{ mt: -1, mr: -1 }}
                     />
                 </Box>
+
+                {/* INDICADOR DE PRAZO */}
+                {!isConcluida && daysRemaining !== null && (
+                    <Box sx={{ mb: 1, display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                        <Chip
+                            label={daysRemaining < 0 ? 'Vencida' : daysRemaining === 0 ? 'Vence hoje' : `Faltam ${daysRemaining} ${daysRemaining === 1 ? 'dia' : 'dias'}`}
+                            size="small"
+                            sx={{
+                                height: 20,
+                                fontSize: '0.65rem',
+                                fontWeight: 'bold',
+                                backgroundColor: urgencyColor,
+                                color: urgencyColor !== 'transparent' ? 'white' : 'text.secondary',
+                                border: urgencyColor === 'transparent' ? '1px solid #ddd' : 'none'
+                            }}
+                        />
+                        {prazoDate && (
+                            <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.7rem' }}>
+                                (Até {format(prazoDate, 'dd/MM/yy')})
+                            </Typography>
+                        )}
+                    </Box>
+                )}
 
                 {/* BARRA DE AÇÕES E STATUS */}
                 <Stack direction="row" justifyContent="space-between" alignItems="center" mb={2}>
