@@ -28,12 +28,23 @@ const RouteMap = dynamic(() => import("@/components/ui/demandas/RouteMap"), {
     ssr: false
 });
 
+const VIEW_MODE_STORAGE_KEY = 'treeinspector_demandas_view_mode';
+
 export default function DemandasPage() {
     usePageTitle("Gestão de Demandas", <Assignment />);
     const [viewMode, setViewMode] = useState<'card' | 'list' | 'map'>('card');
 
+    // Carrega a preferência do usuário ao montar o componente
+    useEffect(() => {
+        const savedMode = localStorage.getItem(VIEW_MODE_STORAGE_KEY) as 'card' | 'list' | 'map';
+        if (savedMode && ['card', 'list', 'map'].includes(savedMode)) {
+            setViewMode(savedMode);
+        }
+    }, []);
+
     const handleViewModeChange = (mode: 'card' | 'list' | 'map') => {
         setViewMode(mode);
+        localStorage.setItem(VIEW_MODE_STORAGE_KEY, mode);
         if (mode === 'map') fetchMapData(filters);
     };
 
