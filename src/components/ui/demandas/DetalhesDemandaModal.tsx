@@ -1,5 +1,6 @@
-// src/components/ui/demandas/DetalhesDemandaModal.tsx
-import { Dialog, DialogTitle, DialogContent, Typography, DialogActions, Button, List, ListItem, ListItemText, Divider, Box } from "@mui/material";
+import { Dialog, DialogTitle, DialogContent, Typography, DialogActions, Button, List, ListItem, ListItemText, Divider, Box, CircularProgress } from "@mui/material";
+import dynamic from 'next/dynamic';
+
 // [CORREÇÃO] Importamos o tipo completo
 import { DemandaType, DemandaComIdStatus } from "@/types/demanda";
 
@@ -11,6 +12,15 @@ interface DetalhesDemandaModalProps {
   // [CORREÇÃO] Usamos o tipo que garante a propriedade status_nome
   demanda: DemandaComIdStatus | null;
 }
+
+const MiniMap = dynamic(() => import("./MiniMap"), {
+  ssr: false,
+  loading: () => (
+    <Box sx={{ height: 250, bgcolor: '#eee', borderRadius: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+      <CircularProgress size={24} />
+    </Box>
+  )
+});
 
 export default function DetalhesDemandaModal({ open, onClose, demanda }: DetalhesDemandaModalProps) {
   if (!demanda) {
@@ -122,11 +132,16 @@ export default function DetalhesDemandaModal({ open, onClose, demanda }: Detalhe
           <>
             <Divider sx={{ my: 2 }} />
             <Typography gutterBottom variant="h6">Localização (Aproximada)</Typography>
-            <Box sx={{ height: 200, backgroundColor: '#eee', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'text.secondary', borderRadius: 1 }}>
-              <Typography variant="caption">
-                Lat: {lat!.toFixed(6)}, Lon: {lng!.toFixed(6)}
-              </Typography>
+            <Box sx={{ height: 250, borderRadius: 1, overflow: 'hidden', border: '1px solid #eee' }}>
+              <MiniMap
+                latitude={lat!}
+                longitude={lng!}
+                popupText={demanda.descricao || 'Local da Demanda'}
+              />
             </Box>
+            <Typography variant="caption" color="text.secondary" sx={{ mt: 1, display: 'block', textAlign: 'center' }}>
+              Coordenadas: {lat!.toFixed(6)}, {lng!.toFixed(6)}
+            </Typography>
           </>
         )}
 
