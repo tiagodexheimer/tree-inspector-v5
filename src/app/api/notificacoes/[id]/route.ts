@@ -4,15 +4,16 @@ import { notificacoesService } from "@/services/notificacoes-service";
 
 export async function DELETE(
     request: NextRequest,
-    { params }: { params: { id: string } }
+    { params }: { params: Promise<{ id: string }> }
 ) {
+    const { id: idStr } = await params;
     const session = await auth();
     if (!session || !session.user) {
         return NextResponse.json({ message: "Não autenticado" }, { status: 401 });
     }
 
     const organizationId = parseInt((session.user as any).organizationId || "0", 10);
-    const id = parseInt(params.id, 10);
+    const id = parseInt(idStr, 10);
 
     try {
         const success = await notificacoesService.deleteNotificacao(id, organizationId);
@@ -28,15 +29,16 @@ export async function DELETE(
 
 export async function PATCH(
     request: NextRequest,
-    { params }: { params: { id: string } }
+    { params }: { params: Promise<{ id: string }> }
 ) {
+    const { id: idStr } = await params;
     const session = await auth();
     if (!session || !session.user) {
         return NextResponse.json({ message: "Não autenticado" }, { status: 401 });
     }
 
     const organizationId = parseInt((session.user as any).organizationId || "0", 10);
-    const id = parseInt(params.id, 10);
+    const id = parseInt(idStr, 10);
 
     try {
         const { status } = await request.json();
