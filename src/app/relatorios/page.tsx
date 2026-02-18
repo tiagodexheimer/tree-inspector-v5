@@ -3,7 +3,7 @@
 
 import React, { useEffect, useState } from 'react';
 import { Box, Typography, Paper, Button, Chip } from '@mui/material';
-import { DataGrid, GridColDef, GridActionsCellItem } from '@mui/x-data-grid';
+import { DataGrid, GridColDef, GridActionsCellItem, GridSortModel } from '@mui/x-data-grid';
 import PictureAsPdfIcon from '@mui/icons-material/PictureAsPdf';
 import DeleteForeverIcon from '@mui/icons-material/DeleteForever';
 import { useRouter } from 'next/navigation';
@@ -11,9 +11,30 @@ import { useRouter } from 'next/navigation';
 // Hooks e Tipos
 import { useRelatoriosData } from '@/hooks/useRelatoriosData';
 
+const STORAGE_KEY = 'treeinspector_relatorios_sort';
+
 export default function RelatoriosPage() {
     const router = useRouter();
     const { relatorios, isLoading, error, deleteRelatorio } = useRelatoriosData();
+    const [sortModel, setSortModel] = useState<GridSortModel>([]);
+
+    // Carregar ordenação do localStorage no mount
+    useEffect(() => {
+        const savedSort = localStorage.getItem(STORAGE_KEY);
+        if (savedSort) {
+            try {
+                setSortModel(JSON.parse(savedSort));
+            } catch (e) {
+                console.error("Erro ao carregar ordenação:", e);
+            }
+        }
+    }, []);
+
+    // Salvar ordenação no localStorage quando mudar
+    const handleSortModelChange = (newModel: GridSortModel) => {
+        setSortModel(newModel);
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(newModel));
+    };
 
     const columns: GridColDef[] = [
         { field: 'id', headerName: 'ID', width: 70 },
@@ -74,6 +95,8 @@ export default function RelatoriosPage() {
                     rows={relatorios}
                     columns={columns}
                     loading={isLoading}
+                    sortModel={sortModel}
+                    onSortModelChange={handleSortModelChange}
                     initialState={{
                         pagination: { paginationModel: { pageSize: 10 } },
                     }}
