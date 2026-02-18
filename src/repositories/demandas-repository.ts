@@ -121,7 +121,8 @@ export const DemandasRepository = {
         d.nome_solicitante ILIKE $${counter} OR 
         d.descricao ILIKE $${counter} OR 
         d.protocolo ILIKE $${counter} OR
-        d.logradouro ILIKE $${counter}
+        d.logradouro ILIKE $${counter} OR
+        d.bairro ILIKE $${counter}
       )`);
       values.push(`%${filtro}%`);
       counter++;
@@ -129,7 +130,13 @@ export const DemandasRepository = {
 
     // Filtro de Status
     if (statusIds && statusIds.length > 0) {
-      whereClauses.push(`d.id_status = ANY($${counter}::int[])`);
+      // Usamos uma subquery para pegar todos os IDs que possuem os mesmos NOMES dos IDs selecionados.
+      // Isso resolve o problema de registros vinculados a status globais vs organizacionais.
+      whereClauses.push(`d.id_status IN (
+        SELECT id FROM demandas_status 
+        WHERE nome IN (SELECT nome FROM demandas_status WHERE id = ANY($${counter}::int[]))
+        AND (organization_id = $1 OR organization_id IS NULL)
+      )`);
       values.push(statusIds);
       counter++;
     }

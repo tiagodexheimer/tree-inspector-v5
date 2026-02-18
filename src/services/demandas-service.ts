@@ -120,7 +120,7 @@ export class DemandasService {
       console.warn("Erro ao geocodificar no createDemanda:", e);
     }
 
-    const statusPendente = await StatusRepository.findByName("Pendente");
+    const statusPendente = await StatusRepository.findByName("Pendente", organizationId);
     const initialStatusId = statusPendente?.id || null;
 
     const prazoDate = input.prazo && input.prazo.trim() !== "" ? new Date(input.prazo) : null;
