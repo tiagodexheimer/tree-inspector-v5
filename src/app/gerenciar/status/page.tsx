@@ -11,6 +11,8 @@ import DeleteIcon from '@mui/icons-material/Delete';
 import { useSession } from 'next-auth/react';
 import LockIcon from '@mui/icons-material/Lock';
 import { UserRole, getLimitsByRole } from '@/types/auth-types';
+import RuleIcon from '@mui/icons-material/Rule';
+import { usePageTitle } from '@/contexts/PageTitleContext';
 // [NOVO] Importa o componente modal
 import StatusFormModal from '@/components/ui/gerenciar/StatusFormModal';
 
@@ -30,6 +32,7 @@ type CurrentStatusType = Partial<StatusType> | null;
 
 
 export default function GerenciarStatusPage() {
+    usePageTitle("Gerenciar Status das Demandas", <RuleIcon />);
     const { data: session, status } = useSession();
 
     const userRole = session?.user?.role as UserRole | undefined;
@@ -177,10 +180,7 @@ export default function GerenciarStatusPage() {
 
     return (
         <div className="p-4">
-            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
-                <Typography variant="h4" component="h1" gutterBottom>
-                    Gerenciar Status das Demandas
-                </Typography>
+            <Box sx={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center', mb: 2 }}>
 
                 <Button
                     variant="contained"

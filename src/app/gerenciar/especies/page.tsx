@@ -14,6 +14,8 @@ import { DataGrid, GridColDef, GridRenderCellParams } from '@mui/x-data-grid';
 import AddIcon from '@mui/icons-material/Add';
 import EditIcon from '@mui/icons-material/Edit';
 import DeleteIcon from '@mui/icons-material/Delete';
+import NatureIcon from '@mui/icons-material/Nature';
+import { usePageTitle } from '@/contexts/PageTitleContext';
 
 // Data Type matching API
 interface Especie {
@@ -25,6 +27,7 @@ interface Especie {
 }
 
 export default function EspeciesPage() {
+  usePageTitle("Gerenciar Espécies", <NatureIcon />);
   const [rows, setRows] = useState<Especie[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -109,8 +112,7 @@ export default function EspeciesPage() {
 
   return (
     <div className="p-4" style={{ height: '80vh', display: 'flex', flexDirection: 'column' }}>
-      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
-        <h1 className="text-2xl font-bold">Gerenciar Espécies</h1>
+      <Box sx={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center', mb: 2 }}>
         <Box sx={{ display: 'flex', gap: 2 }}>
           <Button
             variant="outlined"

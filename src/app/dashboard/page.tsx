@@ -19,6 +19,8 @@ import DashboardSkeleton from "@/components/ui/dashboard/DashboardSkeleton";
 import Link from 'next/link';
 import { DashboardData } from '@/types/dashboard';
 import { useSession } from 'next-auth/react'; // [NOVO] Importar useSession
+import DashboardIcon from '@mui/icons-material/Dashboard';
+import { usePageTitle } from '@/contexts/PageTitleContext';
 
 // [NOVO] Interface para o Convite Pendente
 interface PendingInvite {
@@ -47,6 +49,7 @@ const KPICard = ({ title, value, icon, color }: { title: string, value: number, 
 );
 
 export default function DashboardPage() {
+    usePageTitle("Visão Geral da Operação", <DashboardIcon />);
     const { data: session, status } = useSession(); // [NOVO] Capturar sessão
     const [data, setData] = useState<DashboardData | null>(null);
     const [loading, setLoading] = useState(true);
@@ -159,10 +162,7 @@ export default function DashboardPage() {
             {/* 0. NOTIFICAÇÃO DE CONVITE (Aparece no topo) */}
             {InviteNotification}
 
-            <Stack direction="row" alignItems="center" justifyContent="space-between" sx={{ mb: 4 }}>
-                <Typography variant="h4" fontWeight="bold" sx={{ color: '#2c3e50' }}>
-                    Visão Geral da Operação
-                </Typography>
+            <Stack direction="row" alignItems="center" justifyContent="flex-end" sx={{ mb: 4 }}>
 
                 <FormControl size="small" sx={{ minWidth: 200 }}>
                     <InputLabel>Filtrar por Bairro</InputLabel>

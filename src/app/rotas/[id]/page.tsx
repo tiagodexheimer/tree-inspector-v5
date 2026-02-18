@@ -1,22 +1,23 @@
 'use client';
 
 import React, { useState, useCallback, useEffect, useMemo } from 'react';
-import { useParams } from 'next/navigation'; 
+import { useParams } from 'next/navigation';
 import {
     Box, Typography, Alert, Button, Paper, Chip, Snackbar, CircularProgress,
     Dialog, DialogTitle, DialogContent, TextField, List, ListItem, ListItemText, Checkbox, DialogActions,
     InputAdornment, useTheme, useMediaQuery, IconButton, FormControl, InputLabel, Select, MenuItem
 } from '@mui/material';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
-import SaveIcon from '@mui/icons-material/Save'; 
-import ReplayIcon from '@mui/icons-material/Replay'; 
+import SaveIcon from '@mui/icons-material/Save';
+import ReplayIcon from '@mui/icons-material/Replay';
 import DownloadIcon from '@mui/icons-material/Download';
 import AddCircleOutlineIcon from '@mui/icons-material/AddCircleOutline';
-import RouteIcon from '@mui/icons-material/Route'; 
+import RouteIcon from '@mui/icons-material/Route';
 import EditIcon from '@mui/icons-material/Edit';
 import Link from 'next/link';
 import dynamic from 'next/dynamic';
 import { format } from 'date-fns';
+import { usePageTitle } from '@/contexts/PageTitleContext';
 
 // Dnd Kit
 import {
@@ -30,7 +31,7 @@ import RotaDetalhesSkeleton from '@/components/ui/rotas/RotaDetalhesSkeleton';
 // Hooks
 import { useRotaDetalhesData } from '@/hooks/useRotaDetalhesData';
 import { useRotaDetalhesOperations } from '@/hooks/useRotaDetalhesOperations';
-import { RotaDetalhesClient, DemandaNaoDistribuida, DemandaComOrdem } from '@/services/client/rota-detalhes-client'; 
+import { RotaDetalhesClient, DemandaNaoDistribuida, DemandaComOrdem } from '@/services/client/rota-detalhes-client';
 import { RotasClient } from '@/services/client/rotas-client';
 
 // Imports Dinâmicos
@@ -44,17 +45,17 @@ const DetalheRotaLista = dynamic(() => import('@/components/ui/rotas/DetalheRota
 });
 
 export default function PaginaDetalheRota() {
-    const params = useParams(); 
+    const params = useParams();
     const id = params.id as string;
     const rotaIdNumber = parseInt(id, 10);
-    
+
     // --- Responsividade ---
     const theme = useTheme();
     const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
 
     // 1. Hooks de Dados e Operações
     const {
-        rota, demandas, setDemandas, 
+        rota, demandas, setDemandas,
         originalDemandas, originalApiPolyline, setApiPolyline,
         isLoading, error, hasChanges, routePath, refresh,
         // [NOVO] Extraindo pontos de início e fim (Certifique-se que o hook retorna isso)
@@ -63,12 +64,14 @@ export default function PaginaDetalheRota() {
     } = useRotaDetalhesData(id);
 
     const {
-        saveOrder, exportToExcel, addDemandas, 
-        optimizeOrder, 
-        isSaving, isExporting, isOptimizing, 
+        saveOrder, exportToExcel, addDemandas,
+        optimizeOrder,
+        isSaving, isExporting, isOptimizing,
         opError, saveSuccess, setSaveSuccess, setOpError
     } = useRotaDetalhesOperations(id, refresh);
-    
+
+    usePageTitle(rota?.nome || 'Detalhes da Rota', <RouteIcon />);
+
     // --- ESTADOS DO MODAL DE ADICIONAR DEMANDA ---
     const [addDemandaModalOpen, setAddDemandaModalOpen] = useState(false);
     const [undistributedDemandas, setUndistributedDemandas] = useState<DemandaNaoDistribuida[]>([]);
@@ -93,7 +96,7 @@ export default function PaginaDetalheRota() {
     function handleDragEnd(event: DragEndEvent) {
         const { active, over } = event;
         if (over && active.id !== over.id) {
-            setApiPolyline(null); 
+            setApiPolyline(null);
             setDemandas((items) => {
                 const oldIndex = items.findIndex((item) => item.id === active.id);
                 const newIndex = items.findIndex((item) => item.id === over.id);
@@ -113,16 +116,16 @@ export default function PaginaDetalheRota() {
     };
 
     const handleCancelChanges = () => {
-        setDemandas(originalDemandas); 
+        setDemandas(originalDemandas);
         setApiPolyline(originalApiPolyline);
         setOpError(null);
         setSaveSuccess(false);
     };
 
     const handleSaveClick = () => {
-        saveOrder(demandas.map(d => ({ id: d.id! }))); 
+        saveOrder(demandas.map(d => ({ id: d.id! })));
     };
-    
+
     // --- LÓGICA DE OTIMIZAÇÃO ---
     const handleOptimizeOrder = async () => {
         if (demandas.length <= 1) {
@@ -131,13 +134,13 @@ export default function PaginaDetalheRota() {
         }
 
         const demandaIds = demandas.map(d => ({ id: d.id! }));
-        
+
         try {
             const result = await optimizeOrder(demandaIds.map(d => d.id));
 
             setDemandas(result.optimizedDemands as DemandaComOrdem[]);
-            setApiPolyline(result.routePath as any); 
-            
+            setApiPolyline(result.routePath as any);
+
             setOpError(null);
             setSaveSuccess(false);
 
@@ -147,7 +150,7 @@ export default function PaginaDetalheRota() {
     };
 
     // --- LÓGICA DE EDIÇÃO DA ROTA ---
-    
+
     // Busca usuários quando o modal abre
     useEffect(() => {
         if (editModalOpen) {
@@ -168,16 +171,16 @@ export default function PaginaDetalheRota() {
 
     const handleSaveEditRota = async () => {
         if (!editName.trim() || !editResponsavel.trim()) return;
-        
+
         setIsUpdating(true);
         try {
             await RotasClient.update(rotaIdNumber, {
                 nome: editName,
                 responsavel: editResponsavel
             });
-            await refresh(); 
+            await refresh();
             setEditModalOpen(false);
-            setSaveSuccess(true); 
+            setSaveSuccess(true);
         } catch (e) {
             setOpError("Erro ao atualizar informações da rota.");
         } finally {
@@ -201,33 +204,33 @@ export default function PaginaDetalheRota() {
     useEffect(() => {
         if (addDemandaModalOpen) {
             fetchUndistributedDemandas();
-            setSelectedNewDemandas([]); 
+            setSelectedNewDemandas([]);
             setModalFilter('');
         }
     }, [addDemandaModalOpen, fetchUndistributedDemandas]);
-    
+
     const toggleNewDemanda = (id: number) => {
-        setSelectedNewDemandas(prev => 
+        setSelectedNewDemandas(prev =>
             prev.includes(id) ? prev.filter(i => i !== id) : [...prev, id]
         );
     };
-    
+
     const handleAddSelectedDemandas = async () => {
         if (selectedNewDemandas.length === 0) return;
-        
+
         try {
             const updatedDemandas = await addDemandas(selectedNewDemandas);
-            
+
             setDemandas(updatedDemandas);
-            setApiPolyline(null); 
-            setAddDemandaModalOpen(false); 
-            setSelectedNewDemandas([]); 
+            setApiPolyline(null);
+            setAddDemandaModalOpen(false);
+            setSelectedNewDemandas([]);
             setOpError(null);
         } catch (e) {
             // Erro tratado no hook
         }
     };
-    
+
     const filteredUndistributed = useMemo(() => {
         if (!modalFilter) return undistributedDemandas;
         const filterText = modalFilter.toLowerCase();
@@ -241,7 +244,7 @@ export default function PaginaDetalheRota() {
 
     // --- Renderização ---
     if (isLoading) { return <RotaDetalhesSkeleton />; }
-    
+
     if (error || !rota) {
         return (
             <Box sx={{ p: 3 }}>
@@ -261,27 +264,24 @@ export default function PaginaDetalheRota() {
     return (
         <Box sx={{ p: { xs: 1, md: 3 } }}>
             {/* Cabeçalho */}
-            <Box sx={{ 
-                display: 'flex', 
-                alignItems: 'center', 
-                mb: 2, 
-                flexWrap: 'wrap', 
-                gap: { xs: 1, md: 2 } 
+            <Box sx={{
+                display: 'flex',
+                alignItems: 'center',
+                mb: 2,
+                flexWrap: 'wrap',
+                gap: { xs: 1, md: 2 }
             }}>
                 <Button component={Link} href="/rotas" startIcon={<ArrowBackIcon />} sx={{ mr: { xs: 0, md: 2 } }} disabled={isSaving || isExporting || isOptimizing}>
                     {isMobile ? 'Voltar' : 'Voltar para Rotas'}
                 </Button>
-                
+
                 {/* Título COM BOTÃO DE EDITAR */}
                 <Box sx={{ display: 'flex', alignItems: 'center', flexGrow: 1, minWidth: isMobile ? '100%' : 'auto', mb: isMobile ? 1 : 0 }}>
-                    <Typography variant="h5" component="h1" sx={{ fontSize: isMobile ? '1.2rem' : '2.125rem', mr: 1 }}>
-                        {rota.nome}
-                    </Typography>
                     <IconButton size="small" onClick={handleOpenEditModal} disabled={isSaving || isOptimizing}>
                         <EditIcon fontSize="small" />
                     </IconButton>
                 </Box>
-                
+
                 {/* Ações */}
                 <Box sx={{ display: 'flex', gap: { xs: 1, md: 2 }, flexWrap: 'wrap', width: isMobile ? '100%' : 'auto', justifyContent: isMobile ? 'space-between' : 'flex-start' }}>
                     <Button
@@ -293,7 +293,7 @@ export default function PaginaDetalheRota() {
                     >
                         {isMobile ? 'Add' : 'Adicionar Demanda'}
                     </Button>
-                    
+
                     <Button
                         variant="outlined" color="secondary"
                         startIcon={isOptimizing ? <CircularProgress size={20} /> : <RouteIcon />}
@@ -319,7 +319,7 @@ export default function PaginaDetalheRota() {
                         <Button
                             variant="outlined" color="secondary"
                             startIcon={<ReplayIcon />}
-                            onClick={handleCancelChanges} 
+                            onClick={handleCancelChanges}
                             disabled={isSaving || isExporting || isOptimizing}
                             size={isMobile ? 'small' : 'medium'}
                         >
@@ -330,7 +330,7 @@ export default function PaginaDetalheRota() {
                     <Button
                         variant="contained" color="primary"
                         startIcon={isSaving ? <CircularProgress size={20} color="inherit" /> : <SaveIcon />}
-                        onClick={handleSaveClick} 
+                        onClick={handleSaveClick}
                         disabled={isSaving || isExporting || !hasChanges || isOptimizing}
                         size={isMobile ? 'small' : 'medium'}
                         sx={{ minWidth: 150 }}
@@ -344,7 +344,7 @@ export default function PaginaDetalheRota() {
 
             {/* Informações */}
             <Paper elevation={0} sx={{ p: 2, mb: 3, backgroundColor: '#f9f9f9', borderRadius: 2 }}>
-                 <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 2 }}>
+                <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 2 }}>
                     <Box sx={{ flexGrow: 1 }}>
                         <Typography variant="body2" color="text.secondary">Responsável</Typography>
                         <Typography variant="body1" sx={{ fontWeight: 500 }}>{rota.responsavel || 'N/A'}</Typography>
@@ -366,31 +366,31 @@ export default function PaginaDetalheRota() {
                     <Typography variant="h6" gutterBottom>
                         {demandas.length} Paradas na Rota
                     </Typography>
-                    <DetalheRotaLista 
-                        demandas={demandas} 
-                        sensors={sensors} 
+                    <DetalheRotaLista
+                        demandas={demandas}
+                        sensors={sensors}
                         onDragEnd={handleDragEnd}
                         disabled={isSaving || isExporting || isOptimizing}
                         onRemove={handleRemoveDemanda}
                     />
                 </Box>
-                
+
                 {/* Mapa (Direita) */}
                 <Box sx={{ flexGrow: 1, flexBasis: { xs: '100%', md: '55%' }, minWidth: '400px' }}>
                     <Typography variant="h6" gutterBottom>Visualização</Typography>
-                    <Box sx={{ 
-                        height: '70vh', 
-                        minHeight: 400, 
-                        border: '1px solid #ccc', 
-                        borderRadius: 1, 
-                        overflow: 'hidden' 
+                    <Box sx={{
+                        height: '70vh',
+                        minHeight: 400,
+                        border: '1px solid #ccc',
+                        borderRadius: 1,
+                        overflow: 'hidden'
                     }}>
                         {/* [MODIFICADO] Passando os pontos personalizados para o mapa */}
-                        <RouteMap 
-                            demandas={demandas as any} 
-                            path={routePath as any} 
-                            startPoint={startPoint} 
-                            endPoint={endPoint} 
+                        <RouteMap
+                            demandas={demandas as any}
+                            path={routePath as any}
+                            startPoint={startPoint}
+                            endPoint={endPoint}
                         />
                     </Box>
                 </Box>
@@ -402,7 +402,7 @@ export default function PaginaDetalheRota() {
                 onClose={() => setSaveSuccess(false)}
                 message="Operação realizada com sucesso!"
             />
-            
+
             {/* Modal de Adicionar Demandas */}
             <Dialog open={addDemandaModalOpen} onClose={() => setAddDemandaModalOpen(false)} fullWidth maxWidth="md">
                 <DialogTitle>
@@ -438,8 +438,8 @@ export default function PaginaDetalheRota() {
                                     key={demanda.id}
                                     onClick={() => toggleNewDemanda(demanda.id)}
                                     secondaryAction={
-                                        <Checkbox 
-                                            edge="end" 
+                                        <Checkbox
+                                            edge="end"
                                             checked={selectedNewDemandas.includes(demanda.id)}
                                             onChange={() => toggleNewDemanda(demanda.id)}
                                         />
@@ -458,10 +458,10 @@ export default function PaginaDetalheRota() {
                 </DialogContent>
                 <DialogActions>
                     <Button onClick={() => setAddDemandaModalOpen(false)} disabled={isSaving}>Cancelar</Button>
-                    <Button 
-                        onClick={handleAddSelectedDemandas} 
-                        variant="contained" 
-                        color="success" 
+                    <Button
+                        onClick={handleAddSelectedDemandas}
+                        variant="contained"
+                        color="success"
                         disabled={selectedNewDemandas.length === 0 || isSaving}
                     >
                         {isSaving ? <CircularProgress size={20} color="inherit" sx={{ mr: 1 }} /> : `Adicionar (${selectedNewDemandas.length}) Demandas`}
@@ -500,9 +500,9 @@ export default function PaginaDetalheRota() {
                 </DialogContent>
                 <DialogActions>
                     <Button onClick={() => setEditModalOpen(false)} disabled={isUpdating}>Cancelar</Button>
-                    <Button 
-                        onClick={handleSaveEditRota} 
-                        variant="contained" 
+                    <Button
+                        onClick={handleSaveEditRota}
+                        variant="contained"
                         disabled={isUpdating || !editName.trim() || !editResponsavel.trim()}
                     >
                         {isUpdating ? <CircularProgress size={20} color="inherit" /> : 'Salvar Alterações'}

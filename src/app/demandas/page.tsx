@@ -13,6 +13,8 @@ import DemandasToolbar from "@/components/ui/demandas/DemandasToolbar";
 import DemandasSkeleton from "@/components/ui/demandas/DemandasSkeleton";
 import DetalhesDemandaModal from "@/components/ui/demandas/DetalhesDemandaModal"; // [NOVO IMPORT]
 
+import { Assignment } from "@mui/icons-material";
+import { usePageTitle } from "@/contexts/PageTitleContext";
 import { useDemandasData } from "@/hooks/useDemandasData";
 import { useDemandasOperations } from "@/hooks/useDemandasOperations";
 import { useDemandasMapData } from "@/hooks/useDemandasMapData";
@@ -27,6 +29,7 @@ const RouteMap = dynamic(() => import("@/components/ui/demandas/RouteMap"), {
 });
 
 export default function DemandasPage() {
+    usePageTitle("Gestão de Demandas", <Assignment />);
     const [viewMode, setViewMode] = useState<'card' | 'list' | 'map'>('card');
 
     const handleViewModeChange = (mode: 'card' | 'list' | 'map') => {
@@ -135,9 +138,6 @@ export default function DemandasPage() {
     return (
         <Box>
             <Box sx={{ px: 3, pt: 3 }}>
-                <Typography variant="h4" fontWeight="bold" gutterBottom>
-                    Gestão de Demandas ({totalCount})
-                </Typography>
 
                 <DemandasToolbar
                     filtro={filters.texto}

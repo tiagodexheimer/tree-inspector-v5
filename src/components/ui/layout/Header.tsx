@@ -6,6 +6,8 @@ import MenuIcon from '@mui/icons-material/Menu';
 import { signOut, useSession } from "next-auth/react"; // [NOVO] Import useSession
 import LogoutIcon from '@mui/icons-material/Logout';
 import Link from 'next/link';
+import { useTitleContext } from "@/contexts/PageTitleContext";
+import { Divider } from '@mui/material';
 
 interface HeaderProps {
     onMenuClick: () => void;
@@ -14,10 +16,12 @@ interface HeaderProps {
 export default function Header({ onMenuClick }: HeaderProps) {
     const theme = useTheme();
     const isMobile = useMediaQuery(theme.breakpoints.down('md'));
-    
+
     // [NOVO] Pega os dados da sessão
-    const { data: session } = useSession(); 
+    const { data: session } = useSession();
     const orgName = session?.user?.organizationName;
+
+    const { title, icon } = useTitleContext();
 
     const handleLogout = async () => {
         await signOut({ redirect: false });
@@ -57,18 +61,37 @@ export default function Header({ onMenuClick }: HeaderProps) {
 
                     {/* [NOVO] Mostra o nome da organização se existir */}
                     {orgName && (
-                        <Chip 
-                            label={orgName} 
-                            size="small" 
-                            variant="outlined" 
-                            sx={{ 
-                                color: 'white', 
+                        <Chip
+                            label={orgName}
+                            size="small"
+                            variant="outlined"
+                            sx={{
+                                color: 'white',
                                 borderColor: 'rgba(255,255,255,0.5)',
                                 display: { xs: 'none', sm: 'flex' } // Esconde em telas muito pequenas
-                            }} 
+                            }}
                         />
                     )}
+
+                    {!isMobile && (title || icon) && (
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, ml: 2 }}>
+                            <Divider orientation="vertical" flexItem sx={{ bgcolor: 'rgba(255,255,255,0.3)', height: 24, alignSelf: 'center' }} />
+                            {icon && <Box sx={{ display: 'flex', color: 'inherit', '& svg': { fontSize: 20 } }}>{icon}</Box>}
+                            <Typography variant="h6" sx={{ fontSize: '1.1rem', fontWeight: 500 }}>
+                                {title}
+                            </Typography>
+                        </Box>
+                    )}
                 </Box>
+
+                {isMobile && (title || icon) && (
+                    <Box sx={{ flexGrow: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 1 }}>
+                        {icon && <Box sx={{ display: 'flex', color: 'inherit', '& svg': { fontSize: 20 } }}>{icon}</Box>}
+                        <Typography variant="subtitle1" sx={{ fontWeight: 600, fontSize: '0.9rem' }}>
+                            {title}
+                        </Typography>
+                    </Box>
+                )}
 
                 <Box sx={{ flexGrow: 0 }}>
                     <IconButton color="inherit" onClick={handleLogout} title="Sair">

@@ -7,6 +7,8 @@ import { DataGrid, GridColDef, GridActionsCellItem, GridSortModel } from '@mui/x
 import PictureAsPdfIcon from '@mui/icons-material/PictureAsPdf';
 import DeleteForeverIcon from '@mui/icons-material/DeleteForever';
 import { useRouter } from 'next/navigation';
+import AssessmentIcon from '@mui/icons-material/Assessment';
+import { usePageTitle } from '@/contexts/PageTitleContext';
 
 // Hooks e Tipos
 import { useRelatoriosData } from '@/hooks/useRelatoriosData';
@@ -14,6 +16,7 @@ import { useRelatoriosData } from '@/hooks/useRelatoriosData';
 const STORAGE_KEY = 'treeinspector_relatorios_sort';
 
 export default function RelatoriosPage() {
+    usePageTitle("Relatórios de Vistoria", <AssessmentIcon />);
     const router = useRouter();
     const { relatorios, isLoading, error, deleteRelatorio } = useRelatoriosData();
     const [sortModel, setSortModel] = useState<GridSortModel>([]);
@@ -86,9 +89,6 @@ export default function RelatoriosPage() {
 
     return (
         <Box sx={{ p: 4 }}>
-            <Typography variant="h4" gutterBottom sx={{ mb: 4, fontWeight: 'bold' }}>
-                Relatórios de Vistoria
-            </Typography>
 
             <Paper elevation={2} sx={{ height: 600, width: '100%' }}>
                 <DataGrid
