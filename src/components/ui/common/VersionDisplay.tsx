@@ -6,6 +6,7 @@ import {
     Button, IconButton, Typography, Box, Chip, Divider
 } from '@mui/material';
 import InfoOutlinedIcon from '@mui/icons-material/InfoOutlined';
+import AndroidIcon from '@mui/icons-material/Android';
 import packageJson from '../../../../package.json';
 
 interface ChangelogEntry {
@@ -68,6 +69,27 @@ const VersionDisplay: React.FC = () => {
 
     return (
         <>
+            <Button
+                href="/downloads/app-release-v1.2.apk"
+                download
+                startIcon={<AndroidIcon />}
+                size="small"
+                variant="outlined"
+                sx={{
+                    fontSize: '11px',
+                    textTransform: 'none',
+                    color: '#3ddc84',
+                    borderColor: '#3ddc8444',
+                    mx: 2,
+                    mb: 0.5,
+                    '&:hover': {
+                        borderColor: '#3ddc84',
+                        backgroundColor: '#3ddc8410',
+                    },
+                }}
+            >
+                Baixar App Android
+            </Button>
             <div style={{
                 fontSize: '11px',
                 color: '#888',
