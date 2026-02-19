@@ -154,6 +154,8 @@ export default function ListaListDemanda({
                     <TableRow>
                         {/* [ALTERADO] ID -> Protocolo */}
                         <TableCell sx={{ fontWeight: 'bold' }}>Protocolo</TableCell>
+                        <TableCell sx={{ fontWeight: 'bold' }}>Solicitante</TableCell>
+                        <TableCell sx={{ fontWeight: 'bold' }}>Descrição</TableCell>
                         <TableCell sx={{ fontWeight: 'bold' }}>Endereço Completo</TableCell>
                         <TableCell sx={{ fontWeight: 'bold' }}>Tipo</TableCell>
                         <TableCell sx={{ fontWeight: 'bold' }}>Prazo</TableCell>
@@ -181,6 +183,16 @@ export default function ListaListDemanda({
                                 {/* [ALTERADO] Exibe Protocolo (ou ID se não tiver protocolo) */}
                                 <TableCell>
                                     {demanda.protocolo || demanda.id}
+                                </TableCell>
+
+                                <TableCell>
+                                    {/* Exibe Nome do Solicitante */}
+                                    {demanda.nome_solicitante || 'N/A'}
+                                </TableCell>
+
+                                <TableCell sx={{ maxWidth: 200, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                    {/* Exibe Descrição (truncada se necessário) */}
+                                    {demanda.descricao}
                                 </TableCell>
 
                                 <TableCell>
@@ -223,7 +235,7 @@ export default function ListaListDemanda({
 
                     {demandas.length === 0 && (
                         <TableRow>
-                            <TableCell colSpan={6} align="center" sx={{ color: 'text.secondary', py: 4 }}>
+                            <TableCell colSpan={8} align="center" sx={{ color: 'text.secondary', py: 4 }}>
                                 Nenhuma demanda encontrada.
                             </TableCell>
                         </TableRow>
