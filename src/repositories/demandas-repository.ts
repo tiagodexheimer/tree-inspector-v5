@@ -384,9 +384,16 @@ export const DemandasRepository = {
   },
 
   // 9. Deletar em Lote (Com proteção de FK)
-  async deleteMany(ids: number[]): Promise<void> {
+  async deleteMany(ids: number[], organizationId?: number): Promise<void> {
     try {
-      await pool.query(`DELETE FROM demandas WHERE id = ANY($1)`, [ids]);
+      if (organizationId) {
+        await pool.query(
+          `DELETE FROM demandas WHERE id = ANY($1) AND organization_id = $2`,
+          [ids, organizationId]
+        );
+      } else {
+        await pool.query(`DELETE FROM demandas WHERE id = ANY($1)`, [ids]);
+      }
     } catch (error: any) {
       if (error.code === "23503")
         throw new Error("Não é possível excluir demandas vinculadas a rotas.");

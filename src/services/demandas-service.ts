@@ -203,8 +203,7 @@ export class DemandasService {
   }
 
   async deleteDemandas(ids: number[], organizationId?: number): Promise<void> {
-    // Note: O repositório deve usar o organizationId se fornecido para segurança multi-tenant
-    await DemandasRepository.deleteMany(ids);
+    await DemandasRepository.deleteMany(ids, organizationId);
   }
 
   async updateDemandaStatus(id: number, idStatus: number): Promise<void> {
@@ -218,9 +217,6 @@ export class DemandasService {
     }
   }
 
-  async importBatch(rows: any[]) {
-    return { successCount: 0, errors: [] };
-  }
 }
 
 export const demandasService = new DemandasService();

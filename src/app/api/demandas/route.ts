@@ -29,46 +29,34 @@ async function getAuthContext(session: any) {
 export async function GET(request: NextRequest) {
   const session = await auth();
 
-  if (!session || !session.user) {
-    return NextResponse.json({ message: "Não autenticado" }, { status: 401 });
-  }
-
-  // Cast seguro para evitar erro se organizationId não existir no tipo
-  const organizationId = parseInt((session.user as any).organizationId || "0", 10);
-  const userRole = session.user.role;
-
-  // Validação
-  if (isNaN(organizationId) || organizationId === 0) {
-    // Em dev, pode não ter orgId, então apenas logamos e seguimos (ou bloqueamos se for crítico)
-    // console.warn("[API] Sem organizationId na sessão.");
-  }
-
-  const { searchParams } = new URL(request.url);
-
-  const page = parseInt(searchParams.get("page") || "1", 10);
-  const limit = parseInt(searchParams.get("limit") || "10", 10);
-  const filtro = searchParams.get("filtro") || undefined;
-
-  // Helper para processar arrays de forma robusta
-  const parseArray = (key: string) => {
-    const fromGet = searchParams.get(key);
-    const fromGetAll = searchParams.getAll(key);
-    const combined = [
-      ...(fromGet ? fromGet.split(',').filter(Boolean) : []),
-      ...fromGetAll.filter(Boolean)
-    ];
-    // Remove duplicatas e retorna undefined se vazio
-    return combined.length > 0 ? Array.from(new Set(combined)) : undefined;
-  };
-
-  const statusIdsRaw = parseArray("statusIds") || parseArray("status");
-  const statusIds = statusIdsRaw?.map(Number).filter(n => !isNaN(n));
-
-  const tipoNomes = parseArray("tipoNomes") || parseArray("tipo");
-  const bairros = parseArray("bairros") || parseArray("bairro");
-  const notificacoesVencidas = searchParams.get("notificacoesVencidas") === 'true'; // [NOVO]
-
   try {
+    const { organizationId, userRole } = await getAuthContext(session);
+
+    const { searchParams } = new URL(request.url);
+
+    const page = parseInt(searchParams.get("page") || "1", 10);
+    const limit = parseInt(searchParams.get("limit") || "10", 10);
+    const filtro = searchParams.get("filtro") || undefined;
+
+    // Helper para processar arrays de forma robusta
+    const parseArray = (key: string) => {
+      const fromGet = searchParams.get(key);
+      const fromGetAll = searchParams.getAll(key);
+      const combined = [
+        ...(fromGet ? fromGet.split(',').filter(Boolean) : []),
+        ...fromGetAll.filter(Boolean)
+      ];
+      // Remove duplicatas e retorna undefined se vazio
+      return combined.length > 0 ? Array.from(new Set(combined)) : undefined;
+    };
+
+    const statusIdsRaw = parseArray("statusIds") || parseArray("status");
+    const statusIds = statusIdsRaw?.map(Number).filter(n => !isNaN(n));
+
+    const tipoNomes = parseArray("tipoNomes") || parseArray("tipo");
+    const bairros = parseArray("bairros") || parseArray("bairro");
+    const notificacoesVencidas = searchParams.get("notificacoesVencidas") === 'true';
+
     const result = await demandasService.listDemandas(
       {
         page,
@@ -78,10 +66,10 @@ export async function GET(request: NextRequest) {
         tipoNomes,
         bairros,
         organizationId,
-        notificacoesVencidas, // [NOVO]
+        notificacoesVencidas,
       },
       userRole,
-      organizationId // Agora isso bate com o tipo 'number' do service
+      organizationId
     );
 
     return NextResponse.json(
@@ -96,9 +84,10 @@ export async function GET(request: NextRequest) {
   } catch (error) {
     console.error("[API GET Demandas]", error);
     const message = error instanceof Error ? error.message : "Erro desconhecido";
+    const status = message.includes("autenticado") || message.includes("inválida") ? 401 : 500;
     return NextResponse.json(
       { message: "Erro ao buscar demandas", error: message },
-      { status: 500 }
+      { status }
     );
   }
 }
