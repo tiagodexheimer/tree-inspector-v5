@@ -217,6 +217,11 @@ export class DemandasService {
     }
   }
 
+  // TODO: Implementar lógica real de importação em lote
+  async importBatch(rows: any[]): Promise<{ successCount: number; errors: any[] }> {
+    return { successCount: 0, errors: [] };
+  }
+
 }
 
 export const demandasService = new DemandasService();
