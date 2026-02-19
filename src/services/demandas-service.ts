@@ -145,7 +145,12 @@ export class DemandasService {
       lng,
       prazo: prazoDate,
       organization_id: organizationId, // ID da organização garantido aqui
-      anexos: input.anexos || [] // [NOVO]
+      anexos: (input.anexos || []).map((anexo: any) => {
+        if (typeof anexo === 'string') {
+          return { url: anexo, nome: 'Foto Mobile', type: 'image/jpeg' };
+        }
+        return anexo;
+      })
     };
 
     return await DemandasRepository.create(payload);
