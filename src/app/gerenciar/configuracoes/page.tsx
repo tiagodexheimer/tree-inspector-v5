@@ -12,6 +12,8 @@ import GroupIcon from '@mui/icons-material/Group'; // NOVO: Ícone para Grupo
 import GroupAddIcon from '@mui/icons-material/GroupAdd'; // NOVO: Ícone para Adicionar Grupo
 import Link from 'next/link'; // NOVO: Importar Link
 import dynamic from 'next/dynamic';
+import SettingsIcon from '@mui/icons-material/Settings';
+import { usePageTitle } from '@/contexts/PageTitleContext';
 
 // Importação Dinâmica do Mapa
 const ConfigMap = dynamic(() => import('@/components/ui/configuracoes/ConfigMap'), {
@@ -28,6 +30,7 @@ interface EnderecoState {
 }
 
 export default function ConfiguracoesPage() {
+    usePageTitle("Configurações do Sistema", <SettingsIcon />);
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
     const [message, setMessage] = useState<{ type: 'success' | 'error' | 'info', text: string } | null>(null);
@@ -189,9 +192,6 @@ export default function ConfiguracoesPage() {
 
     return (
         <Box sx={{ p: 4 }}>
-            <Typography variant="h4" gutterBottom sx={{ mb: 4, fontWeight: 'bold' }}>
-                Configurações do Sistema
-            </Typography>
 
             {message && (
                 <Alert severity={message.type as any} sx={{ mb: 3 }} onClose={() => setMessage(null)}>

@@ -37,7 +37,7 @@ export class DemandasService {
 
   // [CORRIGIDO] listDemandas usa getLimitsByRole para aplicar limite de listagem (visão)
   async listDemandas(
-    params: FindDemandasParams & { organizationId?: number },
+    params: FindDemandasParams & { organizationId?: number; bairros?: string[]; notificacoesVencidas?: boolean },
     userRole?: UserRole,
     organizationId?: number
   ) {
@@ -120,7 +120,7 @@ export class DemandasService {
       console.warn("Erro ao geocodificar no createDemanda:", e);
     }
 
-    const statusPendente = await StatusRepository.findByName("Pendente");
+    const statusPendente = await StatusRepository.findByName("Pendente", organizationId);
     const initialStatusId = statusPendente?.id || null;
 
     const prazoDate = input.prazo && input.prazo.trim() !== "" ? new Date(input.prazo) : null;
@@ -145,7 +145,12 @@ export class DemandasService {
       lng,
       prazo: prazoDate,
       organization_id: organizationId, // ID da organização garantido aqui
-      anexos: input.anexos || [] // [NOVO]
+      anexos: (input.anexos || []).map((anexo: any) => {
+        if (typeof anexo === 'string') {
+          return { url: anexo, nome: 'Foto Mobile', type: 'image/jpeg' };
+        }
+        return anexo;
+      })
     };
 
     return await DemandasRepository.create(payload);
@@ -198,8 +203,7 @@ export class DemandasService {
   }
 
   async deleteDemandas(ids: number[], organizationId?: number): Promise<void> {
-    // Note: O repositório deve usar o organizationId se fornecido para segurança multi-tenant
-    await DemandasRepository.deleteMany(ids);
+    await DemandasRepository.deleteMany(ids, organizationId);
   }
 
   async updateDemandaStatus(id: number, idStatus: number): Promise<void> {
@@ -213,9 +217,11 @@ export class DemandasService {
     }
   }
 
-  async importBatch(rows: any[]) {
+  // TODO: Implementar lógica real de importação em lote
+  async importBatch(rows: any[]): Promise<{ successCount: number; errors: any[] }> {
     return { successCount: 0, errors: [] };
   }
+
 }
 
 export const demandasService = new DemandasService();

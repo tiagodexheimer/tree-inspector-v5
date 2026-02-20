@@ -11,6 +11,7 @@ import { SessionProvider } from "next-auth/react";
 import { usePathname } from "next/navigation";
 import { useState, useCallback } from "react";
 import { Box } from "@mui/material";
+import { PageTitleProvider } from "@/contexts/PageTitleContext";
 
 const inter = Inter({ subsets: ["latin"] });
 
@@ -40,29 +41,31 @@ export default function RootLayout({
       <body className={inter.className}>
         <SessionProvider>
           <ThemeRegistry>
-            <Box
-              sx={{
-                display: "flex",
-                flexDirection: { xs: "column", md: "row" },
-                width: "100%",
-                minHeight: "100vh",
-                overflowX: "hidden",
-              }}
-            >
-              {/* HEADER FIXO MOBILE - Só exibe se não for página pública */}
-              {!isPublicPage && <Header onMenuClick={handleDrawerToggle} />}
+            <PageTitleProvider>
+              <Box
+                sx={{
+                  display: "flex",
+                  flexDirection: { xs: "column", md: "row" },
+                  width: "100%",
+                  minHeight: "100vh",
+                  overflowX: "hidden",
+                }}
+              >
+                {/* HEADER FIXO MOBILE - Só exibe se não for página pública */}
+                {!isPublicPage && <Header onMenuClick={handleDrawerToggle} />}
 
-              {/* SIDEBAR MOBILE/DESKTOP - Só exibe se não for página pública */}
-              {!isPublicPage && (
-                <Sidebar
-                  mobileOpen={mobileOpen}
-                  handleDrawerToggle={handleDrawerToggle}
-                />
-              )}
+                {/* SIDEBAR MOBILE/DESKTOP - Só exibe se não for página pública */}
+                {!isPublicPage && (
+                  <Sidebar
+                    mobileOpen={mobileOpen}
+                    handleDrawerToggle={handleDrawerToggle}
+                  />
+                )}
 
-              {/* CONTEÚDO PRINCIPAL */}
-              <Body>{children}</Body>
-            </Box>
+                {/* CONTEÚDO PRINCIPAL */}
+                <Body>{children}</Body>
+              </Box>
+            </PageTitleProvider>
           </ThemeRegistry>
         </SessionProvider>
       </body>

@@ -7,15 +7,22 @@ import {
     Divider, Button, Alert, Link as MuiLink // [NOVO] Alert, Link e Button importados
 } from '@mui/material';
 import {
-    Assignment, CheckCircle, PendingActions, Route
+    Assignment, CheckCircle, PendingActions, Route, FilterList
 } from '@mui/icons-material';
 import {
     PieChart, Pie, Cell, Tooltip, Legend, ResponsiveContainer
 } from 'recharts';
+import {
+    FormControl, InputLabel, Select, MenuItem, Chip, IconButton, Stack, Paper as MuiPaper
+} from '@mui/material';
+import { ComponentType } from 'react';
 import DashboardSkeleton from "@/components/ui/dashboard/DashboardSkeleton";
 import Link from 'next/link';
 import { DashboardData } from '@/types/dashboard';
 import { useSession } from 'next-auth/react'; // [NOVO] Importar useSession
+import DashboardIcon from '@mui/icons-material/Dashboard';
+import { usePageTitle } from '@/contexts/PageTitleContext';
+import ExpiredNotificationsWidget from '@/components/ui/dashboard/ExpiredNotificationsWidget';
 
 // [NOVO] Interface para o Convite Pendente
 interface PendingInvite {
@@ -44,11 +51,18 @@ const KPICard = ({ title, value, icon, color }: { title: string, value: number, 
 );
 
 export default function DashboardPage() {
+    usePageTitle("Visão Geral da Operação", <DashboardIcon />);
     const { data: session, status } = useSession(); // [NOVO] Capturar sessão
     const [data, setData] = useState<DashboardData | null>(null);
     const [loading, setLoading] = useState(true);
     // [NOVO] Estado para convites pendentes
     const [invites, setInvites] = useState<PendingInvite[]>([]);
+
+    // Filtros
+    // [NOVO] Estado para notificações vencidas
+    const [expiredNotifications, setExpiredNotifications] = useState<any[]>([]);
+    const [availableBairros, setAvailableBairros] = useState<string[]>([]);
+    const [filtroBairros, setFiltroBairros] = useState<string[]>([]);
 
 
     // [NOVO] Função para buscar convites pendentes
@@ -69,26 +83,51 @@ export default function DashboardPage() {
         }
     };
 
+    // [NOVO] Função para buscar notificações vencidas
+    const fetchExpiredNotifications = async () => {
+        try {
+            const response = await fetch('/api/notificacoes?vencidas=true');
+            if (response.ok) {
+                const data = await response.json();
+                setExpiredNotifications(data);
+            }
+        } catch (error) {
+            console.error("Erro ao buscar notificações vencidas:", error);
+        }
+    };
+
     // Função para buscar dados do Dashboard original
-    const fetchData = () => {
-        fetch('/api/dashboard')
+    const fetchData = (bairros: string[] = []) => {
+        setLoading(true);
+        const query = bairros.length > 0 ? `?bairros=${bairros.join(',')}` : '';
+        fetch(`/api/dashboard${query}`)
             .then(res => res.json())
             .then(setData)
             .catch(console.error)
             .finally(() => setLoading(false));
     }
 
+    const loadBairros = async () => {
+        try {
+            const res = await fetch('/api/demandas-bairros');
+            const data = await res.json();
+            setAvailableBairros(data);
+        } catch (e) { console.error(e); }
+    };
+
 
     useEffect(() => {
         // [MODIFICADO] Carrega os dados do dashboard E os convites
         if (status === 'authenticated') {
             fetchInvites();
-            fetchData();
+            fetchExpiredNotifications();
+            loadBairros();
+            fetchData(filtroBairros);
         } else if (status !== 'loading') {
             // Se não está logado, paramos o loading para evitar loop e evitar chamada de API
             setLoading(false);
         }
-    }, [status]);
+    }, [status, filtroBairros]);
 
 
     // Lógica de Redirecionamento e Loading
@@ -138,12 +177,47 @@ export default function DashboardPage() {
     return (
         <Box sx={{ p: 3 }}>
 
-            {/* 0. NOTIFICAÇÃO DE CONVITE (Aparece no topo) */}
-            {InviteNotification}
+            {/* 0.1 NOTIFICAÇÃO DE PRAZOS VENCIDOS */}
+            {expiredNotifications.length > 0 && (
+                <Box sx={{ mb: 4 }}>
+                    <ExpiredNotificationsWidget notifications={expiredNotifications} />
+                </Box>
+            )}
 
-            <Typography variant="h4" fontWeight="bold" sx={{ mb: 4, color: '#2c3e50' }}>
-                Visão Geral da Operação
-            </Typography>
+            <Stack direction="row" alignItems="center" justifyContent="flex-end" sx={{ mb: 4 }}>
+
+                <FormControl size="small" sx={{ minWidth: 200 }}>
+                    <InputLabel>Filtrar por Bairro</InputLabel>
+                    <Select
+                        multiple
+                        value={filtroBairros}
+                        onChange={(e) => setFiltroBairros(e.target.value as string[])}
+                        label="Filtrar por Bairro"
+                        renderValue={(selected) => (
+                            <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
+                                {(selected as string[]).map((value) => (
+                                    <Chip key={value} label={value} size="small" />
+                                ))}
+                            </Box>
+                        )}
+                        endAdornment={
+                            filtroBairros.length > 0 && (
+                                <IconButton
+                                    size="small"
+                                    sx={{ mr: 2 }}
+                                    onClick={() => setFiltroBairros([])}
+                                >
+                                    <FilterList />
+                                </IconButton>
+                            )
+                        }
+                    >
+                        {availableBairros.map((b) => (
+                            <MenuItem key={b} value={b}>{b}</MenuItem>
+                        ))}
+                    </Select>
+                </FormControl>
+            </Stack>
 
             {/* 1. KPIs (Indicadores) */}
             <Box sx={{ mb: 4 }}>

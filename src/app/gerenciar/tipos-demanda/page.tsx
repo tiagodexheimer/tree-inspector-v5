@@ -13,6 +13,8 @@ import EditIcon from '@mui/icons-material/Edit';
 import DeleteIcon from '@mui/icons-material/Delete';
 import { useSession } from 'next-auth/react';
 import LockIcon from '@mui/icons-material/Lock';
+import AssignmentIcon from '@mui/icons-material/Assignment';
+import { usePageTitle } from '@/contexts/PageTitleContext';
 
 // [FIX 1] Importa os utilitários de permissão e o novo componente modal
 import { UserRole, getLimitsByRole } from '@/types/auth-types';
@@ -39,6 +41,7 @@ interface FormularioSimples {
 
 
 export default function GerenciarTiposDemandaPage() {
+    usePageTitle("Gerenciar Tipos de Demanda", <AssignmentIcon />);
     const { data: session, status } = useSession();
 
     // [FIX 2] Calcula a permissão de escrita baseada no plano do usuário
@@ -212,11 +215,7 @@ export default function GerenciarTiposDemandaPage() {
 
     return (
         <div className="p-4">
-            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
-                <Typography variant="h4" component="h1" gutterBottom>
-                    Gerenciar Tipos de Demanda
-                </Typography>
-
+            <Box sx={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center', mb: 2 }}>
                 {/* Botão Adicionar habilitado se o plano permitir */}
                 <Button
                     variant="contained"

@@ -197,4 +197,61 @@ describe('DemandasService', () => {
     });
 
   });
+
+  describe('deleteDemandas (batch com organizationId)', () => {
+    it('Deve passar organizationId para o repositório na deleção em lote', async () => {
+      (DemandasRepository.deleteMany as jest.Mock).mockResolvedValue(undefined);
+
+      await demandasService.deleteDemandas([1, 2, 3], 42);
+
+      expect(DemandasRepository.deleteMany).toHaveBeenCalledWith([1, 2, 3], 42);
+    });
+
+    it('Deve funcionar sem organizationId (backward compat)', async () => {
+      (DemandasRepository.deleteMany as jest.Mock).mockResolvedValue(undefined);
+
+      await demandasService.deleteDemandas([1, 2]);
+
+      expect(DemandasRepository.deleteMany).toHaveBeenCalledWith([1, 2], undefined);
+    });
+  });
+
+  describe('listDemandas', () => {
+    it('Deve aplicar limite para usuário free', async () => {
+      const mockResult = { demandas: [], totalCount: 0 };
+      (DemandasRepository.findAll as jest.Mock).mockResolvedValue(mockResult);
+
+      await demandasService.listDemandas(
+        { page: 1, limit: 50, organizationId: 1 },
+        'free',
+        1
+      );
+
+      expect(DemandasRepository.findAll).toHaveBeenCalledWith(
+        expect.objectContaining({
+          limit: 10,
+          page: 1,
+          organizationId: 1,
+        })
+      );
+    });
+
+    it('Não deve limitar para usuário basic', async () => {
+      const mockResult = { demandas: [], totalCount: 0 };
+      (DemandasRepository.findAll as jest.Mock).mockResolvedValue(mockResult);
+
+      await demandasService.listDemandas(
+        { page: 2, limit: 50, organizationId: 1 },
+        'basic',
+        1
+      );
+
+      expect(DemandasRepository.findAll).toHaveBeenCalledWith(
+        expect.objectContaining({
+          limit: 50,
+          page: 2,
+        })
+      );
+    });
+  });
 });

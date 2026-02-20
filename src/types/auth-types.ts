@@ -54,7 +54,8 @@ export const PLAN_LIMITS = {
 };
 
 export const getLimitsByRole = (role: UserRole) => {
-    if (role === 'free') return PLAN_LIMITS.FREE;
-    if (role === 'basic') return PLAN_LIMITS.BASIC;
+    const r = (role || "").toLowerCase();
+    if (r.includes('free')) return PLAN_LIMITS.FREE;
+    if (r.includes('basic')) return PLAN_LIMITS.BASIC;
     return PLAN_LIMITS.UNLIMITED;
 };

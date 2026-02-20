@@ -1,6 +1,6 @@
 {
   "name": "tree-inspector",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "private": true,
   "scripts": {
     "dev": "next dev",
@@ -13,7 +13,8 @@
     "perf:server": "cross-env POSTGRES_URL=postgresql://test_user:test_password@localhost:5433/test_db next dev -p 3001",
     "setup:db:test": "cross-env POSTGRES_URL=postgresql://test_user:test_password@localhost:5433/test_db node setup-test-db-robust.js",
     "test:e2e:server": "npm run setup:db:test && npm run dev",
-    "reset:neon": "node setup-test-db-robust.js"
+    "reset:neon": "node setup-test-db-robust.js",
+    "db:migrate:notificacoes": "npx -y tsx src/scripts/migrate-notificacoes.ts"
   },
   "dependencies": {
     "@auth/pg-adapter": "^1.11.1",

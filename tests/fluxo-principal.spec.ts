@@ -1,7 +1,7 @@
 import { test, expect } from '@playwright/test';
 
 test.describe('Fluxo Principal do Sistema', () => {
-  
+
   test('Deve conseguir logar e criar uma demanda', async ({ page, request }) => {
     // --- ETAPA DE PREPARAÇÃO (SETUP) ---
     const timestamp = Date.now();
@@ -17,7 +17,8 @@ test.describe('Fluxo Principal do Sistema', () => {
       data: {
         name: 'Usuário Playwright',
         email: emailTeste,
-        password: senhaTeste
+        password: senhaTeste,
+        planType: 'free'
       }
     });
     expect(signupResponse.ok(), 'Falha ao criar usuário de teste via API').toBeTruthy();
@@ -29,59 +30,66 @@ test.describe('Fluxo Principal do Sistema', () => {
     await page.click('button[type="submit"]');
 
     try {
-        await expect(page).not.toHaveURL(/\/login/, { timeout: 10000 });
+      await expect(page).not.toHaveURL(/\/login/, { timeout: 10000 });
     } catch (e) {
-        const errorAlert = page.locator('.MuiAlert-message');
-        if (await errorAlert.isVisible()) {
-            const text = await errorAlert.textContent();
-            throw new Error(`Login falhou com mensagem na tela: ${text}`);
-        }
-        throw e;
+      const errorAlert = page.locator('.MuiAlert-message');
+      if (await errorAlert.isVisible()) {
+        const text = await errorAlert.textContent();
+        throw new Error(`Login falhou com mensagem na tela: ${text}`);
+      }
+      throw e;
     }
-    
+
     await page.goto('/demandas');
     await expect(page).toHaveURL(/\/demandas/);
-    
+
     // --- CRIAR DEMANDA ---
-    await page.click('button:has-text("Adicionar Demanda")');
+    await page.click('button:has-text("Nova Demanda")');
 
-    await page.fill('input[name="nome_solicitante"]', nomeSolicitante);
-    await page.fill('input[name="cep"]', '90000-000'); 
-    await page.locator('input[name="cep"]').blur();
-    await page.waitForTimeout(1000); 
+    // [CORREÇÃO] Escopo dentro do modal para evitar seletores ambíguos
+    const modal = page.getByRole('dialog');
+    await expect(modal).toBeVisible({ timeout: 5000 });
 
-    await page.fill('input[name="numero"]', '123');
-    
+    await modal.locator('input[name="nome_solicitante"]').fill(nomeSolicitante);
+    await modal.locator('input[name="cep"]').fill('90000-000');
+    await modal.locator('input[name="cep"]').blur();
+    await page.waitForTimeout(1000);
+
+    await modal.locator('input[name="numero"]').fill('123');
+
     // [CORREÇÃO] Usamos a descrição única aqui
-    await page.fill('textarea[name="descricao"]', descricaoUnica);
-    
-    await page.click('#tipo-demanda-select-label + div'); 
-    const optionPoda = page.locator('li[role="option"]:has-text("Poda")').first();
-    await page.waitForTimeout(500);
+    const descricaoLocator = modal.locator('[name="descricao"]');
+    await descricaoLocator.waitFor({ state: 'visible', timeout: 5000 });
+    await descricaoLocator.fill(descricaoUnica);
+
+    // [CORREÇÃO] Seletor robusto para Tipo de Demanda (MUI Select)
+    await modal.getByRole('combobox', { name: /Tipo de Demanda/i }).click();
+    const optionPoda = page.getByRole('option', { name: 'Poda' }).first();
+    await optionPoda.waitFor({ state: 'visible', timeout: 3000 }).catch(() => { });
     if (await optionPoda.isVisible()) {
-        await optionPoda.click();
+      await optionPoda.click();
     } else {
-        const firstOption = page.locator('li[role="option"]').first();
-        await firstOption.click();
+      const firstOption = page.getByRole('option').first();
+      await firstOption.click();
     }
 
-    await page.click('button:has-text("Registrar Demanda")');
+    await modal.locator('button:has-text("Registrar Demanda")').click();
 
-    // Verificar Sucesso (O diálogo aparece e tem o botão Fechar, conforme seu código)
+    // Verificar Sucesso
     await expect(page.locator('text=Demanda Registrada com Sucesso!')).toBeVisible({ timeout: 10000 });
     await page.click('button:has-text("Fechar")');
 
     // --- VERIFICAÇÃO NA LISTA ---
     await page.reload();
-    await expect(page.locator('h1:has-text("Demandas")')).toBeVisible();
-    
-    const searchInput = page.getByLabel('Buscar...', { exact: false }).or(page.getByPlaceholder('Buscar...'));
-    
+    await expect(page.getByRole('heading', { name: /Gestão de Demandas/i })).toBeVisible({ timeout: 10000 });
+
+    const searchInput = page.getByPlaceholder('Buscar por protocolo');
+
     // Filtramos pelo nome (o backend busca por nome)
     await searchInput.clear();
     await searchInput.fill(nomeSolicitante);
-    
-    await page.waitForTimeout(2000); 
+
+    await page.waitForTimeout(2000);
 
     // [CORREÇÃO FINAL] Verificamos se a DESCRIÇÃO está visível no card, pois o nome do solicitante fica oculto
     await expect(page.locator(`text=${descricaoUnica}`)).toBeVisible({ timeout: 10000 });

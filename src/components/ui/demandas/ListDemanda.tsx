@@ -33,7 +33,9 @@ export default function ListDemanda({
     prazo, // Agora é Date | null | undefined
     status, // Agora é Status | undefined
     responsavel,
-    contato // Agora é opcional
+    nome_solicitante,
+    telefone_solicitante,
+    email_solicitante,
 }: iDemandaProps) {
 
     // Função auxiliar para formatar a data do prazo
@@ -49,19 +51,14 @@ export default function ListDemanda({
         return 'N/A'; // Retorna N/A se não for uma data válida
     };
 
-    // Função auxiliar para formatar informações de contato (ajustada para remover endereco duplicado)
-    const formatContato = (contatoData: DemandaType['contato']): string => {
-        if (!contatoData) {
-            return 'N/A';
-        }
-        // Monta uma string com os dados de contato disponíveis
+    // Função auxiliar para formatar informações do solicitante
+    const formatSolicitante = (): string => {
         const parts = [
-            contatoData.nome,
-            contatoData.telefone,
-            contatoData.email
-            // contatoData.endereco // Removido pois já temos os campos de endereço principais
-        ].filter(Boolean); // Filtra partes vazias ou nulas
-        return parts.join(' | ') || 'N/A'; // Retorna N/A se nenhuma parte existir
+            nome_solicitante,
+            telefone_solicitante,
+            email_solicitante,
+        ].filter(Boolean);
+        return parts.join(' | ') || 'N/A';
     };
 
     // Este componente foi originalmente desenhado para renderizar uma TableRow.
@@ -82,11 +79,11 @@ export default function ListDemanda({
             <TableCell>
                 {status ?? 'N/A'} {/* Exibe o texto do status ou N/A */}
             </TableCell>
-             {/* ***** FIM DA CORREÇÃO ***** */}
+            {/* ***** FIM DA CORREÇÃO ***** */}
             <TableCell>{responsavel ?? 'N/A'}</TableCell> {/* Mostra N/A se responsavel for null/undefined */}
             <TableCell>
-                {/* Formata as informações de contato */}
-                {formatContato(contato)}
+                {/* Formata as informações do solicitante */}
+                {formatSolicitante()}
             </TableCell>
         </TableRow>
     );

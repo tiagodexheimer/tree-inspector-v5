@@ -31,18 +31,8 @@ export interface DemandaType {
   prazo?: Date | null;
   status?: Status;
   responsavel?: string | null;
-  anexos?: { url: string; nome: string; type: string }[]; // [NOVO]
-
-  // Geografia
+  anexos?: { url: string; nome: string; type: string }[];
   geom?: GeoJsonPoint | null;
-
-  // Legado (considerar remover se não usado)
-  contato?: {
-    nome: string;
-    telefone: string;
-    email: string;
-    endereco: string;
-  };
 }
 
 // --- DTOs (Data Transfer Objects) e ViewModels ---
@@ -55,6 +45,9 @@ export interface DemandaComIdStatus extends DemandaType {
   // Atalhos de coordenadas para facilitar uso em mapas (Leaflet/Google)
   lat: number | null;
   lng: number | null;
+  // Informações de Notificações vinculadas
+  notificacao_status?: string;
+  notificacao_vencimento?: string | Date;
 }
 
 export interface OptimizedRouteData {

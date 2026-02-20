@@ -7,7 +7,9 @@ import {
     Dialog, DialogActions, DialogContent, DialogContentText, DialogTitle, useTheme, useMediaQuery
 } from '@mui/material';
 import InfoOutlinedIcon from '@mui/icons-material/InfoOutlined';
+import RouteIcon from '@mui/icons-material/Route';
 import dynamic from 'next/dynamic';
+import { usePageTitle } from '@/contexts/PageTitleContext';
 
 // Componentes UI
 import RotasSkeleton from '@/components/ui/rotas/RotasSkeleton';
@@ -29,6 +31,7 @@ const RouteMap = dynamic(() => import('@/components/ui/demandas/RouteMap'), {
 });
 
 export default function RotasPage() {
+    usePageTitle("Rotas Criadas", <RouteIcon />);
     const {
         rotas, isLoading, error, refresh, selectedRouteMap,
         isLoadingRouteMap, fetchRouteDetailsForMap,
@@ -99,9 +102,6 @@ export default function RotasPage() {
 
     return (
         <Box sx={{ p: isMobile ? 1 : 3 }}>
-            <Typography variant="h4" fontWeight="bold" sx={{ mb: isMobile ? 2 : 4 }}>
-                Rotas Criadas
-            </Typography>
 
             {/* Exibe erros de carregamento */}
             {error && (

@@ -59,7 +59,9 @@ export interface FindDemandasParams {
   filtro?: string;
   statusIds?: number[];
   tipoNomes?: string[];
+  bairros?: string[];
   organizationId: number;
+  notificacoesVencidas?: boolean; // [NOVO]
 }
 
 export interface UpdateDemandaDTO {
@@ -102,8 +104,8 @@ export const DemandasRepository = {
   async findAll(
     params: FindDemandasParams
   ): Promise<{ demandas: any[]; totalCount: number }> {
-    const { page, limit, filtro, statusIds, tipoNomes, organizationId } =
-      params; // 👈organizationId
+    const { page, limit, filtro, statusIds, tipoNomes, organizationId, bairros } =
+      params;
     const offset = (page - 1) * limit;
 
     const whereClauses: string[] = [];
@@ -121,7 +123,8 @@ export const DemandasRepository = {
         d.nome_solicitante ILIKE $${counter} OR 
         d.descricao ILIKE $${counter} OR 
         d.protocolo ILIKE $${counter} OR
-        d.logradouro ILIKE $${counter}
+        d.logradouro ILIKE $${counter} OR
+        d.bairro ILIKE $${counter}
       )`);
       values.push(`%${filtro}%`);
       counter++;
@@ -129,7 +132,13 @@ export const DemandasRepository = {
 
     // Filtro de Status
     if (statusIds && statusIds.length > 0) {
-      whereClauses.push(`d.id_status = ANY($${counter}::int[])`);
+      // Usamos uma subquery para pegar todos os IDs que possuem os mesmos NOMES dos IDs selecionados.
+      // Isso resolve o problema de registros vinculados a status globais vs organizacionais.
+      whereClauses.push(`d.id_status IN (
+        SELECT id FROM demandas_status 
+        WHERE nome IN (SELECT nome FROM demandas_status WHERE id = ANY($${counter}::int[]))
+        AND (organization_id = $1 OR organization_id IS NULL)
+      )`);
       values.push(statusIds);
       counter++;
     }
@@ -139,6 +148,25 @@ export const DemandasRepository = {
       whereClauses.push(`d.tipo_demanda = ANY($${counter}::text[])`);
       values.push(tipoNomes);
       counter++;
+    }
+
+    // Filtro de Bairros
+    if (bairros && bairros.length > 0) {
+      // Normalizamos os bairros selecionados para garantir o match
+      const normalizedBairros = bairros.map(b => b.trim().toLowerCase());
+      whereClauses.push(`LOWER(TRIM(d.bairro)) = ANY($${counter}::text[])`);
+      values.push(normalizedBairros);
+      counter++;
+    }
+
+    // [NOVO] Filtro de Notificações Vencidas
+    if (params.notificacoesVencidas) {
+      whereClauses.push(`EXISTS (
+        SELECT 1 FROM notificacoes n 
+        WHERE n.demanda_id = d.id 
+        AND n.status = 'Pendente' 
+        AND n.vencimento < CURRENT_DATE
+      )`);
     }
 
     const whereSql =
@@ -162,9 +190,19 @@ export const DemandasRepository = {
         ST_AsGeoJSON(d.geom) as geom,
         ST_Y(d.geom::geometry) as lat, 
         ST_X(d.geom::geometry) as lng,
-        d.anexos
+        d.anexos,
+        n.status as notificacao_status,
+        n.vencimento as notificacao_vencimento
       FROM demandas d
       LEFT JOIN demandas_status s ON d.id_status = s.id
+      LEFT JOIN LATERAL (
+        SELECT id, status, vencimento
+        FROM notificacoes
+        WHERE demanda_id = d.id
+        AND status = 'Pendente'
+        ORDER BY vencimento ASC
+        LIMIT 1
+      ) n ON true
       ${whereSql}
       ORDER BY d.created_at DESC
       LIMIT $${counter} OFFSET $${counter + 1}
@@ -346,9 +384,16 @@ export const DemandasRepository = {
   },
 
   // 9. Deletar em Lote (Com proteção de FK)
-  async deleteMany(ids: number[]): Promise<void> {
+  async deleteMany(ids: number[], organizationId?: number): Promise<void> {
     try {
-      await pool.query(`DELETE FROM demandas WHERE id = ANY($1)`, [ids]);
+      if (organizationId) {
+        await pool.query(
+          `DELETE FROM demandas WHERE id = ANY($1) AND organization_id = $2`,
+          [ids, organizationId]
+        );
+      } else {
+        await pool.query(`DELETE FROM demandas WHERE id = ANY($1)`, [ids]);
+      }
     } catch (error: any) {
       if (error.code === "23503")
         throw new Error("Não é possível excluir demandas vinculadas a rotas.");
@@ -414,5 +459,24 @@ export const DemandasRepository = {
     const result = await pool.query(query, [organizationId]);
     // Garante que o count é retornado como número
     return parseInt(result.rows[0].count, 10);
+  },
+
+  // 12. Obter Bairros Únicos da Organização
+  async getUniqueBairros(organizationId: number): Promise<string[]> {
+    try {
+      const query = `
+        SELECT DISTINCT bairro 
+        FROM demandas 
+        WHERE organization_id = $1 
+        AND bairro IS NOT NULL 
+        AND bairro != ''
+        ORDER BY bairro ASC
+      `;
+      const result = await pool.query(query, [organizationId]);
+      return result.rows.map((row) => row.bairro);
+    } catch (error) {
+      console.error("Erro no DemandasRepository.getUniqueBairros:", error);
+      throw new Error("Falha ao buscar bairros únicos.");
+    }
   },
 };

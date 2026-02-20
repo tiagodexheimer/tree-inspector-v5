@@ -17,6 +17,8 @@ import {
 import { useParams, useRouter } from 'next/navigation';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import PrintIcon from '@mui/icons-material/Print';
+import AssessmentIcon from '@mui/icons-material/Assessment';
+import { usePageTitle } from '@/contexts/PageTitleContext';
 
 // --- COMPONENTE AUXILIAR PARA RENDERIZAR RESPOSTAS (TEXTO OU IMAGEM) ---
 const RenderizarResposta = ({ valor }: { valor: any }) => {
@@ -97,6 +99,8 @@ export default function RelatorioDetalhePage() {
                 });
         }
     }, [params?.id]);
+
+    usePageTitle(relatorio?.tipo_demanda || 'Relatório de Vistoria', <AssessmentIcon />);
 
     if (loading) {
         return (
@@ -191,9 +195,6 @@ export default function RelatorioDetalhePage() {
                         <Stack direction="row" justifyContent="space-between" alignItems="flex-start">
                             <Box>
                                 <Typography variant="overline" color="text.secondary">RELATÓRIO TÉCNICO DE VISTORIA</Typography>
-                                <Typography variant="h4" sx={{ fontWeight: 'bold', color: '#2e7d32' }}>
-                                    {relatorio.tipo_demanda}
-                                </Typography>
                             </Box>
                             <Chip label={relatorio.protocolo} color="primary" variant="outlined" />
                         </Stack>

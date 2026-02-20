@@ -5,6 +5,8 @@ import { useSession } from 'next-auth/react';
 import {
   Container, Typography, Box, Alert, CircularProgress, Divider, Paper
 } from '@mui/material';
+import BusinessIcon from '@mui/icons-material/Business';
+import { usePageTitle } from '@/contexts/PageTitleContext';
 
 // Componentes da UI
 import { OrgNameEditor } from '@/components/Organizacao/OrgNameEditor';
@@ -17,6 +19,7 @@ import { OrganizationRole, ActiveInvite, OrganizationMember } from '@/types/auth
 import { PersonalizacaoSettings } from '@/components/Organizacao/PersonalizacaoSettings';
 
 export default function GerenciarOrganizacaoPage() {
+  usePageTitle("Gerenciar Organização", <BusinessIcon />);
   const { data: session, status, update } = useSession();
 
   // Inicializa como arrays vazios para evitar erros de .map undefined
@@ -131,9 +134,6 @@ export default function GerenciarOrganizacaoPage() {
   return (
     <Container maxWidth="lg" sx={{ py: 4 }}>
       <Box sx={{ mb: 4 }}>
-        <Typography variant="h4" component="h1" gutterBottom sx={{ fontWeight: 'bold' }}>
-          Gerenciar Organização
-        </Typography>
         <Typography variant="body1" color="text.secondary">
           Administre os membros e configurações da <strong>{organizationName}</strong>.
         </Typography>

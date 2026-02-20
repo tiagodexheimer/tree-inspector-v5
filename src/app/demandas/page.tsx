@@ -1,5 +1,5 @@
 'use client';
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import {
     Box, Alert, Pagination, Typography,
     Dialog, DialogTitle, DialogContent, DialogContentText, DialogActions, Button,
@@ -11,8 +11,11 @@ import ListaCardDemanda from "@/components/ui/demandas/ListaCardDemanda";
 import ListaListDemanda from "@/components/ui/demandas/ListaListDemanda";
 import DemandasToolbar from "@/components/ui/demandas/DemandasToolbar";
 import DemandasSkeleton from "@/components/ui/demandas/DemandasSkeleton";
-import DetalhesDemandaModal from "@/components/ui/demandas/DetalhesDemandaModal"; // [NOVO IMPORT]
+import DetalhesDemandaModal from "@/components/ui/demandas/DetalhesDemandaModal";
+import CriarNotificacaoAvulsaModal from "@/components/ui/notificacoes/CriarNotificacaoAvulsaModal";
 
+import { Assignment } from "@mui/icons-material";
+import { usePageTitle } from "@/contexts/PageTitleContext";
 import { useDemandasData } from "@/hooks/useDemandasData";
 import { useDemandasOperations } from "@/hooks/useDemandasOperations";
 import { useDemandasMapData } from "@/hooks/useDemandasMapData";
@@ -26,20 +29,47 @@ const RouteMap = dynamic(() => import("@/components/ui/demandas/RouteMap"), {
     ssr: false
 });
 
+const VIEW_MODE_STORAGE_KEY = 'treeinspector_demandas_view_mode';
+
 export default function DemandasPage() {
+    usePageTitle("Gestão de Demandas", <Assignment />);
     const [viewMode, setViewMode] = useState<'card' | 'list' | 'map'>('card');
+
+    // Carrega a preferência do usuário ao montar o componente
+    useEffect(() => {
+        const savedMode = localStorage.getItem(VIEW_MODE_STORAGE_KEY) as 'card' | 'list' | 'map';
+        if (savedMode && ['card', 'list', 'map'].includes(savedMode)) {
+            setViewMode(savedMode);
+        }
+    }, []);
 
     const handleViewModeChange = (mode: 'card' | 'list' | 'map') => {
         setViewMode(mode);
-        if (mode === 'map') fetchMapData();
+        localStorage.setItem(VIEW_MODE_STORAGE_KEY, mode);
+        if (mode === 'map') fetchMapData(filters);
     };
 
     const {
         demandas, setDemandas, totalCount, isLoading, error, page, limit, setPage,
-        filters, refresh, availableStatus, availableTipos
+        filters, refresh, availableStatus, availableTipos, availableBairros
     } = useDemandasData();
     const { demandasMap, isLoadingMap, fetchMapData } = useDemandasMapData();
+
+    // Sincroniza Mapa com Filtros
+    useEffect(() => {
+        if (viewMode === 'map') {
+            fetchMapData(filters);
+        }
+    }, [filters.texto, filters.status, filters.tipos, filters.bairros, viewMode, fetchMapData]);
+
     const { deleteDemandas, isProcessing: isDeleting, opError, clearError } = useDemandasOperations(refresh);
+
+    // Refresh map when data reaches backend
+    const originalRefresh = refresh;
+    const syncedRefresh = useCallback(() => {
+        originalRefresh();
+        if (viewMode === 'map') fetchMapData(filters);
+    }, [originalRefresh, viewMode, fetchMapData, filters]);
 
     // Estados Modais
     const [addModalOpen, setAddModalOpen] = useState(false);
@@ -50,6 +80,7 @@ export default function DemandasPage() {
     // [NOVO] Estados para Visualização de Detalhes (via Mapa)
     const [viewDemandaModalOpen, setViewDemandaModalOpen] = useState(false);
     const [selectedDemandaForView, setSelectedDemandaForView] = useState<DemandaComIdStatus | null>(null);
+    const [isNotificacaoModalOpen, setIsNotificacaoModalOpen] = useState(false); // [NOVO]
 
     const [isOptimizing, setIsOptimizing] = useState(false);
     const [optimizedRouteData, setOptimizedRouteData] = useState<OptimizedRouteData | null>(null);
@@ -120,32 +151,65 @@ export default function DemandasPage() {
     return (
         <Box>
             <Box sx={{ px: 3, pt: 3 }}>
-                <Typography variant="h4" fontWeight="bold" gutterBottom>
-                    Gestão de Demandas ({totalCount})
-                </Typography>
-
                 <DemandasToolbar
                     filtro={filters.texto}
                     onFiltroChange={filters.setTexto}
+
                     filtroStatusIds={filters.status}
                     onFiltroStatusChange={(e) => filters.setStatus(e.target.value as any)}
                     availableStatus={availableStatus}
                     statusError={null}
+
                     filtroTipoNomes={filters.tipos}
                     onFiltroTipoChange={(e) => filters.setTipos(e.target.value as any)}
                     availableTipos={availableTipos}
                     tiposError={null}
+
+                    filtroBairros={filters.bairros}
+                    onFiltroBairrosChange={(e) => filters.setBairros(e.target.value as any)}
+                    availableBairros={availableBairros}
+
                     viewMode={viewMode}
                     onViewModeChange={handleViewModeChange}
-                    onAddDemandaClick={() => setAddModalOpen(true)}
+
+                    onAddDemandaClick={() => {
+                        setDemandaParaEditar(null);
+                        setAddModalOpen(true);
+                    }}
+                    onAddNotificacaoClick={() => setIsNotificacaoModalOpen(true)}
                     onCreateRotaClick={handlePrepareRota}
                     onDeleteSelectedClick={handleRequestDeleteSelected}
                     selectedDemandasCount={selectedDemandas.length}
+
                     onClearStatusFilter={() => filters.setStatus([])}
                     onClearTipoFilter={() => filters.setTipos([])}
+                    onClearBairroFilter={() => filters.setBairros([])}
                     isOptimizing={isOptimizing}
+                    notificacoesVencidas={filters.notificacoesVencidas}
+                    onNotificacoesVencidasChange={filters.setNotificacoesVencidas}
                 />
             </Box>
+
+            {/* Modais */}
+            <AddDemandaModal
+                open={addModalOpen}
+                onClose={() => setAddModalOpen(false)}
+                demandaInicial={demandaParaEditar}
+                onSuccess={() => {
+                    setAddModalOpen(false);
+                    refresh();
+                }}
+                availableTipos={availableTipos}
+            />
+
+            <CriarNotificacaoAvulsaModal
+                open={isNotificacaoModalOpen}
+                onClose={() => setIsNotificacaoModalOpen(false)}
+                onSuccess={() => {
+                    setIsNotificacaoModalOpen(false);
+                    refresh();
+                }}
+            />
 
             <Box sx={{ px: 3, pb: 3 }}>
                 {opError && <Alert severity="error" onClose={clearError} sx={{ mb: 2 }}>{opError}</Alert>}

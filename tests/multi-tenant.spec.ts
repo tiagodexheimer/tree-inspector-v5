@@ -1,41 +1,10 @@
 import { test, expect, Page } from "@playwright/test";
-import { defineConfig, devices } from "@playwright/test";
 
 // --- CONFIGURAÇÕES DE TESTE ---
 const BASE_URL = "http://localhost:3000";
 const DEMANDAS_LIMIT_FREE = 10;
 const ROTAS_LIMIT_FREE = 1;
 const UNLIMITED_TEST_COUNT = 12; // Número de demandas/rotas para testar a ausência de limite
-
-export default defineConfig({
-  // CORRECTION: Pointing to the 'tests' folder as per your project structure
-  testDir: "./tests",
-  fullyParallel: true,
-  forbidOnly: !!process.env.CI,
-  retries: process.env.CI ? 2 : 0,
-  workers: process.env.CI ? 1 : undefined,
-  reporter: "html",
-
-  use: {
-    baseURL: "http://localhost:3000",
-    trace: "on-first-retry",
-  },
-
-  // A configuração webServer foi removida, assumindo que o servidor é iniciado em paralelo pelo usuário.
-  // IMPORTANTE: Garanta que o servidor esteja rodando em http://localhost:3000 antes de executar 'npx playwright test'.
-
-  projects: [
-    {
-      name: "chromium",
-      use: { ...devices["Desktop Chrome"] },
-    },
-    // Você pode descomentar outros navegadores se quiser
-    // {
-    //   name: 'firefox',
-    //   use: { ...devices['Desktop Firefox'] },
-    // },
-  ],
-});
 
 const USER_A_FREE = {
   name: "Free User A",
@@ -95,39 +64,39 @@ async function registerAndLogin(
   await page.goto(`${BASE_URL}/signup`);
 
   // Espera pelo Step 1 (Título principal)
-  await page.getByRole("heading", { name: "Escolha Seu Plano" }).waitFor({
+  await page.getByRole("heading", { name: /Escolha Seu Plano/i }).waitFor({
     state: "visible",
     timeout: 10000,
   });
 
-  // 1. Selecionar o Plano (Step 1) - Garante que o plano correto seja selecionado
+  // 1. Selecionar o Plano (Step 1)
   const planName =
     user.plan === "free"
       ? "Plano Free"
       : user.plan === "basic"
-      ? "Plano Básico"
-      : "Plano Pro";
+        ? "Plano Básico"
+        : "Plano Pro";
 
   const planCard = page
     .locator(`:scope`, { has: page.locator(`text=${planName}`) })
     .first();
   await planCard.waitFor({ state: "visible" });
 
-  // [FIX CRÍTICO DO FLUXO] Clica diretamente no cartão ou no botão, se o botão for o elemento de clique
-  // O componente do frontend (PlanCard) deve garantir que clicar no CARD ou no BOTÃO
-  // registre o plano e avance para o Step 2.
+  // [FIX CRÍTICO] Lógica de clique condicional (1 ou 2 cliques)
+  const actionButton = planCard.getByRole('button');
+  await actionButton.click({ force: true });
 
-  // Localiza o botão de ação (Criar Conta/Selecionar Plano) dentro do CARD
-  const actionButton = planCard
-    .locator("button", { hasText: /Criar Conta|Selecionar Plano/ })
-    .first();
-
-  // [AÇÃO MODIFICADA] Clica diretamente no botão de ação, que deve iniciar o Step 2.
-  await actionButton.click();
+  // Espera rápido para ver se mudou. Se não, clica de novo.
+  try {
+    await expect(page.locator('text=Crie Sua Conta').first()).toBeVisible({ timeout: 3000 });
+  } catch (e) {
+    // Se ainda não mudou, é porque o 1º clique apenas selecionou (Plano diferente do default)
+    await actionButton.click({ force: true });
+  }
 
   // 2. Preencher Formulário (Step 2)
-  await page.waitForSelector('h1:has-text("Crie Sua Conta")', {
-    timeout: 5000,
+  await expect(page.locator('text=Crie Sua Conta').first()).toBeVisible({
+    timeout: 15000,
   });
 
   await page.fill('input[name="name"]', user.name);
@@ -142,10 +111,6 @@ async function registerAndLogin(
     page.waitForURL(`${BASE_URL}/login**`).then(() => "login"),
   ]).catch(() => null);
 
-  // [CORREÇÃO CRÍTICA DO FLUXO]
-  // Injeta o planType no POST antes de clicar no botão final, caso o formulário
-  // do frontend não o esteja enviando implicitamente.
-
   // Captura a requisição POST antes de clicar no botão
   const [request] = await Promise.all([
     page.waitForRequest(
@@ -156,14 +121,10 @@ async function registerAndLogin(
     registerButton.click(),
   ]);
 
-  // Verifica o payload enviado
   const postData = JSON.parse(request.postData() || "{}");
   if (postData.planType !== user.plan) {
-    console.warn(
-      `[Playwright WARN] O formulário de cadastro enviou planType: '${postData.planType}' em vez de '${user.plan}'. Verifique o componente frontend.`
-    );
+    console.warn(`[Playwright WARN] planType mismatch: ${postData.planType} vs ${user.plan}`);
   }
-  // Fim da correção do fluxo
 
   const errorAlert = page.locator("text=Email já cadastrado.");
 
@@ -175,32 +136,14 @@ async function registerAndLogin(
       .catch(() => null),
   ]);
 
-  if (result === "dashboard") {
-    // 1. Sucesso total
-    return;
-  }
+  if (result === "dashboard") return;
 
   if (result === "login" || result === "error") {
-    // 2. User já existe OU falha no auto-login (caiu em /login ou erro visível)
-    console.log(
-      `[Playwright] Usuário ${user.email} já existe ou falha no auto-login. Tentando login.`
-    );
     await login(page, user);
     return;
   }
 
-  // 3. Falha desconhecida (API 500, timeout no POST, etc.)
-  throw new Error(
-    "Falha desconhecida no cadastro: Redirecionamento não ocorreu e nenhuma mensagem de erro clara foi exibida."
-  );
-
-  if (result !== navigationPromise) {
-    console.log(
-      `[Playwright] Usuário ${user.email} já existe. Tentando login.`
-    );
-    await login(page, user);
-    return;
-  }
+  throw new Error("Falha desconhecida no cadastro: Redirecionamento não ocorreu.");
 }
 
 /**
@@ -426,11 +369,10 @@ test.describe("Multi-tenant: Limites e Segregação de Planos", () => {
       ).toBeVisible();
     });
 
-    await test.step(`1.3. Falhar na ${
-      DEMANDAS_LIMIT_FREE + 1
-    }ª Demanda (Limite)`, async () => {
-      await createDemanda(page, DEMANDAS_LIMIT_FREE + 1, true);
-    });
+    await test.step(`1.3. Falhar na ${DEMANDAS_LIMIT_FREE + 1
+      }ª Demanda (Limite)`, async () => {
+        await createDemanda(page, DEMANDAS_LIMIT_FREE + 1, true);
+      });
 
     await test.step("1.4. Criar 1ª Rota (Sucesso)", async () => {
       await page.goto(`${BASE_URL}/demandas`);

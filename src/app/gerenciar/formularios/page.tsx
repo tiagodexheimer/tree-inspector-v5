@@ -1,17 +1,19 @@
 // src/app/gerenciar/formularios/page.tsx
 "use client";
 import React, { useState } from 'react';
-import { 
-    Tabs, Tab, Typography, Box, Dialog, DialogTitle, DialogContent, 
-    DialogContentText, DialogActions, Button, CircularProgress 
+import {
+    Tabs, Tab, Typography, Box, Dialog, DialogTitle, DialogContent,
+    DialogContentText, DialogActions, Button, CircularProgress
 } from '@mui/material';
 import DeleteIcon from '@mui/icons-material/Delete';
+import DescriptionIcon from '@mui/icons-material/Description';
+import { usePageTitle } from '@/contexts/PageTitleContext';
 
 import CriarFormularios from '@/components/ui/formularios/CriarFormularios';
 import VisualizarFormularios from '@/components/ui/formularios/VisualizarFormularios';
 
 // ... (TabPanel e a11yProps mantidos iguais)
-function TabPanel(props: any) { 
+function TabPanel(props: any) {
     const { children, value, index, ...other } = props;
     return (
         <div role="tabpanel" hidden={value !== index} id={`vertical-tabpanel-${index}`} aria-labelledby={`vertical-tab-${index}`} style={{ width: '100%', display: value === index ? 'block' : 'none' }} {...other}>
@@ -22,9 +24,10 @@ function TabPanel(props: any) {
 function a11yProps(index: number) { return { id: `vertical-tab-${index}`, 'aria-controls': `vertical-tabpanel-${index}` }; }
 
 export default function FormulariosPage() {
+    usePageTitle("Gerenciar Formulários", <DescriptionIcon />);
     const [tabIndex, setTabIndex] = useState(0);
     const [editingFormId, setEditingFormId] = useState<number | null>(null);
-    
+
     // Estado para controlar o refresh da lista
     const [refreshListKey, setRefreshListKey] = useState(0);
 
@@ -54,7 +57,7 @@ export default function FormulariosPage() {
     };
 
     // --- Lógica de Deleção ---
-    
+
     const handleDeleteClick = (id: number) => {
         setFormToDeleteId(id);
         setDeleteModalOpen(true);
@@ -92,25 +95,25 @@ export default function FormulariosPage() {
                     <Tab label={editingFormId ? "Editar formulário" : "Criar formulário"} {...a11yProps(1)} />
                     <Tab label="Configurações" {...a11yProps(2)} />
                 </Tabs>
-                
+
                 <TabPanel value={tabIndex} index={0}>
-                    <VisualizarFormularios 
+                    <VisualizarFormularios
                         onEdit={handleEditForm}
                         onDelete={handleDeleteClick} // Passa o handler
                         refreshTrigger={refreshListKey} // Passa o trigger
                         onAdd={function (): void {
                             throw new Error('Function not implemented.');
-                        } }                    />
+                        }} />
                 </TabPanel>
-                
+
                 <TabPanel value={tabIndex} index={1}>
-                    <CriarFormularios 
-                        formIdToEdit={editingFormId} 
+                    <CriarFormularios
+                        formIdToEdit={editingFormId}
                         onSuccess={handleSuccessSave}
-                        key={editingFormId || 'new'} 
+                        key={editingFormId || 'new'}
                     />
                 </TabPanel>
-                
+
                 <TabPanel value={tabIndex} index={2}>
                     <Typography>Em breve.</Typography>
                 </TabPanel>
@@ -126,7 +129,7 @@ export default function FormulariosPage() {
                 </DialogContent>
                 <DialogActions>
                     <Button onClick={() => setDeleteModalOpen(false)} disabled={isDeleting} color="inherit">Cancelar</Button>
-                    <Button onClick={confirmDelete} disabled={isDeleting} color="error" variant="contained" autoFocus startIcon={isDeleting ? <CircularProgress size={20} color="inherit"/> : <DeleteIcon />}>
+                    <Button onClick={confirmDelete} disabled={isDeleting} color="error" variant="contained" autoFocus startIcon={isDeleting ? <CircularProgress size={20} color="inherit" /> : <DeleteIcon />}>
                         {isDeleting ? "Excluindo..." : "Excluir"}
                     </Button>
                 </DialogActions>
