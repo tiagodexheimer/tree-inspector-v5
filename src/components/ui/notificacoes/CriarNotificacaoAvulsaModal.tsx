@@ -7,6 +7,7 @@ import {
 } from "@mui/material";
 import CloudUploadIcon from '@mui/icons-material/CloudUpload';
 import MyLocationIcon from '@mui/icons-material/MyLocation';
+import PictureAsPdfIcon from '@mui/icons-material/PictureAsPdf';
 import { upload } from '@vercel/blob/client';
 
 interface CriarNotificacaoAvulsaModalProps {
@@ -280,19 +281,32 @@ export default function CriarNotificacaoAvulsaModal({ open, onClose, onSuccess }
 
                     <Box>
                         <Button component="label" variant="outlined" startIcon={<CloudUploadIcon />} fullWidth>
-                            Carregar Fotos
-                            <input type="file" hidden multiple accept="image/*" onChange={handleUploadFotos} />
+                            Carregar Fotos / PDF
+                            <input type="file" hidden multiple accept="image/*,application/pdf" onChange={handleUploadFotos} />
                         </Button>
                         <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1, mt: 1 }}>
                             {formData.fotos.map((f, i) => (
                                 <Box key={i} sx={{ position: 'relative' }}>
-                                    <Box component="img" src={f.url} sx={{ width: 60, height: 60, objectFit: 'cover', borderRadius: 1 }} />
+                                    {f.url.toLowerCase().endsWith('.pdf') ? (
+                                        <Box
+                                            onClick={() => window.open(f.url, '_blank')}
+                                            sx={{
+                                                width: 60, height: 60, bgcolor: '#f5f5f5',
+                                                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                                borderRadius: 1, border: '1px solid #ddd', cursor: 'pointer'
+                                            }}
+                                        >
+                                            <PictureAsPdfIcon color="error" />
+                                        </Box>
+                                    ) : (
+                                        <Box component="img" src={f.url} sx={{ width: 60, height: 60, objectFit: 'cover', borderRadius: 1 }} />
+                                    )}
                                     <IconButton
                                         size="small"
-                                        sx={{ position: 'absolute', top: -10, right: -10, bgcolor: 'error.main', color: 'white', '&:hover': { bgcolor: 'error.dark' } }}
+                                        sx={{ position: 'absolute', top: -10, right: -10, bgcolor: 'error.main', color: 'white', '&:hover': { bgcolor: 'error.dark' }, zIndex: 1 }}
                                         onClick={() => setFormData(prev => ({ ...prev, fotos: prev.fotos.filter((_, idx) => idx !== i) }))}
                                     >
-                                        <Typography variant="caption">×</Typography>
+                                        <Typography variant="caption" sx={{ lineHeight: 1 }}>×</Typography>
                                     </IconButton>
                                 </Box>
                             ))}

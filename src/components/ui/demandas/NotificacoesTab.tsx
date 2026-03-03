@@ -9,6 +9,8 @@ import {
 import DeleteIcon from '@mui/icons-material/Delete';
 import CloudUploadIcon from '@mui/icons-material/CloudUpload';
 import AddIcon from '@mui/icons-material/Add';
+import PictureAsPdfIcon from '@mui/icons-material/PictureAsPdf';
+import ImageIcon from '@mui/icons-material/Image';
 import { upload } from '@vercel/blob/client';
 import { DemandaComIdStatus } from '@/types/demanda';
 
@@ -209,12 +211,15 @@ export default function NotificacoesTab({ demanda }: NotificacoesTabProps) {
 
                             <Box>
                                 <Button component="label" variant="outlined" startIcon={<CloudUploadIcon />} size="small">
-                                    Anexar Fotos
-                                    <input type="file" hidden multiple accept="image/*" onChange={handleUploadFotos} />
+                                    Anexar Fotos / PDF
+                                    <input type="file" hidden multiple accept="image/*,application/pdf" onChange={handleUploadFotos} />
                                 </Button>
                                 <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1, mt: 1 }}>
                                     {formData.fotos.map((f, i) => (
-                                        <Typography key={i} variant="caption" sx={{ bgcolor: '#eee', px: 1, borderRadius: 1 }}>{f.nome}</Typography>
+                                        <Typography key={i} variant="caption" sx={{ bgcolor: '#eee', px: 1, borderRadius: 1, display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                                            {f.nome.toLowerCase().endsWith('.pdf') ? <PictureAsPdfIcon sx={{ fontSize: 12 }} /> : <ImageIcon sx={{ fontSize: 12 }} />}
+                                            {f.nome}
+                                        </Typography>
                                     ))}
                                 </Box>
                             </Box>
@@ -262,13 +267,28 @@ export default function NotificacoesTab({ demanda }: NotificacoesTabProps) {
                             {n.fotos && n.fotos.length > 0 && (
                                 <Box sx={{ display: 'flex', gap: 1, px: 2, pb: 2, flexWrap: 'wrap' }}>
                                     {n.fotos.map((foto: any, idx: number) => (
-                                        <Box
-                                            key={idx}
-                                            component="img"
-                                            src={foto.url}
-                                            sx={{ width: 60, height: 60, objectFit: 'cover', borderRadius: 1, border: '1px solid #ddd', cursor: 'pointer' }}
-                                            onClick={() => window.open(foto.url, '_blank')}
-                                        />
+                                        foto.url.toLowerCase().endsWith('.pdf') ? (
+                                            <Box
+                                                key={idx}
+                                                onClick={() => window.open(foto.url, '_blank')}
+                                                sx={{
+                                                    width: 60, height: 60, bgcolor: '#f9f9f9',
+                                                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                                    borderRadius: 1, border: '1px solid #ddd', cursor: 'pointer',
+                                                    '&:hover': { bgcolor: '#f0f0f0' }
+                                                }}
+                                            >
+                                                <PictureAsPdfIcon color="error" />
+                                            </Box>
+                                        ) : (
+                                            <Box
+                                                key={idx}
+                                                component="img"
+                                                src={foto.url}
+                                                sx={{ width: 60, height: 60, objectFit: 'cover', borderRadius: 1, border: '1px solid #ddd', cursor: 'pointer' }}
+                                                onClick={() => window.open(foto.url, '_blank')}
+                                            />
+                                        )
                                     ))}
                                 </Box>
                             )}
