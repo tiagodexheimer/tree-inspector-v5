@@ -195,6 +195,10 @@ export class DemandasService {
     return updated;
   }
 
+  async findByProtocolo(protocolo: string, organizationId: number) {
+    return await DemandasRepository.findByProtocolo(protocolo, organizationId);
+  }
+
   async deleteDemanda(id: number): Promise<void> {
     const success = await DemandasRepository.delete(id);
     if (!success) {

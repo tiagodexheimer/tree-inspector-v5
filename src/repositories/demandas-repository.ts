@@ -281,6 +281,24 @@ export const DemandasRepository = {
     return result.rows[0] || null;
   },
 
+  // [NOVO] Buscar por Protocolo
+  async findByProtocolo(protocolo: string, organizationId: number): Promise<any | null> {
+    const query = `
+        SELECT 
+            d.*, 
+            ST_AsGeoJSON(d.geom) as geom, 
+            ST_Y(d.geom::geometry) as lat, 
+            ST_X(d.geom::geometry) as lng,
+            s.nome as status_nome,
+            s.cor as status_cor
+        FROM demandas d
+        LEFT JOIN demandas_status s ON d.id_status = s.id
+        WHERE d.protocolo = $1 AND d.organization_id = $2
+    `;
+    const result = await pool.query(query, [protocolo, organizationId]);
+    return result.rows[0] || null;
+  },
+
   // 5. Atualizar Demanda
   async update(id: number, data: UpdateDemandaDTO): Promise<any | null> {
     try {

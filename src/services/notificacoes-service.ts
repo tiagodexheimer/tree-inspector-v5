@@ -17,21 +17,30 @@ export const notificacoesService = {
 
         // [NOVO] Se for uma notificação avulsa (sem demanda vinculada), cria uma demanda de Fiscalização primeiro
         if (!finalData.demanda_id) {
-            console.log("[NotificacoesService] Criando demanda de fiscalização automática...");
-            const novaDemanda = await demandasService.createDemanda({
-                nome_solicitante: "Fiscalização (Sistema)",
-                cep: finalData.cep || "00000000",
-                logradouro: finalData.logradouro,
-                numero: finalData.numero || "S/N",
-                bairro: finalData.bairro,
-                cidade: finalData.cidade,
-                uf: finalData.uf,
-                tipo_demanda: "Fiscalização",
-                descricao: `Fiscalização vinculada ao processo: ${finalData.numero_processo}. ${finalData.descricao || ""}`,
-                coordinates: (finalData.lat && finalData.lng) ? [finalData.lat, finalData.lng] : undefined
-            }, organizationId, userRole);
+            console.log("[NotificacoesService] Verificando se já existe demanda para o processo:", finalData.numero_processo);
+            const demandaExistente = await demandasService.findByProtocolo(finalData.numero_processo, organizationId);
 
-            finalData.demanda_id = novaDemanda.id;
+            if (demandaExistente) {
+                console.log("[NotificacoesService] Reutilizando demanda existente ID:", demandaExistente.id);
+                finalData.demanda_id = demandaExistente.id;
+            } else {
+                console.log("[NotificacoesService] Criando nova demanda de fiscalização...");
+                const novaDemanda = await demandasService.createDemanda({
+                    protocolo: finalData.numero_processo,
+                    nome_solicitante: "Fiscalização (Sistema)",
+                    cep: finalData.cep || "00000000",
+                    logradouro: finalData.logradouro,
+                    numero: finalData.numero || "S/N",
+                    bairro: finalData.bairro,
+                    cidade: finalData.cidade,
+                    uf: finalData.uf,
+                    tipo_demanda: "Fiscalização",
+                    descricao: `Fiscalização vinculada ao processo: ${finalData.numero_processo}. ${finalData.descricao || ""}`,
+                    coordinates: (finalData.lat && finalData.lng) ? [finalData.lat, finalData.lng] : undefined
+                }, organizationId, userRole);
+
+                finalData.demanda_id = novaDemanda.id;
+            }
         }
 
         // Lógica de vencimento automática se não fornecida
