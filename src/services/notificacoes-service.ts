@@ -59,5 +59,16 @@ export const notificacoesService = {
 
     async updateStatus(id: number, organizationId: number, status: string) {
         return await NotificacoesRepository.updateStatus(id, organizationId, status);
+    },
+
+    async updateNotificacao(id: number, organizationId: number, data: Partial<CreateNotificacaoDTO>) {
+        // Recalcular vencimento se necessário
+        if (data.data_emissao || data.prazo_dias) {
+            const emission = new Date(data.data_emissao || new Date());
+            emission.setDate(emission.getDate() + (data.prazo_dias || 15));
+            data.vencimento = emission;
+        }
+
+        return await NotificacoesRepository.update(id, organizationId, data);
     }
 };

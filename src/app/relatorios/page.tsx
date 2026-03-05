@@ -90,7 +90,7 @@ export default function RelatoriosPage() {
     return (
         <Box sx={{ p: 4 }}>
 
-            <Paper elevation={2} sx={{ height: 600, width: '100%' }}>
+            <Paper elevation={2} sx={{ height: { xs: 600, md: 'calc(100vh - 200px)' }, width: '100%' }}>
                 <DataGrid
                     rows={relatorios}
                     columns={columns}

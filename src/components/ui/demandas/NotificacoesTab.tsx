@@ -9,6 +9,7 @@ import {
 import DeleteIcon from '@mui/icons-material/Delete';
 import CloudUploadIcon from '@mui/icons-material/CloudUpload';
 import AddIcon from '@mui/icons-material/Add';
+import EditIcon from '@mui/icons-material/Edit';
 import PictureAsPdfIcon from '@mui/icons-material/PictureAsPdf';
 import ImageIcon from '@mui/icons-material/Image';
 import { upload } from '@vercel/blob/client';
@@ -46,6 +47,8 @@ export default function NotificacoesTab({ demanda }: NotificacoesTabProps) {
         prazo_dias: 15,
         fotos: [] as { url: string; nome: string }[]
     });
+
+    const [editingId, setEditingId] = useState<number | null>(null);
 
     const fetchNotificacoes = async () => {
         setIsLoading(true);
@@ -86,6 +89,32 @@ export default function NotificacoesTab({ demanda }: NotificacoesTabProps) {
         }
     };
 
+    const handleEdit = (n: Notificacao) => {
+        setFormData({
+            numero_processo: n.numero_processo,
+            numero_notificacao: n.numero_notificacao || '',
+            descricao: n.descricao || '',
+            data_emissao: new Date(n.data_emissao).toISOString().split('T')[0],
+            prazo_dias: n.prazo_dias,
+            fotos: n.fotos || []
+        });
+        setEditingId(n.id);
+        setShowForm(true);
+    };
+
+    const handleCancel = () => {
+        setShowForm(false);
+        setEditingId(null);
+        setFormData({
+            numero_processo: '',
+            numero_notificacao: '',
+            descricao: '',
+            data_emissao: new Date().toISOString().split('T')[0],
+            prazo_dias: 15,
+            fotos: []
+        });
+    };
+
     const handleSave = async () => {
         if (!formData.numero_processo) {
             setError('Número do processo é obrigatório.');
@@ -106,22 +135,17 @@ export default function NotificacoesTab({ demanda }: NotificacoesTabProps) {
         };
 
         try {
-            const res = await fetch('/api/notificacoes', {
-                method: 'POST',
+            const url = editingId ? `/api/notificacoes/${editingId}` : '/api/notificacoes';
+            const method = editingId ? 'PATCH' : 'POST';
+
+            const res = await fetch(url, {
+                method,
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(payload)
             });
 
             if (res.ok) {
-                setShowForm(false);
-                setFormData({
-                    numero_processo: '',
-                    numero_notificacao: '',
-                    descricao: '',
-                    data_emissao: new Date().toISOString().split('T')[0],
-                    prazo_dias: 15,
-                    fotos: []
-                });
+                handleCancel();
                 fetchNotificacoes();
             } else {
                 const data = await res.json();
@@ -162,7 +186,9 @@ export default function NotificacoesTab({ demanda }: NotificacoesTabProps) {
             {showForm && (
                 <Card sx={{ mb: 3, bgcolor: '#fbfbfb', border: '1px dashed #ccc' }}>
                     <CardContent>
-                        <Typography variant="subtitle2" gutterBottom>Nova Notificação Externa</Typography>
+                        <Typography variant="subtitle2" gutterBottom>
+                            {editingId ? 'Editar Notificação' : 'Nova Notificação Externa'}
+                        </Typography>
                         <Stack spacing={2}>
                             <Stack direction="row" spacing={2}>
                                 <TextField
@@ -225,9 +251,9 @@ export default function NotificacoesTab({ demanda }: NotificacoesTabProps) {
                             </Box>
 
                             <Stack direction="row" spacing={1} justifyContent="flex-end">
-                                <Button size="small" onClick={() => setShowForm(false)}>Cancelar</Button>
+                                <Button size="small" onClick={handleCancel}>Cancelar</Button>
                                 <Button size="small" variant="contained" onClick={handleSave} disabled={isSaving}>
-                                    {isSaving ? <CircularProgress size={20} /> : 'Salvar Notificação'}
+                                    {isSaving ? <CircularProgress size={20} /> : (editingId ? 'Salvar Alterações' : 'Salvar Notificação')}
                                 </Button>
                             </Stack>
                         </Stack>
@@ -245,9 +271,14 @@ export default function NotificacoesTab({ demanda }: NotificacoesTabProps) {
                         <React.Fragment key={n.id}>
                             <ListItem
                                 secondaryAction={
-                                    <IconButton edge="end" onClick={() => handleDelete(n.id)} color="error">
-                                        <DeleteIcon />
-                                    </IconButton>
+                                    <Stack direction="row" spacing={1}>
+                                        <IconButton edge="end" onClick={() => handleEdit(n)} color="primary" title="Editar">
+                                            <EditIcon sx={{ fontSize: 20 }} />
+                                        </IconButton>
+                                        <IconButton edge="end" onClick={() => handleDelete(n.id)} color="error" title="Excluir">
+                                            <DeleteIcon />
+                                        </IconButton>
+                                    </Stack>
                                 }
                             >
                                 <ListItemText
