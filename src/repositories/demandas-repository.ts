@@ -196,11 +196,16 @@ export const DemandasRepository = {
       FROM demandas d
       LEFT JOIN demandas_status s ON d.id_status = s.id
       LEFT JOIN LATERAL (
-        SELECT id, status, vencimento
-        FROM notificacoes
-        WHERE demanda_id = d.id
-        AND status = 'Pendente'
-        ORDER BY vencimento ASC
+        SELECT n.id, n.status, n.vencimento
+        FROM notificacoes n
+        WHERE n.demanda_id = d.id
+        AND n.status = 'Pendente'
+        AND NOT EXISTS (
+          SELECT 1 FROM demandas_status s2 
+          WHERE s2.id = d.id_status 
+          AND (s2.nome ILIKE 'Concluído' OR s2.nome ILIKE 'Concluída' OR s2.nome ILIKE 'Concluídas' OR s2.nome ILIKE 'Concluido' OR s2.nome ILIKE 'Finalizado')
+        )
+        ORDER BY n.vencimento ASC
         LIMIT 1
       ) n ON true
       ${whereSql}

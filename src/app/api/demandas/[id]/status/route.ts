@@ -14,7 +14,7 @@ async function ensureAuth(req: NextRequest) {
   // Fallback para Mobile: Tenta ler o token manualmente
   const secret = process.env.AUTH_SECRET || process.env.NEXTAUTH_SECRET;
   const token = await getToken({ req, secret, salt: "authjs.session-token" }) ||
-                await getToken({ req, secret, salt: "next-auth.session-token" });
+    await getToken({ req, secret, salt: "next-auth.session-token" });
   return !!token;
 }
 
@@ -38,13 +38,16 @@ export async function PATCH(request: NextRequest, context: ExpectedContext) {
     const { id_status } = body;
 
     if (typeof id_status !== 'number') {
-         return NextResponse.json({ message: "ID do status inválido ou ausente." }, { status: 400 });
+      return NextResponse.json({ message: "ID do status inválido ou ausente." }, { status: 400 });
     }
 
-    await demandasService.updateDemandaStatus(id, id_status);
+    const session = await auth();
+    const organizationId = parseInt((session?.user as any)?.organizationId || "0", 10);
 
-    return NextResponse.json({ 
-        message: "Status atualizado com sucesso!" 
+    await demandasService.updateDemandaStatus(id, id_status, organizationId);
+
+    return NextResponse.json({
+      message: "Status atualizado com sucesso!"
     }, { status: 200 });
 
   } catch (error) {
@@ -73,17 +76,20 @@ export async function PUT(request: NextRequest, context: ExpectedContext) {
     const { status } = body; // Android envia string: "Em Rota"
 
     if (!status || typeof status !== 'string') {
-        return NextResponse.json({ message: "Nome do status inválido." }, { status: 400 });
+      return NextResponse.json({ message: "Nome do status inválido." }, { status: 400 });
     }
 
     // 1. Busca o ID do status pelo nome (Ex: "Em Rota" -> ID 2)
     const statusObj = await StatusRepository.findByName(status);
     if (!statusObj) {
-        return NextResponse.json({ message: `Status '${status}' não encontrado no sistema.` }, { status: 404 });
+      return NextResponse.json({ message: `Status '${status}' não encontrado no sistema.` }, { status: 404 });
     }
 
     // 2. Atualiza usando o ID encontrado
-    await demandasService.updateDemandaStatus(id, statusObj.id);
+    const session = await auth();
+    const organizationId = parseInt((session?.user as any)?.organizationId || "0", 10);
+
+    await demandasService.updateDemandaStatus(id, statusObj.id, organizationId);
 
     return NextResponse.json({ message: "Status atualizado com sucesso!" }, { status: 200 });
 
@@ -95,12 +101,12 @@ export async function PUT(request: NextRequest, context: ExpectedContext) {
 
 // Helper de erro simples para evitar repetição
 function handleError(error: unknown) {
-    let status = 500;
-    let message = "Erro interno ao atualizar status.";
+  let status = 500;
+  let message = "Erro interno ao atualizar status.";
 
-    if (error instanceof Error) {
-      message = error.message;
-      if (message.includes("não encontrado")) status = 404;
-    }
-    return NextResponse.json({ message, error: message }, { status });
+  if (error instanceof Error) {
+    message = error.message;
+    if (message.includes("não encontrado")) status = 404;
+  }
+  return NextResponse.json({ message, error: message }, { status });
 }
