@@ -86,9 +86,14 @@ export const NotificacoesRepository = {
         d.protocolo as demanda_protocolo
       FROM notificacoes n
       LEFT JOIN demandas d ON n.demanda_id = d.id
+      LEFT JOIN demandas_status s ON d.id_status = s.id
       WHERE n.organization_id = $1 
       AND n.vencimento < CURRENT_DATE 
       AND n.status = 'Pendente'
+      AND (
+        s.id IS NULL OR 
+        (s.nome NOT ILIKE 'Concluído' AND s.nome NOT ILIKE 'Concluída' AND s.nome NOT ILIKE 'Concluídas' AND s.nome NOT ILIKE 'Concluido' AND s.nome NOT ILIKE 'Finalizado')
+      )
       ORDER BY n.vencimento ASC
     `;
     const result = await pool.query(query, [organizationId]);
@@ -140,6 +145,17 @@ export const NotificacoesRepository = {
       RETURNING id
     `;
     const result = await pool.query(query, [status, id, organizationId]);
+    return (result.rowCount ?? 0) > 0;
+  },
+
+  async updateStatusByDemanda(demandaId: number, organizationId: number, status: string) {
+    const query = `
+      UPDATE notificacoes 
+      SET status = $1, updated_at = NOW() 
+      WHERE demanda_id = $2 AND organization_id = $3 AND status = 'Pendente'
+      RETURNING id
+    `;
+    const result = await pool.query(query, [status, demandaId, organizationId]);
     return (result.rowCount ?? 0) > 0;
   }
 };

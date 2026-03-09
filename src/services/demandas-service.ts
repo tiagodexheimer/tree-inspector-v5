@@ -210,7 +210,7 @@ export class DemandasService {
     await DemandasRepository.deleteMany(ids, organizationId);
   }
 
-  async updateDemandaStatus(id: number, idStatus: number): Promise<void> {
+  async updateDemandaStatus(id: number, idStatus: number, organizationId?: number): Promise<void> {
     const statusExists = await StatusRepository.findById(idStatus);
     if (!statusExists) {
       throw new Error(`Status com ID ${idStatus} não encontrado.`);
@@ -218,6 +218,15 @@ export class DemandasService {
     const updated = await DemandasRepository.updateStatus(id, idStatus);
     if (!updated) {
       throw new Error("Demanda não encontrada para atualização de status.");
+    }
+
+    // [NOVO] Cascata para notificações se o status for de conclusão
+    const completedKeywords = ['concluído', 'concluída', 'concluídas', 'concluido', 'finalizado'];
+    const isCompleted = completedKeywords.some(kw => statusExists.nome.toLowerCase().includes(kw));
+
+    if (isCompleted && organizationId) {
+      const { notificacoesService } = await import("./notificacoes-service");
+      await notificacoesService.updateStatusByDemanda(id, organizationId, 'Concluída');
     }
   }
 

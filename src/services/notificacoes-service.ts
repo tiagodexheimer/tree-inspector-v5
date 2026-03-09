@@ -70,5 +70,9 @@ export const notificacoesService = {
         }
 
         return await NotificacoesRepository.update(id, organizationId, data);
+    },
+
+    async updateStatusByDemanda(demandaId: number, organizationId: number, status: string) {
+        return await NotificacoesRepository.updateStatusByDemanda(demandaId, organizationId, status);
     }
 };
