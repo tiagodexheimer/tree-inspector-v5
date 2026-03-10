@@ -20,6 +20,12 @@ jest.mock('@/services/geocoding-service', () => ({
     getCoordinates: jest.fn(),
   },
 }));
+jest.mock('../notificacoes-service', () => ({
+  notificacoesService: {
+    deleteByDemanda: jest.fn().mockResolvedValue(true),
+    deleteByDemandas: jest.fn().mockResolvedValue(true),
+  },
+}));
 
 describe('DemandasService', () => {
 
@@ -183,35 +189,44 @@ describe('DemandasService', () => {
         .toThrow('Status com ID 999 não encontrado.');
     });
 
-    it('DELETE: Deve deletar a demanda se ela existir', async () => {
+    it('DELETE: Deve deletar a demanda e suas notificações se ela existir', async () => {
+      const { notificacoesService } = require('../notificacoes-service');
       (DemandasRepository.delete as jest.Mock).mockResolvedValue(true);
 
       await expect(demandasService.deleteDemanda(mockDemanda.id)).resolves.toBeUndefined();
+
+      expect(notificacoesService.deleteByDemanda).toHaveBeenCalledWith(mockDemanda.id);
       expect(DemandasRepository.delete).toHaveBeenCalledWith(mockDemanda.id);
     });
 
     it('DELETE: Deve lançar erro se a demanda a ser deletada não for encontrada', async () => {
+      const { notificacoesService } = require('../notificacoes-service');
       (DemandasRepository.delete as jest.Mock).mockResolvedValue(false);
 
       await expect(demandasService.deleteDemanda(999)).rejects.toThrow('Demanda não encontrada.');
+      expect(notificacoesService.deleteByDemanda).toHaveBeenCalledWith(999);
     });
 
   });
 
   describe('deleteDemandas (batch com organizationId)', () => {
-    it('Deve passar organizationId para o repositório na deleção em lote', async () => {
+    it('Deve passar organizationId para o repositório na deleção em lote e deletar notificações', async () => {
+      const { notificacoesService } = require('../notificacoes-service');
       (DemandasRepository.deleteMany as jest.Mock).mockResolvedValue(undefined);
 
       await demandasService.deleteDemandas([1, 2, 3], 42);
 
+      expect(notificacoesService.deleteByDemandas).toHaveBeenCalledWith([1, 2, 3], 42);
       expect(DemandasRepository.deleteMany).toHaveBeenCalledWith([1, 2, 3], 42);
     });
 
     it('Deve funcionar sem organizationId (backward compat)', async () => {
+      const { notificacoesService } = require('../notificacoes-service');
       (DemandasRepository.deleteMany as jest.Mock).mockResolvedValue(undefined);
 
       await demandasService.deleteDemandas([1, 2]);
 
+      expect(notificacoesService.deleteByDemandas).toHaveBeenCalledWith([1, 2], undefined);
       expect(DemandasRepository.deleteMany).toHaveBeenCalledWith([1, 2], undefined);
     });
   });
