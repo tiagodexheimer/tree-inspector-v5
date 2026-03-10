@@ -456,7 +456,8 @@ export const DemandasRepository = {
     try {
       // Nota: As entradas na tabela rotas_demandas para rotas desta organização
       // já foram removidas pelo RotasRepository.deleteAllByOrganization.
-      // Aqui, removemos as demandas em si.
+      // Aqui, removemos as notificações e as demandas em si.
+      await pool.query(`DELETE FROM notificacoes WHERE organization_id = $1`, [organizationId]);
       const query = `
           DELETE FROM demandas
           WHERE organization_id = $1;

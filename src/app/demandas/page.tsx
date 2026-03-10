@@ -1,5 +1,6 @@
 'use client';
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, Suspense } from "react";
+import { useSearchParams } from 'next/navigation';
 import {
     Box, Alert, Pagination, Typography,
     Dialog, DialogTitle, DialogContent, DialogContentText, DialogActions, Button,
@@ -31,9 +32,30 @@ const RouteMap = dynamic(() => import("@/components/ui/demandas/RouteMap"), {
 
 const VIEW_MODE_STORAGE_KEY = 'treeinspector_demandas_view_mode';
 
-export default function DemandasPage() {
+function DemandasContent() {
     usePageTitle("Gestão de Demandas", <Assignment />);
     const [viewMode, setViewMode] = useState<'card' | 'list' | 'map'>('card');
+
+    // Filtros e Paginação
+    const searchParams = useSearchParams();
+    const idParam = searchParams.get('id');
+
+    // Efeito para abrir detalhes automaticamente se houver ID na URL
+    useEffect(() => {
+        if (idParam) {
+            const numericId = parseInt(idParam, 10);
+            if (!isNaN(numericId)) {
+                DemandasClient.getById(numericId)
+                    .then(demanda => {
+                        setSelectedDemandaForView(demanda);
+                        setViewDemandaModalOpen(true);
+                    })
+                    .catch(err => {
+                        console.error("Erro ao buscar demanda pelo ID da URL:", err);
+                    });
+            }
+        }
+    }, [idParam]);
 
     // Carrega a preferência do usuário ao montar o componente
     useEffect(() => {
@@ -140,6 +162,16 @@ export default function DemandasPage() {
                 if (d.id === demandaId) return { ...d, id_status: newStatusId, status_nome: statusInfo.nome, status_cor: statusInfo.cor };
                 return d;
             }));
+
+            // [NOVO] Atualiza também o estado de visualização se for a mesma demanda
+            if (selectedDemandaForView && selectedDemandaForView.id === demandaId) {
+                setSelectedDemandaForView(prev => prev ? {
+                    ...prev,
+                    id_status: newStatusId,
+                    status_nome: statusInfo.nome,
+                    status_cor: statusInfo.cor
+                } : null);
+            }
         } catch (err) { alert("Erro ao atualizar status."); }
     };
 
@@ -310,14 +342,24 @@ export default function DemandasPage() {
                 <CriarRotaModal open={criarRotaModalOpen} onClose={() => setCriarRotaModalOpen(false)} routeData={optimizedRouteData} onRotaCriada={() => setCriarRotaModalOpen(false)} />
             )}
 
-            {/* [NOVO] Modal de Detalhes (acionado pelo Mapa) */}
+            {/* [NOVO] Modal de Detalhes (acionado pelo Mapa ou URL) */}
             {viewDemandaModalOpen && selectedDemandaForView && (
                 <DetalhesDemandaModal
                     open={viewDemandaModalOpen}
                     onClose={() => setViewDemandaModalOpen(false)}
                     demanda={selectedDemandaForView}
+                    availableStatus={availableStatus}
+                    onStatusChange={handleStatusUpdateLocal}
                 />
             )}
         </Box>
+    );
+}
+
+export default function DemandasPage() {
+    return (
+        <Suspense fallback={<DemandasSkeleton viewMode="card" />}>
+            <DemandasContent />
+        </Suspense>
     );
 }

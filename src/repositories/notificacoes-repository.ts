@@ -85,7 +85,7 @@ export const NotificacoesRepository = {
         ST_X(n.geom::geometry) as lng,
         d.protocolo as demanda_protocolo
       FROM notificacoes n
-      LEFT JOIN demandas d ON n.demanda_id = d.id
+      INNER JOIN demandas d ON n.demanda_id = d.id
       LEFT JOIN demandas_status s ON d.id_status = s.id
       WHERE n.organization_id = $1 
       AND n.vencimento < CURRENT_DATE 
@@ -156,6 +156,28 @@ export const NotificacoesRepository = {
       RETURNING id
     `;
     const result = await pool.query(query, [status, demandaId, organizationId]);
+    return (result.rowCount ?? 0) > 0;
+  },
+
+  async deleteByDemanda(demandaId: number, organizationId?: number) {
+    let query = `DELETE FROM notificacoes WHERE demanda_id = $1`;
+    const values = [demandaId];
+    if (organizationId) {
+      query += ` AND organization_id = $2`;
+      values.push(organizationId);
+    }
+    const result = await pool.query(query, values);
+    return (result.rowCount ?? 0) > 0;
+  },
+
+  async deleteByDemandas(demandaIds: number[], organizationId?: number) {
+    let query = `DELETE FROM notificacoes WHERE demanda_id = ANY($1)`;
+    const values: any[] = [demandaIds];
+    if (organizationId) {
+      query += ` AND organization_id = $2`;
+      values.push(organizationId);
+    }
+    const result = await pool.query(query, values);
     return (result.rowCount ?? 0) > 0;
   }
 };

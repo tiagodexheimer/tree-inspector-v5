@@ -9,12 +9,15 @@ import dynamic from 'next/dynamic';
 // [CORREÇÃO] Importamos o tipo completo
 import { DemandaType, DemandaComIdStatus } from "@/types/demanda";
 import NotificacoesTab from "./NotificacoesTab";
+import StatusDemanda from "./StatusDemanda";
 
 interface DetalhesDemandaModalProps {
   open: boolean;
   onClose: () => void;
   // [CORREÇÃO] Usamos o tipo que garante a propriedade status_nome
   demanda: DemandaComIdStatus | null;
+  availableStatus: any[]; // [NOVO]
+  onStatusChange: (demandaId: number, newStatusId: number) => Promise<void>; // [NOVO]
 }
 
 const MiniMap = dynamic(() => import("./MiniMap"), {
@@ -52,7 +55,7 @@ function CustomTabPanel(props: TabPanelProps) {
   );
 }
 
-export default function DetalhesDemandaModal({ open, onClose, demanda }: DetalhesDemandaModalProps) {
+export default function DetalhesDemandaModal({ open, onClose, demanda, availableStatus, onStatusChange }: DetalhesDemandaModalProps) {
   const [tabIndex, setTabIndex] = useState(0);
 
   if (!demanda) {
@@ -90,7 +93,19 @@ export default function DetalhesDemandaModal({ open, onClose, demanda }: Detalhe
 
   return (
     <Dialog open={open} onClose={onClose} fullWidth maxWidth="sm">
-      <DialogTitle sx={{ pb: 0 }}>Detalhes da Demanda #{demanda.id || 'N/A'}</DialogTitle>
+      <DialogTitle sx={{ pb: 0, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+        <Typography variant="h6" component="div" fontWeight="bold">
+          Detalhes da Demanda #{demanda.id || 'N/A'}
+        </Typography>
+        <StatusDemanda
+          demandaId={demanda.id!}
+          currentStatusId={demanda.id_status}
+          availableStatus={availableStatus}
+          onStatusChange={onStatusChange}
+          fallbackName={demanda.status_nome || undefined}
+          fallbackColor={demanda.status_cor || undefined}
+        />
+      </DialogTitle>
 
       <Box sx={{ borderBottom: 1, borderColor: 'divider', px: 3 }}>
         <Tabs value={tabIndex} onChange={handleTabChange}>
@@ -127,7 +142,6 @@ export default function DetalhesDemandaModal({ open, onClose, demanda }: Detalhe
           <Typography gutterBottom variant="h6">Outras Informações</Typography>
           <List dense>
             <ListItem><ListItemText primary="Tipo de Demanda" secondary={demanda.tipo_demanda || 'N/A'} /></ListItem>
-            <ListItem><ListItemText primary="Status" secondary={demanda.status_nome || 'N/A'} /></ListItem>
             <ListItem><ListItemText primary="Prazo" secondary={formatPrazo(demanda.prazo)} /></ListItem>
             <ListItem><ListItemText primary="Responsável Técnico" secondary={demanda.responsavel || 'N/A'} /></ListItem>
             {demanda.protocolo && <ListItem><ListItemText primary="Protocolo" secondary={demanda.protocolo} /></ListItem>}

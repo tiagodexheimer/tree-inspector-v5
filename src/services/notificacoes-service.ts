@@ -74,5 +74,13 @@ export const notificacoesService = {
 
     async updateStatusByDemanda(demandaId: number, organizationId: number, status: string) {
         return await NotificacoesRepository.updateStatusByDemanda(demandaId, organizationId, status);
+    },
+
+    async deleteByDemanda(demandaId: number, organizationId?: number) {
+        return await NotificacoesRepository.deleteByDemanda(demandaId, organizationId);
+    },
+
+    async deleteByDemandas(demandaIds: number[], organizationId?: number) {
+        return await NotificacoesRepository.deleteByDemandas(demandaIds, organizationId);
     }
 };

@@ -39,6 +39,12 @@ export const DemandasClient = {
     return response.json();
   },
 
+  async getById(id: number): Promise<DemandaComIdStatus> {
+    const response = await fetch(`/api/demandas/${id}`);
+    if (!response.ok) throw new Error("Erro ao buscar detalhes da demanda.");
+    return response.json();
+  },
+
   // [MÉTODO PARA CRIAR (POST)]
   async create(data: any): Promise<CreateDemandaResponse> {
     const response = await fetch('/api/demandas', {
