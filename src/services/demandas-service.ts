@@ -195,7 +195,30 @@ export class DemandasService {
     return updated;
   }
 
+  async getDemandaById(id: number, organizationId?: number): Promise<any> {
+    const demanda = await DemandasRepository.findById(id);
+    if (!demanda) {
+      throw new Error("Demanda não encontrada.");
+    }
+
+    if (organizationId && demanda.organization_id !== organizationId) {
+      throw new Error("Acesso negado a esta demanda.");
+    }
+
+    return {
+      ...demanda,
+      prazo: demanda.prazo ? new Date(demanda.prazo) : null,
+      geom: demanda.geom ? JSON.parse(demanda.geom) : null,
+    };
+  }
+
+  async findByProtocolo(protocolo: string, organizationId: number) {
+    return await DemandasRepository.findByProtocolo(protocolo, organizationId);
+  }
+
   async deleteDemanda(id: number): Promise<void> {
+    const { notificacoesService } = await import("./notificacoes-service");
+    await notificacoesService.deleteByDemanda(id);
     const success = await DemandasRepository.delete(id);
     if (!success) {
       throw new Error("Demanda não encontrada.");
@@ -203,10 +226,12 @@ export class DemandasService {
   }
 
   async deleteDemandas(ids: number[], organizationId?: number): Promise<void> {
+    const { notificacoesService } = await import("./notificacoes-service");
+    await notificacoesService.deleteByDemandas(ids, organizationId);
     await DemandasRepository.deleteMany(ids, organizationId);
   }
 
-  async updateDemandaStatus(id: number, idStatus: number): Promise<void> {
+  async updateDemandaStatus(id: number, idStatus: number, organizationId?: number): Promise<void> {
     const statusExists = await StatusRepository.findById(idStatus);
     if (!statusExists) {
       throw new Error(`Status com ID ${idStatus} não encontrado.`);
@@ -214,6 +239,15 @@ export class DemandasService {
     const updated = await DemandasRepository.updateStatus(id, idStatus);
     if (!updated) {
       throw new Error("Demanda não encontrada para atualização de status.");
+    }
+
+    // [NOVO] Cascata para notificações se o status for de conclusão
+    const completedKeywords = ['concluído', 'concluída', 'concluídas', 'concluido', 'finalizado'];
+    const isCompleted = completedKeywords.some(kw => statusExists.nome.toLowerCase().includes(kw));
+
+    if (isCompleted && organizationId) {
+      const { notificacoesService } = await import("./notificacoes-service");
+      await notificacoesService.updateStatusByDemanda(id, organizationId, 'Concluída');
     }
   }
 

@@ -2,9 +2,9 @@
 import pool from "@/lib/db";
 
 export const RelatoriosRepository = {
-  // Alteração 1: Receber organizationId
-  async findAll(organizationId: number) {
-    const query = `
+  // Alteração 1: Receber organizationId e filtros opcionais
+  async findAll(organizationId: number, filters?: { rua?: string, bairro?: string, numero?: string }) {
+    let query = `
       SELECT DISTINCT ON (v.id)
         v.id,
         v.demanda_id,
@@ -21,13 +21,34 @@ export const RelatoriosRepository = {
       LEFT JOIN users u ON r.responsavel = u.name
       
       WHERE d.organization_id = $1 
-      
-      ORDER BY v.id, v.data_realizacao DESC
     `;
+
+    const values: any[] = [organizationId];
+    let paramCount = 1;
+
+    if (filters?.rua) {
+      paramCount++;
+      query += ` AND d.logradouro ILIKE $${paramCount}`;
+      values.push(`%${filters.rua}%`);
+    }
+
+    if (filters?.bairro) {
+      paramCount++;
+      query += ` AND d.bairro = $${paramCount}`;
+      values.push(filters.bairro);
+    }
+
+    if (filters?.numero) {
+      paramCount++;
+      query += ` AND d.numero = $${paramCount}`;
+      values.push(filters.numero);
+    }
+    
+    query += ` ORDER BY v.id, v.data_realizacao DESC`;
 
     try {
       // Alteração 3: Passar o parâmetro na execução da query
-      const result = await pool.query(query, [organizationId]);
+      const result = await pool.query(query, values);
       return result.rows;
     } catch (error) {
       console.error("Erro ao buscar relatórios:", error);

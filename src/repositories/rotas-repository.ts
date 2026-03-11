@@ -115,18 +115,26 @@ export const RotasRepository = {
       const rotaNome = rotaRes.rows[0].nome;
 
       const query = `
-            SELECT 
-                rd.ordem, d.id, d.tipo_demanda, d.descricao, d.cep, d.logradouro,
+        SELECT * FROM (
+            SELECT DISTINCT ON (d.id)
+                rd.ordem, d.id, d.protocolo, d.tipo_demanda, d.descricao, d.cep, d.logradouro,
                 d.numero, d.bairro, d.cidade, d.uf, d.complemento, d.nome_solicitante,
                 d.telefone_solicitante, d.email_solicitante, s.nome AS status_nome, d.prazo,
-                d.anexos
+                d.anexos,
+                f.definicao_campos AS form_definicao
             FROM demandas d
             JOIN rotas_demandas rd ON d.id = rd.demanda_id
             LEFT JOIN demandas_status s ON d.id_status = s.id
+            -- Busca o formulário do tipo de demanda (ou o default se não houver custom)
+            LEFT JOIN demandas_tipos dt ON d.tipo_demanda = dt.nome AND (dt.organization_id = $2 OR dt.organization_id IS NULL)
+            LEFT JOIN demandas_tipos_formularios dtf ON dt.id = dtf.id_tipo_demanda
+            LEFT JOIN formularios f ON dtf.id_formulario = f.id
             WHERE rd.rota_id = $1
-            ORDER BY rd.ordem ASC;
+            ORDER BY d.id, dt.organization_id DESC NULLS LAST
+        ) t
+        ORDER BY t.ordem ASC;
       `;
-      const demandasRes = await client.query(query, [id]);
+      const demandasRes = await client.query(query, [id, organizationId]);
       return { rotaNome, demandas: demandasRes.rows };
     } catch (error) {
       console.error("Erro no RotasRepository.findExportData:", error);

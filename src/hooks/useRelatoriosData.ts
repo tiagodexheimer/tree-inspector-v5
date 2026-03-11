@@ -5,14 +5,57 @@ export function useRelatoriosData() {
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
 
+    // Filtros
+    const [filtroRua, setFiltroRua] = useState('');
+    const [filtroBairro, setFiltroBairro] = useState('');
+    const [filtroNumero, setFiltroNumero] = useState('');
+    const [debouncedFiltro, setDebouncedFiltro] = useState({ rua: '', numero: '' });
+
+    // Metadados
+    const [availableBairros, setAvailableBairros] = useState<string[]>([]);
+
     // Ref para evitar buscas duplicadas no mount (Strict Mode)
     const isInitialFetched = useRef(false);
+    const isMetadataFetched = useRef(false);
+
+    // Debounce
+    useEffect(() => {
+        const handler = setTimeout(() => {
+            setDebouncedFiltro({ rua: filtroRua, numero: filtroNumero });
+        }, 500);
+        return () => clearTimeout(handler);
+    }, [filtroRua, filtroNumero]);
+
+    // Carregar metadados (Bairros)
+    useEffect(() => {
+        if (isMetadataFetched.current) return;
+        isMetadataFetched.current = true;
+
+        const loadMetadata = async () => {
+            try {
+                const res = await fetch('/api/demandas-bairros');
+                if (res.ok) {
+                    const data = await res.json();
+                    setAvailableBairros(data);
+                }
+            } catch (e) {
+                console.error("Erro ao carregar bairros:", e);
+            }
+        };
+        loadMetadata();
+    }, []);
 
     const fetchRelatorios = useCallback(async () => {
         setIsLoading(true);
         setError(null);
         try {
-            const res = await fetch('/api/relatorios');
+            const params = new URLSearchParams();
+            if (debouncedFiltro.rua) params.append('rua', debouncedFiltro.rua);
+            if (filtroBairro) params.append('bairro', filtroBairro);
+            if (debouncedFiltro.numero) params.append('numero', debouncedFiltro.numero);
+
+            const queryString = params.toString();
+            const res = await fetch(`/api/relatorios${queryString ? `?${queryString}` : ''}`);
             if (!res.ok) throw new Error('Erro ao buscar relatórios');
             const data = await res.json();
             setRelatorios(data);
@@ -21,12 +64,9 @@ export function useRelatoriosData() {
         } finally {
             setIsLoading(false);
         }
-    }, []);
+    }, [debouncedFiltro, filtroBairro]);
 
     useEffect(() => {
-        if (isInitialFetched.current) return;
-        isInitialFetched.current = true;
-
         fetchRelatorios();
     }, [fetchRelatorios]);
 
@@ -47,6 +87,15 @@ export function useRelatoriosData() {
         isLoading,
         error,
         refresh: fetchRelatorios,
-        deleteRelatorio
+        deleteRelatorio,
+        availableBairros,
+        filters: {
+            rua: filtroRua,
+            setRua: setFiltroRua,
+            bairro: filtroBairro,
+            setBairro: setFiltroBairro,
+            numero: filtroNumero,
+            setNumero: setFiltroNumero
+        }
     };
 }

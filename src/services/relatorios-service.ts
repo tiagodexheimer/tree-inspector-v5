@@ -13,8 +13,8 @@ interface RelatorioDetalhesPersistence {
 }
 
 export const RelatoriosService = {
-  async listarRelatorios(organizationId: number) {
-    return await RelatoriosRepository.findAll(organizationId);
+  async listarRelatorios(organizationId: number, filters?: { rua?: string, bairro?: string, numero?: string }) {
+    return await RelatoriosRepository.findAll(organizationId, filters);
   },
 
   async obterDetalhesRelatorio(id: number) {

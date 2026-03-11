@@ -9,6 +9,8 @@ import {
 import CloudUploadIcon from '@mui/icons-material/CloudUpload';
 import CheckCircleOutlineIcon from '@mui/icons-material/CheckCircleOutline';
 import MyLocationIcon from '@mui/icons-material/MyLocation';
+import PictureAsPdfIcon from '@mui/icons-material/PictureAsPdf';
+import InfoIcon from '@mui/icons-material/Info';
 import { DemandaType } from "@/types/demanda";
 
 // --- [NOVO] CACHE LOCAL ---
@@ -117,6 +119,8 @@ export default function AddDemandaModal({ open, onClose, demandaInicial = null, 
     const [coordinates, setCoordinates] = useState<[number, number] | null>(null);
     const [geocodingLoading, setGeocodingLoading] = useState<boolean>(false);
     const [geocodingError, setGeocodingError] = useState<string | null>(null);
+    const [isParsingPdf, setIsParsingPdf] = useState(false);
+    const [pdfImportSuccess, setPdfImportSuccess] = useState<string | null>(null);
 
     const { logradouro, numero, cidade, uf, cep } = formData;
 
@@ -206,16 +210,12 @@ export default function AddDemandaModal({ open, onClose, demandaInicial = null, 
         if (apiError) setApiError(null);
     };
 
-    // --- handleCepBlur ATUALIZADO com cache ---
-    const handleCepBlur = async (event: React.FocusEvent<HTMLInputElement>) => {
-        const cepRaw = event.target.value.replace(/\D/g, '');
-        const formattedCep = cepRaw.replace(/^(\d{5})(\d{3})$/, '$1-$2');
-        setFormData(prev => ({ ...prev, cep: formattedCep }));
-        setCoordinates(null);
-        setGeocodingError(null);
+    // --- Função auxiliar para buscar CEP (Refatorada) ---
+    const lookupCep = async (cepRaw: string) => {
+        if (cepRaw.length !== 8) return;
 
-        if (cepRaw.length === 8) {
-
+        setCepLoading(true); setCepError(null); setAddressFieldsDisabled(true);
+        try {
             // 1. Tenta buscar do cache
             if (cepCache.has(cepRaw)) {
                 const data = cepCache.get(cepRaw)!;
@@ -233,32 +233,41 @@ export default function AddDemandaModal({ open, onClose, demandaInicial = null, 
             }
 
             // 2. Se não está no cache, faz a requisição
-            setCepLoading(true); setCepError(null); setAddressFieldsDisabled(true);
-            try {
-                const response = await fetch(`https://viacep.com.br/ws/${cepRaw}/json/`);
-                if (!response.ok) throw new Error('Falha na requisição ao ViaCEP.');
-                const data: CepResponse = await response.json();
-                if (data.erro) throw new Error('CEP não encontrado.');
+            const response = await fetch(`https://viacep.com.br/ws/${cepRaw}/json/`);
+            if (!response.ok) throw new Error('Falha na requisição ao ViaCEP.');
+            const data: CepResponse = await response.json();
+            if (data.erro) throw new Error('CEP não encontrado.');
 
-                // Salva no cache antes de setar o estado
-                cepCache.set(cepRaw, data);
+            // Salva no cache antes de setar o estado
+            cepCache.set(cepRaw, data);
 
-                setFormData(prev => ({
-                    ...prev,
-                    logradouro: data.logradouro,
-                    bairro: data.bairro,
-                    cidade: data.localidade,
-                    uf: data.uf
-                }));
-                setAddressFieldsDisabled(false);
-            } catch (err) {
-                console.error("Erro na busca do CEP:", err);
-                setCepError(err instanceof Error ? err.message : 'Erro ao buscar CEP.');
-                setAddressFieldsDisabled(false);
-                setFormData(prev => ({ ...prev, logradouro: '', bairro: '', cidade: '', uf: '' }));
-            } finally {
-                setCepLoading(false);
-            }
+            setFormData(prev => ({
+                ...prev,
+                logradouro: data.logradouro,
+                bairro: data.bairro,
+                cidade: data.localidade,
+                uf: data.uf
+            }));
+            setAddressFieldsDisabled(false);
+        } catch (err) {
+            console.error("Erro na busca do CEP:", err);
+            setCepError(err instanceof Error ? err.message : 'Erro ao buscar CEP.');
+            setAddressFieldsDisabled(false);
+            setFormData(prev => ({ ...prev, logradouro: '', bairro: '', cidade: '', uf: '' }));
+        } finally {
+            setCepLoading(false);
+        }
+    };
+
+    const handleCepBlur = async (event: React.FocusEvent<HTMLInputElement>) => {
+        const cepRaw = event.target.value.replace(/\D/g, '');
+        const formattedCep = cepRaw.replace(/^(\d{5})(\d{3})$/, '$1-$2');
+        setFormData(prev => ({ ...prev, cep: formattedCep }));
+        setCoordinates(null);
+        setGeocodingError(null);
+
+        if (cepRaw.length === 8) {
+            await lookupCep(cepRaw);
         } else if (cepRaw.length > 0) {
             setCepError('CEP inválido. Deve conter 8 dígitos.');
             setAddressFieldsDisabled(true);
@@ -269,7 +278,70 @@ export default function AddDemandaModal({ open, onClose, demandaInicial = null, 
             setFormData(prev => ({ ...prev, logradouro: '', bairro: '', cidade: '', uf: '' }));
         }
     };
-    // --- Fim handleCepBlur ---
+
+    // --- [NOVO] Handler para Importação de PDF ---
+    const handlePdfUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+        const file = event.target.files?.[0];
+        if (!file) return;
+
+        setIsParsingPdf(true);
+        setApiError(null);
+        setPdfImportSuccess(null);
+
+        try {
+            const uploadFormData = new FormData();
+            uploadFormData.append('file', file);
+
+            const response = await fetch('/api/demandas/parse-pdf', {
+                method: 'POST',
+                body: uploadFormData,
+            });
+
+            if (!response.ok) {
+                const errorData = await response.json();
+                throw new Error(errorData.message || 'Erro ao processar PDF.');
+            }
+
+            const data = await response.json();
+            console.log("[MODAL] Dados extraídos do PDF:", data);
+
+            // Atualiza o formulário com os dados extraídos
+            setFormData(prev => ({
+                ...prev,
+                protocolo: data.protocolo || prev.protocolo,
+                nome_solicitante: data.nome_solicitante || prev.nome_solicitante,
+                cep: data.cep || prev.cep,
+                logradouro: data.logradouro || prev.logradouro,
+                numero: data.numero || prev.numero,
+                bairro: data.bairro || prev.bairro,
+                cidade: data.cidade || prev.cidade,
+                uf: data.uf || prev.uf,
+                tipo_demanda: data.tipo_demanda || prev.tipo_demanda,
+                descricao: data.descricao || prev.descricao,
+            }));
+
+            // Se extraiu CEP, tenta buscar endereço
+            if (data.cep) {
+                const rawCep = data.cep.replace(/\D/g, '');
+                if (rawCep.length === 8) {
+                    await lookupCep(rawCep);
+                }
+            }
+
+            setPdfImportSuccess("Dados importados do PDF com sucesso!");
+
+            // Limpa mensagem de sucesso após 5 segundos
+            setTimeout(() => setPdfImportSuccess(null), 5000);
+
+        } catch (err) {
+            console.error("[MODAL] Erro ao importar PDF:", err);
+            setApiError(err instanceof Error ? err.message : 'Erro ao processar PDF.');
+        } finally {
+            setIsParsingPdf(false);
+            // Limpa o input file para permitir selecionar o mesmo arquivo novamente se necessário
+            event.target.value = '';
+        }
+    };
 
     // --- useEffect de Geocodificação (usando a função atualizada com cache) ---
     useEffect(() => {
@@ -391,8 +463,33 @@ export default function AddDemandaModal({ open, onClose, demandaInicial = null, 
                     <DialogTitle>{isEditing ? `Editar Demanda #${demandaInicial?.id}` : 'Registrar Nova Demanda'}</DialogTitle>
                     <DialogContent>
                         {apiError && <Alert severity="error" sx={{ mb: 2 }}>{apiError}</Alert>}
+                        {pdfImportSuccess && <Alert severity="success" sx={{ mb: 2 }}>{pdfImportSuccess}</Alert>}
                         {geocodingError && !apiError && !cepError && <Alert severity="warning" sx={{ mb: 2 }}>{geocodingError}</Alert>}
                         {cepError && !apiError && <Alert severity="warning" sx={{ mb: 2 }}>{cepError}</Alert>}
+
+                        <Box sx={{ mb: 3, p: 2, bgcolor: '#f5f5f5', borderRadius: 1, border: '1px dashed #ccc' }}>
+                            <Typography variant="body2" color="text.secondary" gutterBottom sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                                <InfoIcon fontSize="inherit" />
+                                Tem um PDF da demanda? Importe os dados automaticamente.
+                            </Typography>
+                            <Button
+                                component="label"
+                                variant="outlined"
+                                startIcon={isParsingPdf ? <CircularProgress size={20} /> : <PictureAsPdfIcon />}
+                                disabled={isParsingPdf || isEditing}
+                                color="secondary"
+                                size="small"
+                                fullWidth
+                            >
+                                {isParsingPdf ? 'Analisando...' : 'Importar Dados de PDF'}
+                                <input
+                                    type="file"
+                                    hidden
+                                    accept=".pdf"
+                                    onChange={handlePdfUpload}
+                                />
+                            </Button>
+                        </Box>
 
                         <Box component="form" sx={{ display: 'flex', flexDirection: 'column', gap: 2, mt: 2 }}>
                             {/* --- Protocolo e Solicitante --- */}

@@ -97,7 +97,7 @@ describe('NotificacoesRepository (Unit Test - Mocking DB)', () => {
 
         expect(result).toEqual(mockRows);
         expect(mockQuery).toHaveBeenCalledWith(
-            expect.stringContaining('WHERE n.organization_id = $1'),
+            expect.stringContaining('INNER JOIN demandas d ON n.demanda_id = d.id'),
             [1]
         );
         // Verifica a condição de vencimento
@@ -148,5 +148,31 @@ describe('NotificacoesRepository (Unit Test - Mocking DB)', () => {
         const result = await NotificacoesRepository.updateStatus(999, 1, 'Resolvido');
 
         expect(result).toBe(false);
+    });
+
+    // --- DELETE BY DEMANDA ---
+
+    it('deleteByDemanda: Deve deletar notificações por ID de demanda', async () => {
+        mockQuery.mockResolvedValueOnce({ rowCount: 2 });
+
+        const result = await NotificacoesRepository.deleteByDemanda(10, 1);
+
+        expect(result).toBe(true);
+        expect(mockQuery).toHaveBeenCalledWith(
+            expect.stringContaining('DELETE FROM notificacoes WHERE demanda_id = $1 AND organization_id = $2'),
+            [10, 1]
+        );
+    });
+
+    it('deleteByDemandas: Deve deletar notificações por múltiplos IDs de demanda', async () => {
+        mockQuery.mockResolvedValueOnce({ rowCount: 5 });
+
+        const result = await NotificacoesRepository.deleteByDemandas([10, 11, 12], 1);
+
+        expect(result).toBe(true);
+        expect(mockQuery).toHaveBeenCalledWith(
+            expect.stringContaining('DELETE FROM notificacoes WHERE demanda_id = ANY($1) AND organization_id = $2'),
+            [[10, 11, 12], 1]
+        );
     });
 });

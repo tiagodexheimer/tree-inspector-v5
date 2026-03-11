@@ -196,11 +196,16 @@ export const DemandasRepository = {
       FROM demandas d
       LEFT JOIN demandas_status s ON d.id_status = s.id
       LEFT JOIN LATERAL (
-        SELECT id, status, vencimento
-        FROM notificacoes
-        WHERE demanda_id = d.id
-        AND status = 'Pendente'
-        ORDER BY vencimento ASC
+        SELECT n.id, n.status, n.vencimento
+        FROM notificacoes n
+        WHERE n.demanda_id = d.id
+        AND n.status = 'Pendente'
+        AND NOT EXISTS (
+          SELECT 1 FROM demandas_status s2 
+          WHERE s2.id = d.id_status 
+          AND (s2.nome ILIKE 'Concluído' OR s2.nome ILIKE 'Concluída' OR s2.nome ILIKE 'Concluídas' OR s2.nome ILIKE 'Concluido' OR s2.nome ILIKE 'Finalizado')
+        )
+        ORDER BY n.vencimento ASC
         LIMIT 1
       ) n ON true
       ${whereSql}
@@ -278,6 +283,24 @@ export const DemandasRepository = {
         WHERE d.id = $1
     `;
     const result = await pool.query(query, [id]);
+    return result.rows[0] || null;
+  },
+
+  // [NOVO] Buscar por Protocolo
+  async findByProtocolo(protocolo: string, organizationId: number): Promise<any | null> {
+    const query = `
+        SELECT 
+            d.*, 
+            ST_AsGeoJSON(d.geom) as geom, 
+            ST_Y(d.geom::geometry) as lat, 
+            ST_X(d.geom::geometry) as lng,
+            s.nome as status_nome,
+            s.cor as status_cor
+        FROM demandas d
+        LEFT JOIN demandas_status s ON d.id_status = s.id
+        WHERE d.protocolo = $1 AND d.organization_id = $2
+    `;
+    const result = await pool.query(query, [protocolo, organizationId]);
     return result.rows[0] || null;
   },
 
@@ -433,7 +456,8 @@ export const DemandasRepository = {
     try {
       // Nota: As entradas na tabela rotas_demandas para rotas desta organização
       // já foram removidas pelo RotasRepository.deleteAllByOrganization.
-      // Aqui, removemos as demandas em si.
+      // Aqui, removemos as notificações e as demandas em si.
+      await pool.query(`DELETE FROM notificacoes WHERE organization_id = $1`, [organizationId]);
       const query = `
           DELETE FROM demandas
           WHERE organization_id = $1;

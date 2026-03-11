@@ -17,6 +17,18 @@ interface ChangelogEntry {
 
 const changelog: ChangelogEntry[] = [
     {
+        version: '1.3.0',
+        date: '10/03/2026',
+        changes: [
+            { type: 'added', text: 'Deleção em cascata de notificações ao excluir demandas' },
+            { type: 'added', text: 'Alteração de status diretamente no modal de detalhes da demanda' },
+            { type: 'added', text: 'Abertura automática de detalhes via notificações do dashboard' },
+            { type: 'fixed', text: 'Correção de erros na página de demandas e conflitos de exportação' },
+            { type: 'fixed', text: 'Ajustes no ambiente Android e correção de bugs nos testes' },
+            { type: 'changed', text: 'Expansão da cobertura de testes automatizados em ambas as plataformas' },
+        ],
+    },
+    {
         version: '1.2.0',
         date: '19/02/2026',
         changes: [
@@ -70,7 +82,7 @@ const VersionDisplay: React.FC = () => {
     return (
         <>
             <Button
-                href="/downloads/app-release-v1.2.apk"
+                href="/downloads/app-release-v1.3.apk"
                 download
                 startIcon={<AndroidIcon />}
                 size="small"

@@ -64,7 +64,7 @@ export default function PaginaDetalheRota() {
     } = useRotaDetalhesData(id);
 
     const {
-        saveOrder, exportToExcel, addDemandas,
+        saveOrder, exportToPdf, addDemandas,
         optimizeOrder,
         isSaving, isExporting, isOptimizing,
         opError, saveSuccess, setSaveSuccess, setOpError
@@ -308,11 +308,11 @@ export default function PaginaDetalheRota() {
                     <Button
                         variant="outlined" color="primary"
                         startIcon={isExporting ? <CircularProgress size={20} /> : <DownloadIcon />}
-                        onClick={exportToExcel}
+                        onClick={exportToPdf}
                         disabled={isSaving || isExporting || hasChanges || isOptimizing}
                         size={isMobile ? 'small' : 'medium'}
                     >
-                        {isExporting ? 'Exportando...' : (isMobile ? 'Exportar' : 'Exportar XLS')}
+                        {isExporting ? 'Exportando...' : (isMobile ? 'Exportar' : 'Exportar PDF')}
                     </Button>
 
                     {hasChanges && (

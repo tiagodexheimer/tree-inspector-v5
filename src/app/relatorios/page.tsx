@@ -2,10 +2,12 @@
 'use client';
 
 import React, { useEffect, useState } from 'react';
-import { Box, Typography, Paper, Button, Chip } from '@mui/material';
+import { Box, Typography, Paper, Button, Chip, TextField, MenuItem, FormControl, InputLabel, Select, InputAdornment } from '@mui/material';
 import { DataGrid, GridColDef, GridActionsCellItem, GridSortModel } from '@mui/x-data-grid';
 import PictureAsPdfIcon from '@mui/icons-material/PictureAsPdf';
 import DeleteForeverIcon from '@mui/icons-material/DeleteForever';
+import SearchIcon from '@mui/icons-material/Search';
+import FilterListIcon from '@mui/icons-material/FilterList';
 import { useRouter } from 'next/navigation';
 import AssessmentIcon from '@mui/icons-material/Assessment';
 import { usePageTitle } from '@/contexts/PageTitleContext';
@@ -18,7 +20,14 @@ const STORAGE_KEY = 'treeinspector_relatorios_sort';
 export default function RelatoriosPage() {
     usePageTitle("Relatórios de Vistoria", <AssessmentIcon />);
     const router = useRouter();
-    const { relatorios, isLoading, error, deleteRelatorio } = useRelatoriosData();
+    const {
+        relatorios,
+        isLoading,
+        error,
+        deleteRelatorio,
+        availableBairros,
+        filters
+    } = useRelatoriosData();
     const [sortModel, setSortModel] = useState<GridSortModel>([]);
 
     // Carregar ordenação do localStorage no mount
@@ -89,8 +98,67 @@ export default function RelatoriosPage() {
 
     return (
         <Box sx={{ p: 4 }}>
+            {/* Barra de Filtros */}
+            <Paper elevation={1} sx={{ p: 2, mb: 3, display: 'flex', gap: 2, flexWrap: 'wrap', alignItems: 'center' }}>
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mr: 1 }}>
+                    <FilterListIcon color="action" />
+                    <Typography variant="subtitle2" color="text.secondary">Filtros:</Typography>
+                </Box>
 
-            <Paper elevation={2} sx={{ height: 600, width: '100%' }}>
+                <TextField
+                    size="small"
+                    label="Rua"
+                    variant="outlined"
+                    value={filters.rua}
+                    onChange={(e) => filters.setRua(e.target.value)}
+                    sx={{ minWidth: 200 }}
+                    InputProps={{
+                        startAdornment: (
+                            <InputAdornment position="start">
+                                <SearchIcon fontSize="small" />
+                            </InputAdornment>
+                        ),
+                    }}
+                />
+
+                <FormControl size="small" sx={{ minWidth: 200 }}>
+                    <InputLabel>Bairro</InputLabel>
+                    <Select
+                        value={filters.bairro}
+                        label="Bairro"
+                        onChange={(e) => filters.setBairro(e.target.value)}
+                    >
+                        <MenuItem value=""><em>Todos os bairros</em></MenuItem>
+                        {availableBairros.map((bairro) => (
+                            <MenuItem key={bairro} value={bairro}>{bairro}</MenuItem>
+                        ))}
+                    </Select>
+                </FormControl>
+
+                <TextField
+                    size="small"
+                    label="Número"
+                    variant="outlined"
+                    value={filters.numero}
+                    onChange={(e) => filters.setNumero(e.target.value)}
+                    sx={{ width: 120 }}
+                />
+
+                {(filters.rua || filters.bairro || filters.numero) && (
+                    <Button
+                        size="small"
+                        onClick={() => {
+                            filters.setRua('');
+                            filters.setBairro('');
+                            filters.setNumero('');
+                        }}
+                    >
+                        Limpar
+                    </Button>
+                )}
+            </Paper>
+
+            <Paper elevation={2} sx={{ height: { xs: 600, md: 'calc(100vh - 280px)' }, width: '100%' }}>
                 <DataGrid
                     rows={relatorios}
                     columns={columns}
