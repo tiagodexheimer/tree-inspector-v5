@@ -12,6 +12,16 @@ import MyLocationIcon from '@mui/icons-material/MyLocation';
 import PictureAsPdfIcon from '@mui/icons-material/PictureAsPdf';
 import InfoIcon from '@mui/icons-material/Info';
 import { DemandaType } from "@/types/demanda";
+import dynamic from 'next/dynamic';
+
+const DraggableMap = dynamic(() => import("./DraggableMap"), {
+    ssr: false,
+    loading: () => (
+        <Box sx={{ height: 200, bgcolor: '#eee', borderRadius: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <CircularProgress size={24} />
+        </Box>
+    )
+});
 
 // --- [NOVO] CACHE LOCAL ---
 // Armazena resultados de CEP (ViaCEP) e Geocoding (Google) para evitar chamadas repetidas
@@ -547,6 +557,22 @@ export default function AddDemandaModal({ open, onClose, demandaInicial = null, 
                                 </Typography>
                                 {geocodingLoading && <CircularProgress size={18} sx={{ mr: 1 }} />}
                             </Box>
+
+                            {/* Mapa Interativo */}
+                            {coordinates && (
+                                <Box sx={{ mt: 1 }}>
+                                    <Typography variant="caption" color="text.secondary" gutterBottom display="block">
+                                        Arraste o marcador ou clique no mapa para ajustar a localização exata.
+                                    </Typography>
+                                    <Box sx={{ height: 200, borderRadius: 1, overflow: 'hidden' }}>
+                                        <DraggableMap
+                                            latitude={coordinates[0]}
+                                            longitude={coordinates[1]}
+                                            onChange={(lat, lng) => setCoordinates([lat, lng])}
+                                        />
+                                    </Box>
+                                </Box>
+                            )}
 
                             {/* --- Detalhes da Demanda --- */}
                             <Typography variant="subtitle1" gutterBottom sx={{ fontWeight: 'bold', mt: 2 }}>Detalhes da Demanda</Typography>
