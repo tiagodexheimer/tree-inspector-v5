@@ -1,7 +1,7 @@
 
 import pool from "../lib/db";
-import { demandasService } from "./demandas-service";
-import { notificacoesService } from "./notificacoes-service";
+import { demandasService } from "../services/demandas-service";
+import { notificacoesService } from "../services/notificacoes-service";
 import { StatusRepository } from "../repositories/status-repository";
 
 async function testCascade() {
