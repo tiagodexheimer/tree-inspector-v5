@@ -1,7 +1,7 @@
 // src/components/ui/demandas/AddDemandaModal.tsx
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import {
     Dialog, DialogTitle, DialogContent, DialogActions, Button, TextField, Box, Typography,
     Select, MenuItem, InputLabel, FormControl, CircularProgress, Alert, SelectChangeEvent
@@ -353,25 +353,42 @@ export default function AddDemandaModal({ open, onClose, demandaInicial = null, 
         }
     };
 
+    // --- [NOVO] Controle de Geocodificação para evitar overwrite manual ---
+    const lastGeocodedAddress = useRef<string>('');
+
     // --- useEffect de Geocodificação (usando a função atualizada com cache) ---
     useEffect(() => {
         const attemptGeocode = async () => {
             const cepNumerico = cep.replace(/\D/g, '');
+            const currentAddress = `${logradouro}|${numero}|${cidade}|${uf}`;
+
+            // Só geocodifica se:
+            // 1. Todos os campos obrigatórios estão preenchidos
+            // 2. O endereço mudou em relação à última geocodificação
+            // 3. (Opcional) Se já temos coordenadas mas o endereço mudou, a gente atualiza. 
+            //    Mas se o endereço é o MESMO da carga inicial, NÃO geocodifica (preserva o que veio do banco ou o manual drag imediato)
+            
             if (cepNumerico.length === 8 && logradouro && numero && cidade && uf && !cepError) {
+                // Se o endereço não mudou, não faz nada
+                if (currentAddress === lastGeocodedAddress.current) {
+                    return;
+                }
+
                 setGeocodingLoading(true);
                 setGeocodingError(null);
-                setCoordinates(null);
+                // setCoordinates(null); // Removido para evitar piscar o mapa
+
                 try {
+                    console.log("[MODAL Geocode] Endereço mudou, buscando novas coordenadas...");
                     const result = await geocodeAddressViaBackend(logradouro, numero, cidade, uf, cepNumerico, bairro);
                     if (result) {
                         setCoordinates(result);
+                        lastGeocodedAddress.current = currentAddress;
                     } else {
-                        // Se a geocodificação falhar (e.g., ZERO_RESULTS), mostra erro de geocoding
                         setGeocodingError('Não foi possível obter coordenadas para este endereço.');
                         setCoordinates(null);
                     }
                 } catch (error) {
-                    // Erro na chamada (e.g., API Key inválida, erro de rede)
                     setGeocodingError(error instanceof Error ? error.message : 'Erro ao obter coordenadas.');
                     setCoordinates(null);
                 } finally {
@@ -379,20 +396,34 @@ export default function AddDemandaModal({ open, onClose, demandaInicial = null, 
                 }
             } else {
                 // Se algum campo essencial estiver faltando ou houver erro no CEP, limpamos.
-                setCoordinates(null);
+                if (cepNumerico.length === 0) {
+                    setCoordinates(null);
+                    lastGeocodedAddress.current = '';
+                }
                 if (!cepError && !(cepNumerico.length === 8 && (!logradouro || !numero || !cidade || !uf))) {
                     setGeocodingError(null);
                 }
                 setGeocodingLoading(false);
             }
         };
+
         const handler = setTimeout(() => {
             if (open) {
                 attemptGeocode();
             }
-        }, 800);
+        }, 1200); // 1.2s de debounce para ser mais conservador
+
         return () => { clearTimeout(handler); };
     }, [cep, numero, logradouro, bairro, cidade, uf, cepError, open]);
+
+    // Inicializa a ref do endereço quando a demanda inicial carrega
+    useEffect(() => {
+        if (open && isEditing && demandaInicial) {
+            lastGeocodedAddress.current = `${demandaInicial.logradouro || ''}|${demandaInicial.numero || ''}|${demandaInicial.cidade || ''}|${demandaInicial.uf || ''}`;
+        } else if (open && !isEditing) {
+            lastGeocodedAddress.current = '';
+        }
+    }, [open, isEditing, demandaInicial]);
     // --- Fim useEffect Geocodificação ---
 
     // --- Função de Submit (handleSubmit) ---
