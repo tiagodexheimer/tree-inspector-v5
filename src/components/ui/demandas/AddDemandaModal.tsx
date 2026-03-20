@@ -69,7 +69,7 @@ interface FormData {
 
 
 // --- Função Geocodificação ATUALIZADA com cache ---
-async function geocodeAddressViaBackend(logradouro?: string | null, numero?: string | null, cidade?: string | null, uf?: string | null, cep?: string | null): Promise<[number, number] | null> {
+async function geocodeAddressViaBackend(logradouro?: string | null, numero?: string | null, cidade?: string | null, uf?: string | null, cep?: string | null, bairro?: string | null): Promise<[number, number] | null> {
     if (!logradouro || !numero || !cidade || !uf) {
         return null;
     }
@@ -87,7 +87,7 @@ async function geocodeAddressViaBackend(logradouro?: string | null, numero?: str
         const response = await fetch('/api/geocode', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ logradouro, numero, cidade, uf, cep }),
+            body: JSON.stringify({ logradouro, numero, cidade, uf, cep, bairro }),
         });
         const data: GeocodeApiResponse = await response.json();
 
@@ -132,7 +132,7 @@ export default function AddDemandaModal({ open, onClose, demandaInicial = null, 
     const [isParsingPdf, setIsParsingPdf] = useState(false);
     const [pdfImportSuccess, setPdfImportSuccess] = useState<string | null>(null);
 
-    const { logradouro, numero, cidade, uf, cep } = formData;
+    const { logradouro, numero, bairro, cidade, uf, cep } = formData;
 
     // --- useEffect para Preencher/Limpar Formulário (mantido) ---
     useEffect(() => {
@@ -362,7 +362,7 @@ export default function AddDemandaModal({ open, onClose, demandaInicial = null, 
                 setGeocodingError(null);
                 setCoordinates(null);
                 try {
-                    const result = await geocodeAddressViaBackend(logradouro, numero, cidade, uf, cepNumerico);
+                    const result = await geocodeAddressViaBackend(logradouro, numero, cidade, uf, cepNumerico, bairro);
                     if (result) {
                         setCoordinates(result);
                     } else {
@@ -392,7 +392,7 @@ export default function AddDemandaModal({ open, onClose, demandaInicial = null, 
             }
         }, 800);
         return () => { clearTimeout(handler); };
-    }, [cep, numero, logradouro, cidade, uf, cepError, open]);
+    }, [cep, numero, logradouro, bairro, cidade, uf, cepError, open]);
     // --- Fim useEffect Geocodificação ---
 
     // --- Função de Submit (handleSubmit) ---

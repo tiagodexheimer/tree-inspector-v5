@@ -76,6 +76,7 @@ export default function CriarNotificacaoAvulsaModal({ open, onClose, onSuccess }
                         body: JSON.stringify({
                             logradouro: formData.logradouro,
                             numero: formData.numero,
+                            bairro: formData.bairro,
                             cidade: formData.cidade,
                             uf: formData.uf,
                             cep: formData.cep

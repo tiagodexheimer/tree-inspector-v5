@@ -4,6 +4,7 @@ import { geocodingService } from '@/services/geocoding-service';
 interface GeocodeRequestBody {
     logradouro?: string;
     numero?: string;
+    bairro?: string;
     cidade?: string;
     uf?: string;
     cep?: string;
@@ -17,6 +18,7 @@ export async function POST(request: NextRequest) {
         const coordinates = await geocodingService.getCoordinates({
             logradouro: body.logradouro,
             numero: body.numero,
+            bairro: body.bairro,
             cidade: body.cidade,
             uf: body.uf,
             cep: body.cep
