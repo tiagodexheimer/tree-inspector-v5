@@ -25,6 +25,7 @@ import { OptimizedRouteData, DemandaComIdStatus } from "@/types/demanda";
 
 const AddDemandaModal = dynamic(() => import("@/components/ui/demandas/AddDemandaModal"), { ssr: false });
 const CriarRotaModal = dynamic(() => import("@/components/ui/demandas/CriarRotaModal"), { ssr: false });
+const ImportarPdfModal = dynamic(() => import("@/components/ui/demandas/ImportarPdfModal"), { ssr: false });
 const RouteMap = dynamic(() => import("@/components/ui/demandas/RouteMap"), {
     loading: () => <Box sx={{ height: 600, bgcolor: '#eee' }} />,
     ssr: false
@@ -102,7 +103,8 @@ function DemandasContent() {
     // [NOVO] Estados para Visualização de Detalhes (via Mapa)
     const [viewDemandaModalOpen, setViewDemandaModalOpen] = useState(false);
     const [selectedDemandaForView, setSelectedDemandaForView] = useState<DemandaComIdStatus | null>(null);
-    const [isNotificacaoModalOpen, setIsNotificacaoModalOpen] = useState(false); // [NOVO]
+    const [isNotificacaoModalOpen, setIsNotificacaoModalOpen] = useState(false);
+    const [importPdfModalOpen, setImportPdfModalOpen] = useState(false);
 
     const [isOptimizing, setIsOptimizing] = useState(false);
     const [optimizedRouteData, setOptimizedRouteData] = useState<OptimizedRouteData | null>(null);
@@ -209,6 +211,7 @@ function DemandasContent() {
                         setAddModalOpen(true);
                     }}
                     onAddNotificacaoClick={() => setIsNotificacaoModalOpen(true)}
+                    onImportPdfClick={() => setImportPdfModalOpen(true)}
                     onCreateRotaClick={handlePrepareRota}
                     onDeleteSelectedClick={handleRequestDeleteSelected}
                     selectedDemandasCount={selectedDemandas.length}
@@ -340,6 +343,15 @@ function DemandasContent() {
 
             {criarRotaModalOpen && (
                 <CriarRotaModal open={criarRotaModalOpen} onClose={() => setCriarRotaModalOpen(false)} routeData={optimizedRouteData} onRotaCriada={() => setCriarRotaModalOpen(false)} />
+            )}
+
+            {importPdfModalOpen && (
+                <ImportarPdfModal
+                    open={importPdfModalOpen}
+                    onClose={() => { setImportPdfModalOpen(false); refresh(); }}
+                    onSuccess={refresh}
+                    availableTipos={availableTipos}
+                />
             )}
 
             {/* [NOVO] Modal de Detalhes (acionado pelo Mapa ou URL) */}

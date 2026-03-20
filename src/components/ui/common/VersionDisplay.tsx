@@ -17,6 +17,25 @@ interface ChangelogEntry {
 
 const changelog: ChangelogEntry[] = [
     {
+        version: '1.4.1',
+        date: '20/03/2026',
+        changes: [
+            { type: 'fixed', text: 'Correção no ajuste manual de coordenadas via pino do mapa' },
+            { type: 'fixed', text: 'Estabilidade da geocodificação automática ao abrir o modal' },
+        ],
+    },
+    {
+        version: '1.4.0',
+        date: '20/03/2026',
+        changes: [
+            { type: 'added', text: 'Importação em lote de demandas via upload de múltiplos PDFs' },
+            { type: 'added', text: 'Redesign completo da toolbar de demandas para melhor usabilidade' },
+            { type: 'added', text: 'Filtro por "Tipo de Demanda" na visualização principal' },
+            { type: 'changed', text: 'Lógica de extração de endereços de PDFs prioriza o local da atividade' },
+            { type: 'changed', text: 'Melhoria na limpeza de filtros com botão explícito' },
+        ],
+    },
+    {
         version: '1.3.0',
         date: '10/03/2026',
         changes: [
