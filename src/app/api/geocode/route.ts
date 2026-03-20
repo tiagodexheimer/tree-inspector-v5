@@ -6,6 +6,7 @@ interface GeocodeRequestBody {
     numero?: string;
     cidade?: string;
     uf?: string;
+    cep?: string;
 }
 
 export async function POST(request: NextRequest) {
@@ -17,7 +18,8 @@ export async function POST(request: NextRequest) {
             logradouro: body.logradouro,
             numero: body.numero,
             cidade: body.cidade,
-            uf: body.uf
+            uf: body.uf,
+            cep: body.cep
         });
 
         if (!coordinates) {

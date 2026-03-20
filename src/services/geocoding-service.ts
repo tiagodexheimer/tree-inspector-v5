@@ -3,6 +3,7 @@ interface AddressInput {
   numero?: string | null;
   cidade?: string | null;
   uf?: string | null;
+  cep?: string | null;
 }
 
 export class GeocodingService {
@@ -32,6 +33,7 @@ export class GeocodingService {
       input.logradouro,
       input.cidade,
       input.uf,
+      input.cep,
       "Brasil"
     ].filter(Boolean);
     
@@ -41,8 +43,15 @@ export class GeocodingService {
     const queryParams = new URLSearchParams({
       address: addressString,
       key: this.apiKey,
-      language: "pt-BR"
+      language: "pt-BR",
     });
+
+    // Adiciona restrição estrita por município e estado, se fornecidos
+    // No Brasil, a cidade é frequentemente mapeada como administrative_area_level_2 no Google Maps,
+    // então usar administrative_area cobre tanto cidade quanto UF de forma mais confiável.
+    if (input.cidade && input.uf) {
+      queryParams.append("components", `administrative_area:${input.cidade}|administrative_area:${input.uf}|country:BR`);
+    }
 
     const apiUrl = `https://maps.googleapis.com/maps/api/geocode/json?${queryParams.toString()}`;
 

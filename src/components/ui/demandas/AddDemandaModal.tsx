@@ -69,7 +69,7 @@ interface FormData {
 
 
 // --- Função Geocodificação ATUALIZADA com cache ---
-async function geocodeAddressViaBackend(logradouro?: string | null, numero?: string | null, cidade?: string | null, uf?: string | null): Promise<[number, number] | null> {
+async function geocodeAddressViaBackend(logradouro?: string | null, numero?: string | null, cidade?: string | null, uf?: string | null, cep?: string | null): Promise<[number, number] | null> {
     if (!logradouro || !numero || !cidade || !uf) {
         return null;
     }
@@ -87,7 +87,7 @@ async function geocodeAddressViaBackend(logradouro?: string | null, numero?: str
         const response = await fetch('/api/geocode', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ logradouro, numero, cidade, uf }),
+            body: JSON.stringify({ logradouro, numero, cidade, uf, cep }),
         });
         const data: GeocodeApiResponse = await response.json();
 
@@ -362,7 +362,7 @@ export default function AddDemandaModal({ open, onClose, demandaInicial = null, 
                 setGeocodingError(null);
                 setCoordinates(null);
                 try {
-                    const result = await geocodeAddressViaBackend(logradouro, numero, cidade, uf);
+                    const result = await geocodeAddressViaBackend(logradouro, numero, cidade, uf, cepNumerico);
                     if (result) {
                         setCoordinates(result);
                     } else {

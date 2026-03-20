@@ -77,7 +77,8 @@ export default function CriarNotificacaoAvulsaModal({ open, onClose, onSuccess }
                             logradouro: formData.logradouro,
                             numero: formData.numero,
                             cidade: formData.cidade,
-                            uf: formData.uf
+                            uf: formData.uf,
+                            cep: formData.cep
                         })
                     });
                     const data = await res.json();
