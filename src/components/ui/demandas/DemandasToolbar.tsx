@@ -8,6 +8,7 @@ import {
 } from '@mui/material';
 import SearchIcon from '@mui/icons-material/Search';
 import AddCircleOutlineIcon from '@mui/icons-material/AddCircleOutline';
+import PictureAsPdfIcon from '@mui/icons-material/PictureAsPdf';
 import RouteIcon from '@mui/icons-material/Route';
 import DeleteIcon from '@mui/icons-material/Delete';
 import FilterListOffIcon from '@mui/icons-material/FilterListOff';
@@ -40,7 +41,8 @@ interface DemandasToolbarProps {
     onViewModeChange: (mode: 'card' | 'list' | 'map') => void;
 
     onAddDemandaClick: () => void;
-    onAddNotificacaoClick: () => void; // [NOVO]
+    onImportPdfClick: () => void;
+    onAddNotificacaoClick: () => void;
     onCreateRotaClick: () => void;
     onDeleteSelectedClick: () => void;
 
@@ -189,6 +191,16 @@ export default function DemandasToolbar(props: DemandasToolbarProps) {
                             size="small"
                         >
                             Nova Demanda
+                        </Button>
+
+                        <Button
+                            variant="outlined"
+                            color="primary"
+                            startIcon={<PictureAsPdfIcon />}
+                            onClick={props.onImportPdfClick}
+                            size="small"
+                        >
+                            Importar PDFs
                         </Button>
 
                         <Button
