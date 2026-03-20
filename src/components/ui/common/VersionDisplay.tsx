@@ -17,6 +17,14 @@ interface ChangelogEntry {
 
 const changelog: ChangelogEntry[] = [
     {
+        version: '1.4.1',
+        date: '20/03/2026',
+        changes: [
+            { type: 'fixed', text: 'Correção no ajuste manual de coordenadas via pino do mapa' },
+            { type: 'fixed', text: 'Estabilidade da geocodificação automática ao abrir o modal' },
+        ],
+    },
+    {
         version: '1.4.0',
         date: '20/03/2026',
         changes: [
