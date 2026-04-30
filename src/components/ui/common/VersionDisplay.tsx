@@ -17,6 +17,14 @@ interface ChangelogEntry {
 
 const changelog: ChangelogEntry[] = [
     {
+        version: '1.5.0',
+        date: '30/04/2026',
+        changes: [
+            { type: 'added', text: 'Nova rotina de compressão de imagens para maior velocidade de upload' },
+            { type: 'changed', text: 'Monitoramento contínuo de GPS em tempo real para vistorias mais precisas' },
+        ],
+    },
+    {
         version: '1.4.1',
         date: '20/03/2026',
         changes: [
@@ -101,7 +109,7 @@ const VersionDisplay: React.FC = () => {
     return (
         <>
             <Button
-                href="/downloads/app-release-v1.3.apk"
+                href="/downloads/app-release-v1.5.apk"
                 download
                 startIcon={<AndroidIcon />}
                 size="small"

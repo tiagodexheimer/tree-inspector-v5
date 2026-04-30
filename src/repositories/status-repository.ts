@@ -90,7 +90,7 @@ export const StatusRepository = {
             const query = `
                 SELECT id, nome, cor, organization_id, is_custom, is_default_global
                 FROM demandas_status 
-                WHERE nome = $1 AND (organization_id IS NULL OR organization_id = $2)
+                WHERE nome ILIKE $1 AND (organization_id IS NULL OR organization_id = $2)
                 ORDER BY organization_id DESC NULLS LAST
                 LIMIT 1
             `;

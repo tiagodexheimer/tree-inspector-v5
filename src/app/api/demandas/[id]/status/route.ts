@@ -79,16 +79,27 @@ export async function PUT(request: NextRequest, context: ExpectedContext) {
       return NextResponse.json({ message: "Nome do status inválido." }, { status: 400 });
     }
 
-    // 1. Busca o ID do status pelo nome (Ex: "Em Rota" -> ID 2)
-    const statusObj = await StatusRepository.findByName(status);
+    // 1. Identifica a Organização
+    const session = await auth();
+    const organizationId = parseInt((session?.user as any)?.organizationId || "0", 10);
+
+    // 2. Busca o ID do status pelo nome (Ex: "Em Rota" -> ID 2)
+    let statusObj = await StatusRepository.findByName(status, organizationId);
+    
+    // Fallback: Se não encontrou pelo nome exato, tenta ignorar case/acentos se o repo suportar
+    // Ou tenta mapeamentos comuns
+    if (!statusObj) {
+        const normalized = status.toLowerCase();
+        if (normalized.includes("concluido") || normalized.includes("concluida")) {
+            statusObj = await StatusRepository.findByName("Concluído", organizationId);
+        }
+    }
+
     if (!statusObj) {
       return NextResponse.json({ message: `Status '${status}' não encontrado no sistema.` }, { status: 404 });
     }
 
-    // 2. Atualiza usando o ID encontrado
-    const session = await auth();
-    const organizationId = parseInt((session?.user as any)?.organizationId || "0", 10);
-
+    // 3. Atualiza usando o ID encontrado
     await demandasService.updateDemandaStatus(id, statusObj.id, organizationId);
 
     return NextResponse.json({ message: "Status atualizado com sucesso!" }, { status: 200 });
