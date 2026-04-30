@@ -23,6 +23,9 @@ export async function POST(request: Request): Promise<NextResponse> {
     if (!file) {
       return NextResponse.json({ message: 'Arquivo não encontrado.' }, { status: 400 });
     }
+    
+    // [DEBUG] Log de tamanho para diagnosticar Payload Too Large
+    console.log(`[Upload API] Recebendo arquivo: ${cleanName}, Tamanho: ${file.size} bytes (${(file.size / 1024 / 1024).toFixed(2)} MB)`);
 
     // 4. Envia para o Blob com o caminho contendo a pasta
     const blob = await put(filepath, file, {

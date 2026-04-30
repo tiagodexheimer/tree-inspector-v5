@@ -17,6 +17,16 @@ interface ChangelogEntry {
 
 const changelog: ChangelogEntry[] = [
     {
+        version: '1.5.1',
+        date: '30/04/2026',
+        changes: [
+            { type: 'fixed', text: 'Correção de travamento ao salvar fotos em aparelhos de alta resolução' },
+            { type: 'added', text: 'Possibilidade de excluir fotos individualmente nos campos de vistoria' },
+            { type: 'changed', text: 'Melhoria na precisão e tempo de obtenção de GPS e endereço' },
+            { type: 'changed', text: 'Aumento da qualidade e resolução das imagens processadas (1280px)' },
+        ],
+    },
+    {
         version: '1.5.0',
         date: '30/04/2026',
         changes: [
@@ -109,7 +119,7 @@ const VersionDisplay: React.FC = () => {
     return (
         <>
             <Button
-                href="/downloads/app-release-v1.5.apk"
+                href="/downloads/app-release-v1.5.1.apk"
                 download
                 startIcon={<AndroidIcon />}
                 size="small"
