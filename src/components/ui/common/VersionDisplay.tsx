@@ -17,6 +17,16 @@ interface ChangelogEntry {
 
 const changelog: ChangelogEntry[] = [
     {
+        version: '1.5.2',
+        date: '07/05/2026',
+        changes: [
+            { type: 'fixed', text: 'Correção de bug onde o endereço voltava para o anterior ao concluir vistoria' },
+            { type: 'changed', text: 'Padronização do status "Concluído" para garantir consistência entre plataformas' },
+            { type: 'added', text: 'Novo feedback visual (cor laranja) para o status "Em Rota"' },
+            { type: 'fixed', text: 'Preservação do status local durante a sincronização de rotas' },
+        ],
+    },
+    {
         version: '1.5.1',
         date: '30/04/2026',
         changes: [
@@ -119,7 +129,7 @@ const VersionDisplay: React.FC = () => {
     return (
         <>
             <Button
-                href="/downloads/app-release-v1.5.1.apk"
+                href="/downloads/app-release-v1.5.2.apk"
                 download
                 startIcon={<AndroidIcon />}
                 size="small"
