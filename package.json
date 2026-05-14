@@ -1,6 +1,6 @@
 {
   "name": "tree-inspector",
-  "version": "1.5.2",
+  "version": "1.5.3",
   "private": true,
   "scripts": {
     "dev": "next dev",
@@ -49,6 +49,7 @@
     "react-dom": "19.2.0",
     "react-leaflet": "^5.0.0",
     "recharts": "^3.5.0",
+    "sharp": "^0.34.5",
     "xlsx": "https://cdn.sheetjs.com/xlsx-0.20.3/xlsx-0.20.3.tgz"
   },
   "devDependencies": {
