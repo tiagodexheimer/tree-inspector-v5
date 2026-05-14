@@ -27,7 +27,7 @@ export async function GET(request: NextRequest) {
         const filename = imageUrl.split('/').pop()?.split('?')[0].replace('.webp', '.jpg') || 'imagem.jpg';
         const isDownload = searchParams.get('download') === '1';
 
-        return new NextResponse(convertedBuffer, {
+        return new NextResponse(new Uint8Array(convertedBuffer), {
             headers: {
                 'Content-Type': 'image/jpeg',
                 'Content-Disposition': `${isDownload ? 'attachment' : 'inline'}; filename="${filename}"`,
