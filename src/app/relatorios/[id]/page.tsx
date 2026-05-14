@@ -47,11 +47,14 @@ const RenderizarResposta = ({ valor }: { valor: any }) => {
         const isBase64 = valor.startsWith('data:image');
 
         if (isUrlVercel || isImagemExtensao || isBase64) {
+            const jpgUrl = `/api/images/convert?url=${encodeURIComponent(valor)}`;
+            const downloadUrl = `${jpgUrl}&download=1`;
+
             return (
                 <Card variant="outlined" sx={{ maxWidth: '100%', width: 'fit-content' }}>
                     <CardMedia
                         component="img"
-                        image={valor}
+                        image={jpgUrl}
                         alt="Evidência Fotográfica"
                         sx={{
                             height: 200,
@@ -59,9 +62,11 @@ const RenderizarResposta = ({ valor }: { valor: any }) => {
                             minWidth: 150,
                             objectFit: 'contain',
                             bgcolor: '#f0f0f0',
-                            cursor: 'pointer'
+                            cursor: 'pointer',
+                            borderRadius: 1
                         }}
-                        onClick={() => window.open(valor, '_blank')}
+                        onClick={() => window.open(jpgUrl, '_blank')}
+                        title="Clique para abrir imagem em JPG"
                     />
                 </Card>
             );

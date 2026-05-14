@@ -17,6 +17,15 @@ interface ChangelogEntry {
 
 const changelog: ChangelogEntry[] = [
     {
+        version: '1.5.3',
+        date: '14/05/2026',
+        changes: [
+            { type: 'added', text: 'Conversão automática de fotos WebP para JPG na visualização de pareceres' },
+            { type: 'changed', text: 'Melhoria na usabilidade: fotos do relatório agora podem ser salvas diretamente como JPG' },
+            { type: 'added', text: 'Nova API de processamento de imagem on-the-fly para exportação externa' },
+        ],
+    },
+    {
         version: '1.5.2',
         date: '07/05/2026',
         changes: [
@@ -129,7 +138,7 @@ const VersionDisplay: React.FC = () => {
     return (
         <>
             <Button
-                href="/downloads/app-release-v1.5.2.apk"
+                href="/downloads/app-release-v1.5.3.apk"
                 download
                 startIcon={<AndroidIcon />}
                 size="small"
